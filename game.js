@@ -1813,51 +1813,197 @@ GameEngine.prototype.renderMiniMap = function() {
 };
 
 /**
- * 渲染玩家
+ * 渲染玩家 - 戴墨镜的酷炫像素角色
  */
 GameEngine.prototype.renderPlayer = function() {
-    // 玩家主体（适配大地图，增大玩家尺寸）
-    var playerRadius = 18; // 增大玩家半径
-    this.ctx.fillStyle = '#3498db';
-    this.ctx.beginPath();
-    this.ctx.arc(this.player.x, this.player.y, playerRadius, 0, Math.PI * 2);
-    this.ctx.fill();
+    var x = this.player.x;
+    var y = this.player.y;
     
-    // 玩家边框
-    this.ctx.strokeStyle = '#2c3e50';
-    this.ctx.lineWidth = 3;
-    this.ctx.stroke();
+    this.ctx.save();
+    this.ctx.imageSmoothingEnabled = false; // 保持像素风格
     
-    // 添加玩家内部细节 - 更大的眼睛
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.beginPath();
-    this.ctx.arc(this.player.x - 5, this.player.y - 5, 3, 0, Math.PI * 2);
-    this.ctx.arc(this.player.x + 5, this.player.y - 5, 3, 0, Math.PI * 2);
-    this.ctx.fill();
+    // === 身体部分 ===
     
-    // 瞳孔
-    this.ctx.fillStyle = '#2c3e50';
-    this.ctx.beginPath();
-    this.ctx.arc(this.player.x - 5, this.player.y - 5, 1, 0, Math.PI * 2);
-    this.ctx.arc(this.player.x + 5, this.player.y - 5, 1, 0, Math.PI * 2);
-    this.ctx.fill();
+    // 白色衣服主体
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillRect(x - 10, y - 6, 20, 18); // 主体衣服
     
-    // 血条（适配更大的玩家）
+    // 衣服阴影
+    this.ctx.fillStyle = '#E0E0E0';
+    this.ctx.fillRect(x + 8, y - 4, 2, 14); // 右边阴影
+    this.ctx.fillRect(x - 8, y + 10, 16, 2); // 底部阴影
+    
+    // 衣服褶皱细节
+    this.ctx.fillStyle = '#F0F0F0';
+    this.ctx.fillRect(x - 6, y - 2, 2, 8); // 左侧折痕
+    this.ctx.fillRect(x + 4, y + 2, 2, 6); // 右侧折痕
+    
+    // === 头部区域 ===
+    
+    // 橙色皮肤 - 脸部
+    this.ctx.fillStyle = '#FF8C42'; // 橙色皮肤
+    this.ctx.fillRect(x - 10, y - 20, 20, 16); // 脸部主区域
+    
+    // 皮肤高光
+    this.ctx.fillStyle = '#FFB366';
+    this.ctx.fillRect(x - 8, y - 18, 4, 4); // 左额头高光
+    this.ctx.fillRect(x + 4, y - 16, 4, 3); // 右脸颊高光
+    
+    // 皮肤阴影
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x + 8, y - 16, 2, 12); // 脸部右侧阴影
+    this.ctx.fillRect(x - 6, y - 6, 12, 2); // 下巴阴影
+    
+    // === 黑色头发 ===
+    
+    // 主要头发区域 - 更蓬松的造型
+    this.ctx.fillStyle = '#1A1A1A';
+    this.ctx.fillRect(x - 12, y - 28, 24, 12); // 头发主体
+    this.ctx.fillRect(x - 10, y - 32, 20, 6); // 头发顶部
+    
+    // 头发侧面延伸
+    this.ctx.fillRect(x - 14, y - 26, 4, 8); // 左侧蓬松头发
+    this.ctx.fillRect(x + 10, y - 26, 4, 8); // 右侧蓬松头发
+    
+    // 头发前刘海
+    this.ctx.fillRect(x - 8, y - 22, 16, 4); // 刘海区域
+    this.ctx.fillRect(x - 4, y - 24, 8, 2); // 刘海尖端
+    
+    // 头发高光
+    this.ctx.fillStyle = '#404040';
+    this.ctx.fillRect(x - 6, y - 30, 3, 2); // 左侧高光
+    this.ctx.fillRect(x + 3, y - 32, 3, 2); // 右侧高光
+    this.ctx.fillRect(x - 2, y - 22, 4, 1); // 刘海高光
+    
+    // === 酷炫墨镜 ===
+    
+    // 墨镜镜框
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillRect(x - 8, y - 18, 16, 6); // 镜框主体
+    
+    // 墨镜镜片 - 深色
+    this.ctx.fillStyle = '#1a1a1a';
+    this.ctx.fillRect(x - 7, y - 17, 6, 4); // 左镜片
+    this.ctx.fillRect(x + 1, y - 17, 6, 4); // 右镜片
+    
+    // 墨镜反光效果
+    this.ctx.fillStyle = '#333333';
+    this.ctx.fillRect(x - 6, y - 17, 2, 1); // 左镜片反光
+    this.ctx.fillRect(x + 2, y - 17, 2, 1); // 右镜片反光
+    this.ctx.fillStyle = '#555555';
+    this.ctx.fillRect(x - 7, y - 16, 1, 2); // 左镜片边缘光
+    this.ctx.fillRect(x + 6, y - 16, 1, 2); // 右镜片边缘光
+    
+    // 墨镜鼻梁
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillRect(x - 1, y - 17, 2, 2); // 鼻梁连接
+    
+    // 墨镜镜腿
+    this.ctx.fillRect(x - 10, y - 17, 2, 1); // 左镜腿
+    this.ctx.fillRect(x + 8, y - 17, 2, 1); // 右镜腿
+    
+    // === 面部细节 (墨镜下方) ===
+    
+    // 鼻子
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x - 1, y - 12, 2, 2); // 鼻子阴影
+    this.ctx.fillStyle = '#FFB366';
+    this.ctx.fillRect(x, y - 13, 1, 1); // 鼻子高光
+    
+    // 嘴巴 - 酷酷的表情
+    this.ctx.fillStyle = '#D4621F';
+    this.ctx.fillRect(x - 2, y - 10, 4, 1); // 嘴巴
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x - 1, y - 9, 2, 1); // 嘴巴阴影
+    
+    // === 手臂 ===
+    
+    // 左手臂
+    this.ctx.fillStyle = '#FF8C42';
+    this.ctx.fillRect(x - 14, y - 4, 4, 10); // 左上臂
+    this.ctx.fillRect(x - 16, y + 4, 4, 8); // 左前臂
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x - 12, y + 2, 2, 4); // 左臂阴影
+    
+    // 右手臂
+    this.ctx.fillStyle = '#FF8C42';
+    this.ctx.fillRect(x + 10, y - 4, 4, 10); // 右上臂
+    this.ctx.fillRect(x + 12, y + 4, 4, 8); // 右前臂
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x + 10, y + 2, 2, 4); // 右臂阴影
+    
+    // 手部
+    this.ctx.fillStyle = '#FF8C42';
+    this.ctx.fillRect(x - 18, y + 10, 4, 4); // 左手
+    this.ctx.fillRect(x + 14, y + 10, 4, 4); // 右手
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x - 16, y + 12, 2, 2); // 左手阴影
+    this.ctx.fillRect(x + 14, y + 12, 2, 2); // 右手阴影
+    
+    // === 腿部 ===
+    
+    // 左腿
+    this.ctx.fillStyle = '#FF8C42';
+    this.ctx.fillRect(x - 6, y + 12, 5, 14); // 左大腿
+    this.ctx.fillRect(x - 7, y + 24, 5, 8); // 左小腿
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x - 2, y + 20, 2, 6); // 左腿阴影
+    
+    // 右腿
+    this.ctx.fillStyle = '#FF8C42';
+    this.ctx.fillRect(x + 1, y + 12, 5, 14); // 右大腿
+    this.ctx.fillRect(x + 2, y + 24, 5, 8); // 右小腿
+    this.ctx.fillStyle = '#E6732A';
+    this.ctx.fillRect(x + 1, y + 20, 2, 6); // 右腿阴影
+    
+    // === 白色鞋子 ===
+    
+    // 左脚鞋子
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillRect(x - 10, y + 30, 8, 5); // 左鞋主体
+    this.ctx.fillStyle = '#E0E0E0';
+    this.ctx.fillRect(x - 8, y + 32, 4, 2); // 左鞋阴影
+    this.ctx.fillStyle = '#F8F8F8';
+    this.ctx.fillRect(x - 9, y + 30, 2, 1); // 左鞋高光
+    
+    // 右脚鞋子
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillRect(x + 2, y + 30, 8, 5); // 右鞋主体
+    this.ctx.fillStyle = '#E0E0E0';
+    this.ctx.fillRect(x + 4, y + 32, 4, 2); // 右鞋阴影
+    this.ctx.fillStyle = '#F8F8F8';
+    this.ctx.fillRect(x + 7, y + 30, 2, 1); // 右鞋高光
+    
+    this.ctx.restore();
+    
+    // === 血条 ===
     if (this.player.health < this.player.maxHealth) {
-        var barWidth = 36;
-        var barHeight = 6;
+        var barWidth = 44;
+        var barHeight = 7;
         var healthPercent = this.player.health / this.player.maxHealth;
         
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        this.ctx.fillRect(this.player.x - barWidth / 2, this.player.y - playerRadius - 12, barWidth, barHeight);
+        // 血条背景
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillRect(x - barWidth / 2, y - 42, barWidth, barHeight);
         
-        this.ctx.fillStyle = healthPercent > 0.5 ? '#27ae60' : '#e74c3c';
-        this.ctx.fillRect(this.player.x - barWidth / 2, this.player.y - playerRadius - 12, barWidth * healthPercent, barHeight);
+        // 血条
+        this.ctx.fillStyle = healthPercent > 0.7 ? '#27ae60' : healthPercent > 0.3 ? '#f39c12' : '#e74c3c';
+        this.ctx.fillRect(x - barWidth / 2 + 1, y - 41, (barWidth - 2) * healthPercent, barHeight - 2);
         
         // 血条边框
         this.ctx.strokeStyle = '#ffffff';
         this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(this.player.x - barWidth / 2, this.player.y - playerRadius - 12, barWidth, barHeight);
+        this.ctx.strokeRect(x - barWidth / 2, y - 42, barWidth, barHeight);
+        
+        // 血条分段线 - 像素风格
+        for (var i = 1; i < 4; i++) {
+            var segmentX = x - barWidth / 2 + (barWidth / 4) * i;
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(segmentX, y - 42);
+            this.ctx.lineTo(segmentX, y - 35);
+            this.ctx.stroke();
+        }
     }
 };
 
