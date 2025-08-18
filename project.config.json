@@ -1,0 +1,31 @@
+{
+    "setting": {
+        "urlCheck": true,
+        "es6": false,
+        "postcss": true,
+        "minified": false,
+        "newFeature": true,
+        "autoCompile": true,
+        "compileHotReLoad": true,
+        "nativeCompile": true
+    },
+    "appid": "testAppId",
+    "projectname": "test0818",
+    "douyinProjectType": "native",
+    "packOptions": {
+        "ignore": [
+            {
+                "type": "folder",
+                "value": "src"
+            },
+            {
+                "type": "folder", 
+                "value": "assets"
+            },
+            {
+                "type": "file",
+                "value": "游戏介绍"
+            }
+        ]
+    }
+}
