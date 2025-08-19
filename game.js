@@ -55,7 +55,13 @@ function GameEngine(canvas, ctx) {
         y: this.mapConfig.height / 2, 
         health: 20, 
         maxHealth: 20, 
-        level: 1 
+        level: 1,
+        // 添加动画相关属性
+        isWalking: false,
+        walkAnimationFrame: 0,
+        walkAnimationSpeed: 200, // 毫秒
+        lastAnimationTime: 0,
+        direction: 'down' // 'up', 'down', 'left', 'right'
     };
     this.companions = [];
     this.currentBuilding = null;
@@ -792,8 +798,23 @@ GameEngine.prototype.update = function(deltaTime) {
  * 更新玩家
  */
 GameEngine.prototype.updatePlayer = function(deltaTime) {
-    if (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0) {
-        var moveSpeed = 12; // 大幅增加移动速度，适应超大地图和建筑
+    var isMoving = (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0);
+    
+    if (isMoving) {
+        // 设置行走状态
+        this.player.isWalking = true;
+        
+        // 更新行走方向
+        if (Math.abs(this.joystick.direction.x) > Math.abs(this.joystick.direction.y)) {
+            this.player.direction = this.joystick.direction.x > 0 ? 'right' : 'left';
+        } else {
+            this.player.direction = this.joystick.direction.y > 0 ? 'down' : 'up';
+        }
+        
+        // 更新行走动画帧
+        this.updateWalkAnimation(deltaTime);
+        
+        var moveSpeed = 4; // 调整移动速度为原来的1/3
         var newX = this.player.x + this.joystick.direction.x * moveSpeed;
         var newY = this.player.y + this.joystick.direction.y * moveSpeed;
         
@@ -828,11 +849,28 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
             this.player.x = Math.max(60, Math.min(340, newX));
             this.player.y = Math.max(110, Math.min(290, newY));
         }
+        
+    } else {
+        // 停止行走状态
+        this.player.isWalking = false;
+        this.player.walkAnimationFrame = 0;
     }
     
     // 更新摄像机位置
     if (this.gameState === 'playing') {
         this.updateCamera(deltaTime);
+    }
+};
+
+/**
+ * 更新行走动画
+ */
+GameEngine.prototype.updateWalkAnimation = function(deltaTime) {
+    this.player.lastAnimationTime += deltaTime;
+    
+    if (this.player.lastAnimationTime >= this.player.walkAnimationSpeed) {
+        this.player.walkAnimationFrame = (this.player.walkAnimationFrame + 1) % 4; // 4帧循环
+        this.player.lastAnimationTime = 0;
     }
 };
 
@@ -1813,11 +1851,36 @@ GameEngine.prototype.renderMiniMap = function() {
 };
 
 /**
- * 渲染玩家 - 戴墨镜的酷炫像素角色
+ * 渲染玩家 - 戴墨镜的酷炫像素角色（带行走动画）
  */
 GameEngine.prototype.renderPlayer = function() {
     var x = this.player.x;
     var y = this.player.y;
+    
+    // 计算动画偏移
+    var bobOffset = 0;
+    var leftLegOffset = 0;
+    var rightLegOffset = 0;
+    var leftArmOffset = 0;
+    var rightArmOffset = 0;
+    
+    if (this.player.isWalking) {
+        // 行走时的上下摆动
+        bobOffset = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 1.5;
+        
+        // 腿部动画偏移 - 交替摆动
+        var legSwing = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 3;
+        leftLegOffset = legSwing;
+        rightLegOffset = -legSwing;
+        
+        // 手臂摆动 - 与腿部相反
+        var armSwing = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 2;
+        leftArmOffset = -armSwing;
+        rightArmOffset = armSwing;
+    }
+    
+    // 应用上下摆动到整个身体
+    y += bobOffset;
     
     this.ctx.save();
     this.ctx.imageSmoothingEnabled = false; // 保持像素风格
@@ -1916,63 +1979,63 @@ GameEngine.prototype.renderPlayer = function() {
     this.ctx.fillStyle = '#E6732A';
     this.ctx.fillRect(x - 1, y - 9, 2, 1); // 嘴巴阴影
     
-    // === 手臂 ===
+    // === 手臂（带动画） ===
     
     // 左手臂
     this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 14, y - 4, 4, 10); // 左上臂
-    this.ctx.fillRect(x - 16, y + 4, 4, 8); // 左前臂
+    this.ctx.fillRect(x - 14, y - 4 + leftArmOffset, 4, 10); // 左上臂
+    this.ctx.fillRect(x - 16, y + 4 + leftArmOffset, 4, 8); // 左前臂
     this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 12, y + 2, 2, 4); // 左臂阴影
+    this.ctx.fillRect(x - 12, y + 2 + leftArmOffset, 2, 4); // 左臂阴影
     
     // 右手臂
     this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x + 10, y - 4, 4, 10); // 右上臂
-    this.ctx.fillRect(x + 12, y + 4, 4, 8); // 右前臂
+    this.ctx.fillRect(x + 10, y - 4 + rightArmOffset, 4, 10); // 右上臂
+    this.ctx.fillRect(x + 12, y + 4 + rightArmOffset, 4, 8); // 右前臂
     this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x + 10, y + 2, 2, 4); // 右臂阴影
+    this.ctx.fillRect(x + 10, y + 2 + rightArmOffset, 2, 4); // 右臂阴影
     
     // 手部
     this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 18, y + 10, 4, 4); // 左手
-    this.ctx.fillRect(x + 14, y + 10, 4, 4); // 右手
+    this.ctx.fillRect(x - 18, y + 10 + leftArmOffset, 4, 4); // 左手
+    this.ctx.fillRect(x + 14, y + 10 + rightArmOffset, 4, 4); // 右手
     this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 16, y + 12, 2, 2); // 左手阴影
-    this.ctx.fillRect(x + 14, y + 12, 2, 2); // 右手阴影
+    this.ctx.fillRect(x - 16, y + 12 + leftArmOffset, 2, 2); // 左手阴影
+    this.ctx.fillRect(x + 14, y + 12 + rightArmOffset, 2, 2); // 右手阴影
     
-    // === 腿部 ===
+    // === 腿部（带动画） ===
     
     // 左腿
     this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 6, y + 12, 5, 14); // 左大腿
-    this.ctx.fillRect(x - 7, y + 24, 5, 8); // 左小腿
+    this.ctx.fillRect(x - 6, y + 12 + leftLegOffset, 5, 14); // 左大腿
+    this.ctx.fillRect(x - 7, y + 24 + leftLegOffset, 5, 8); // 左小腿
     this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 2, y + 20, 2, 6); // 左腿阴影
+    this.ctx.fillRect(x - 2, y + 20 + leftLegOffset, 2, 6); // 左腿阴影
     
     // 右腿
     this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x + 1, y + 12, 5, 14); // 右大腿
-    this.ctx.fillRect(x + 2, y + 24, 5, 8); // 右小腿
+    this.ctx.fillRect(x + 1, y + 12 + rightLegOffset, 5, 14); // 右大腿
+    this.ctx.fillRect(x + 2, y + 24 + rightLegOffset, 5, 8); // 右小腿
     this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x + 1, y + 20, 2, 6); // 右腿阴影
+    this.ctx.fillRect(x + 1, y + 20 + rightLegOffset, 2, 6); // 右腿阴影
     
-    // === 白色鞋子 ===
+    // === 白色鞋子（带动画） ===
     
     // 左脚鞋子
     this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillRect(x - 10, y + 30, 8, 5); // 左鞋主体
+    this.ctx.fillRect(x - 10, y + 30 + leftLegOffset, 8, 5); // 左鞋主体
     this.ctx.fillStyle = '#E0E0E0';
-    this.ctx.fillRect(x - 8, y + 32, 4, 2); // 左鞋阴影
+    this.ctx.fillRect(x - 8, y + 32 + leftLegOffset, 4, 2); // 左鞋阴影
     this.ctx.fillStyle = '#F8F8F8';
-    this.ctx.fillRect(x - 9, y + 30, 2, 1); // 左鞋高光
+    this.ctx.fillRect(x - 9, y + 30 + leftLegOffset, 2, 1); // 左鞋高光
     
     // 右脚鞋子
     this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillRect(x + 2, y + 30, 8, 5); // 右鞋主体
+    this.ctx.fillRect(x + 2, y + 30 + rightLegOffset, 8, 5); // 右鞋主体
     this.ctx.fillStyle = '#E0E0E0';
-    this.ctx.fillRect(x + 4, y + 32, 4, 2); // 右鞋阴影
+    this.ctx.fillRect(x + 4, y + 32 + rightLegOffset, 4, 2); // 右鞋阴影
     this.ctx.fillStyle = '#F8F8F8';
-    this.ctx.fillRect(x + 7, y + 30, 2, 1); // 右鞋高光
+    this.ctx.fillRect(x + 7, y + 30 + rightLegOffset, 2, 1); // 右鞋高光
     
     this.ctx.restore();
     
