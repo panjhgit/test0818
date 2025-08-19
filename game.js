@@ -7,6 +7,185 @@
 console.log('=== 末日Q行游戏启动 ===');
 console.log('参考文档: https://developer.open-douyin.com/docs/resource/zh-CN/mini-game/guide/minigame/introduction');
 
+// === 人物系统集成 ===
+// 由于抖音小程序环境限制，直接内联人物系统代码
+
+// 基础人物类
+function BaseCharacter(config) {
+    this.id = config.id || 1;
+    this.name = config.name || '角色' + this.id;
+    this.description = config.description || '这是一个神秘的角色';
+    this.colors = config.colors || this.getDefaultColors();
+    this.features = config.features || this.getDefaultFeatures();
+    this.animations = config.animations || this.getDefaultAnimations();
+}
+
+BaseCharacter.prototype.getDefaultColors = function() {
+    return {
+        skin: '#FF8C42', skinHighlight: '#FFB366', skinShadow: '#E6732A',
+        clothes: '#FFFFFF', clothesShadow: '#E0E0E0', clothesDetail: '#F0F0F0',
+        hair: '#1A1A1A', hairHighlight: '#404040',
+        eyes: '#000000', eyesHighlight: '#FFFFFF',
+        mouth: '#D4621F', mouthShadow: '#E6732A'
+    };
+};
+
+BaseCharacter.prototype.getDefaultFeatures = function() {
+    return { hasGlasses: true, hairStyle: 'normal', bodyType: 'normal', clothingStyle: 'casual', accessory: 'sunglasses' };
+};
+
+BaseCharacter.prototype.getDefaultAnimations = function() {
+    return { walkBobAmplitude: 1.5, walkLegSwingAmplitude: 3, walkArmSwingAmplitude: 2, walkSpeed: 200 };
+};
+
+BaseCharacter.prototype.calculateAnimationOffsets = function(player) {
+    var offsets = { bobOffset: 0, leftLegOffset: 0, rightLegOffset: 0, leftArmOffset: 0, rightArmOffset: 0 };
+    if (player.isWalking) {
+        offsets.bobOffset = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkBobAmplitude;
+        var legSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkLegSwingAmplitude;
+        offsets.leftLegOffset = legSwing; offsets.rightLegOffset = -legSwing;
+        var armSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkArmSwingAmplitude;
+        offsets.leftArmOffset = -armSwing; offsets.rightArmOffset = armSwing;
+    }
+    return offsets;
+};
+
+BaseCharacter.prototype.render = function(ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    y += offsets.bobOffset;
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    this.renderBody(ctx, x, y, player); this.renderHead(ctx, x, y, player);
+    this.renderArms(ctx, x, y, player); this.renderLegs(ctx, x, y, player);
+    ctx.restore();
+};
+
+BaseCharacter.prototype.renderBody = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.clothes; ctx.fillRect(x - 10, y - 6, 20, 18);
+    ctx.fillStyle = this.colors.clothesShadow; ctx.fillRect(x + 8, y - 4, 2, 14); ctx.fillRect(x - 8, y + 10, 16, 2);
+    ctx.fillStyle = this.colors.clothesDetail; ctx.fillRect(x - 6, y - 2, 2, 8); ctx.fillRect(x + 4, y + 2, 2, 6);
+};
+
+BaseCharacter.prototype.renderHead = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.skin; ctx.fillRect(x - 10, y - 20, 20, 16);
+    ctx.fillStyle = this.colors.skinHighlight; ctx.fillRect(x - 8, y - 18, 4, 4); ctx.fillRect(x + 4, y - 16, 4, 3);
+    ctx.fillStyle = this.colors.skinShadow; ctx.fillRect(x + 8, y - 16, 2, 12); ctx.fillRect(x - 6, y - 6, 12, 2);
+    this.renderHair(ctx, x, y, player); this.renderFacialFeatures(ctx, x, y, player);
+};
+
+BaseCharacter.prototype.renderHair = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.hair;
+    ctx.fillRect(x - 12, y - 28, 24, 12); ctx.fillRect(x - 10, y - 32, 20, 6);
+    ctx.fillRect(x - 14, y - 26, 4, 8); ctx.fillRect(x + 10, y - 26, 4, 8);
+    ctx.fillRect(x - 8, y - 22, 16, 4); ctx.fillRect(x - 4, y - 24, 8, 2);
+    ctx.fillStyle = this.colors.hairHighlight;
+    ctx.fillRect(x - 6, y - 30, 3, 2); ctx.fillRect(x + 3, y - 32, 3, 2); ctx.fillRect(x - 2, y - 22, 4, 1);
+};
+
+BaseCharacter.prototype.renderFacialFeatures = function(ctx, x, y, player) {
+    if (this.features.hasGlasses) this.renderGlasses(ctx, x, y, player);
+    else this.renderEyes(ctx, x, y, player);
+    this.renderNose(ctx, x, y, player); this.renderMouth(ctx, x, y, player);
+};
+
+BaseCharacter.prototype.renderGlasses = function(ctx, x, y, player) {
+    ctx.fillStyle = '#000000'; ctx.fillRect(x - 8, y - 18, 16, 6);
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 7, y - 17, 6, 4); ctx.fillRect(x + 1, y - 17, 6, 4);
+    ctx.fillStyle = '#333333'; ctx.fillRect(x - 6, y - 17, 2, 1); ctx.fillRect(x + 2, y - 17, 2, 1);
+    ctx.fillStyle = '#555555'; ctx.fillRect(x - 7, y - 16, 1, 2); ctx.fillRect(x + 6, y - 16, 1, 2);
+    ctx.fillStyle = '#000000'; ctx.fillRect(x - 1, y - 17, 2, 2);
+    ctx.fillRect(x - 10, y - 17, 2, 1); ctx.fillRect(x + 8, y - 17, 2, 1);
+};
+
+BaseCharacter.prototype.renderEyes = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.eyes; ctx.fillRect(x - 6, y - 16, 3, 2); ctx.fillRect(x + 3, y - 16, 3, 2);
+    ctx.fillStyle = this.colors.eyesHighlight; ctx.fillRect(x - 5, y - 16, 1, 1); ctx.fillRect(x + 4, y - 16, 1, 1);
+};
+
+BaseCharacter.prototype.renderNose = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.skinShadow; ctx.fillRect(x - 1, y - 12, 2, 2);
+    ctx.fillStyle = this.colors.skinHighlight; ctx.fillRect(x, y - 13, 1, 1);
+};
+
+BaseCharacter.prototype.renderMouth = function(ctx, x, y, player) {
+    ctx.fillStyle = this.colors.mouth; ctx.fillRect(x - 2, y - 10, 4, 1);
+    ctx.fillStyle = this.colors.mouthShadow; ctx.fillRect(x - 1, y - 9, 2, 1);
+};
+
+BaseCharacter.prototype.renderArms = function(ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 14, y - 4 + offsets.leftArmOffset, 4, 10); ctx.fillRect(x - 16, y + 4 + offsets.leftArmOffset, 4, 8);
+    ctx.fillRect(x + 10, y - 4 + offsets.rightArmOffset, 4, 10); ctx.fillRect(x + 12, y + 4 + offsets.rightArmOffset, 4, 8);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 12, y + 2 + offsets.leftArmOffset, 2, 4); ctx.fillRect(x + 10, y + 2 + offsets.rightArmOffset, 2, 4);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 18, y + 10 + offsets.leftArmOffset, 4, 4); ctx.fillRect(x + 14, y + 10 + offsets.rightArmOffset, 4, 4);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 16, y + 12 + offsets.leftArmOffset, 2, 2); ctx.fillRect(x + 14, y + 12 + offsets.rightArmOffset, 2, 2);
+};
+
+BaseCharacter.prototype.renderLegs = function(ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 6, y + 12 + offsets.leftLegOffset, 5, 14); ctx.fillRect(x - 7, y + 24 + offsets.leftLegOffset, 5, 8);
+    ctx.fillRect(x + 1, y + 12 + offsets.rightLegOffset, 5, 14); ctx.fillRect(x + 2, y + 24 + offsets.rightLegOffset, 5, 8);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 2, y + 20 + offsets.leftLegOffset, 2, 6); ctx.fillRect(x + 1, y + 20 + offsets.rightLegOffset, 2, 6);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(x - 10, y + 30 + offsets.leftLegOffset, 8, 5); ctx.fillRect(x + 2, y + 30 + offsets.rightLegOffset, 8, 5);
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillRect(x - 8, y + 32 + offsets.leftLegOffset, 4, 2); ctx.fillRect(x + 4, y + 32 + offsets.rightLegOffset, 4, 2);
+    ctx.fillStyle = '#F8F8F8';
+    ctx.fillRect(x - 9, y + 30 + offsets.leftLegOffset, 2, 1); ctx.fillRect(x + 7, y + 30 + offsets.rightLegOffset, 2, 1);
+};
+
+// 人物管理器
+function CharacterManager() {
+    this.characters = {}; this.currentCharacterId = 1; this.initializeCharacters();
+}
+
+CharacterManager.prototype.initializeCharacters = function() {
+    var configs = [
+        {id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}},
+        {id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: false}},
+        {id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: false}},
+        {id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}},
+        {id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: false}},
+        {id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: false}},
+        {id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}},
+        {id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: false}},
+        {id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}},
+        {id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: false}},
+        {id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}},
+        {id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: false}},
+        {id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}},
+        {id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: false}},
+        {id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}},
+        {id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: false}},
+        {id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}},
+        {id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: false}},
+        {id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}},
+        {id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: false}}
+    ];
+    for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
+};
+
+CharacterManager.prototype.getCurrentCharacter = function() {
+    return this.characters[this.currentCharacterId] || this.characters[1];
+};
+
+CharacterManager.prototype.switchCharacter = function(characterId) {
+    if (characterId >= 1 && characterId <= 20 && this.characters[characterId]) {
+        this.currentCharacterId = characterId; return true;
+    }
+    return false;
+};
+
+CharacterManager.prototype.renderCurrentCharacter = function(ctx, x, y, player) {
+    var character = this.getCurrentCharacter();
+    if (character) character.render(ctx, x, y, player);
+};
+
 /**
  * 游戏引擎构造函数 - 兼容抖音小程序环境
  */
@@ -16,6 +195,9 @@ function GameEngine(canvas, ctx) {
     this.running = false;
     this.gameState = 'menu'; // menu, playing, submap, gameover, victory
     this.lastTime = 0;
+    
+    // 初始化人物管理器
+    this.characterManager = new CharacterManager();
     
     // 游戏数据
     this.gameData = {
@@ -442,9 +624,10 @@ GameEngine.prototype.handleMenuClick = function(x, y) {
  * 处理游戏点击
  */
 GameEngine.prototype.handleGameClick = function(x, y) {
-    // 禁用点击进入建筑功能
-    // 现在玩家只能通过走到门前进入建筑
-    console.log('[Click] 点击事件已禁用，请走到建筑门前进入');
+    console.log('[Click] 游戏中点击:', x, y);
+    
+    // 现在只使用自动进入，不需要点击触发
+    console.log('[Click] 游戏中点击事件，当前为自动进入模式');
 };
 
 /**
@@ -528,19 +711,30 @@ GameEngine.prototype.restartGame = function() {
  * 探索建筑物
  */
 GameEngine.prototype.exploreBuilding = function(building) {
+    console.log('[GameEngine] 尝试探索建筑:', building.name, '类型:', building.type);
+    
     if (building.oneTimeOnly && building.explored) {
-        console.log('[GameEngine] 该建筑物只能探索一次');
+        console.log('[GameEngine] 该建筑物只能探索一次，已探索过');
         return;
     }
     
-    console.log('[GameEngine] 探索建筑: ' + building.name);
+    console.log('[GameEngine] 开始进入建筑: ' + building.name);
+    console.log('[GameEngine] 当前游戏状态:', this.gameState, '→ submap');
     
     this.currentBuilding = building;
     this.subMapType = building.type;
     this.gameState = 'submap';
     
+    // 将玩家放在子地图入口处（上方进入）
+    this.player.x = 200; // 子地图中心X
+    this.player.y = 130; // 子地图上方，刚进入房间
+    
+    console.log('[GameEngine] 玩家位置设为:', this.player.x, this.player.y);
+    
     // 生成子地图内容
     this.generateSubMapContent();
+    
+    console.log('[GameEngine] 建筑进入完成，当前状态:', this.gameState);
 };
 
 /**
@@ -955,8 +1149,17 @@ GameEngine.prototype.checkNearDoor = function() {
             if (distance <= interactionDistance + playerRadius) {
                 this.nearBuilding = building;
                 
-                // 如果玩家非常接近门（重叠），自动进入建筑
-                if (distance <= playerRadius + 10) {
+                // 显示详细调试信息（只在接近时）
+                console.log('[Debug] 接近建筑:', building.name);
+                console.log('[Debug] 建筑位置:', building.x, building.y, building.width, building.height);
+                console.log('[Debug] 门位置:', doorInfo.x, doorInfo.y, doorInfo.width, doorInfo.height);
+                console.log('[Debug] 门中心:', doorCenterX, doorCenterY);
+                console.log('[Debug] 玩家位置:', this.player.x, this.player.y);
+                console.log('[Debug] 距离:', distance, '触发距离:', playerRadius + 35);
+                
+                // 自动进入建筑 - 增大触发范围，更容易进入
+                if (distance <= playerRadius + 35) {
+                    console.log('[Door] 触发自动进入建筑:', building.name, '距离:', distance);
                     this.exploreBuilding(building);
                 }
                 break;
@@ -1682,43 +1885,11 @@ GameEngine.prototype.renderVisibleBuildings = function() {
  * 渲染交互提示
  */
 GameEngine.prototype.renderInteractionHint = function() {
-    if (!this.nearBuilding) return;
+    // 禁用提示显示 - 改为直接自动进入
+    // if (!this.nearBuilding) return;
     
-    // 提示框样式
-    var hintText = '走到门前进入 ' + this.nearBuilding.name;
-    var padding = 15;
-    var borderRadius = 8;
-    
-    // 计算提示框位置和大小
-    this.ctx.font = 'bold 16px Arial';
-    var textWidth = this.ctx.measureText(hintText).width;
-    var hintWidth = textWidth + padding * 2;
-    var hintHeight = 40;
-    var hintX = (this.canvas.width - hintWidth) / 2;
-    var hintY = this.canvas.height - 150; // 在摇杆上方
-    
-    // 绘制提示框背景
-    this.ctx.save();
-    this.ctx.fillStyle = 'rgba(52, 73, 94, 0.9)';
-    this.ctx.fillRect(hintX, hintY, hintWidth, hintHeight);
-    
-    // 绘制边框
-    this.ctx.strokeStyle = '#3498db';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(hintX, hintY, hintWidth, hintHeight);
-    
-    // 绘制提示文字
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(hintText, hintX + hintWidth / 2, hintY + hintHeight / 2);
-    
-    // 绘制小图标
-    this.ctx.fillStyle = '#f39c12';
-    this.ctx.font = 'bold 20px Arial';
-    this.ctx.fillText('🚪', hintX + 20, hintY + hintHeight / 2);
-    
-    this.ctx.restore();
+    // 不再显示任何提示，靠近门时自动进入
+    return;
 };
 
 /**
@@ -1851,559 +2022,308 @@ GameEngine.prototype.renderMiniMap = function() {
 };
 
 /**
- * 渲染玩家 - 戴墨镜的酷炫像素角色（带行走动画）
- */
-GameEngine.prototype.renderPlayer = function() {
-    var x = this.player.x;
-    var y = this.player.y;
-    
-    // 计算动画偏移
-    var bobOffset = 0;
-    var leftLegOffset = 0;
-    var rightLegOffset = 0;
-    var leftArmOffset = 0;
-    var rightArmOffset = 0;
-    
-    if (this.player.isWalking) {
-        // 行走时的上下摆动
-        bobOffset = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 1.5;
-        
-        // 腿部动画偏移 - 交替摆动
-        var legSwing = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 3;
-        leftLegOffset = legSwing;
-        rightLegOffset = -legSwing;
-        
-        // 手臂摆动 - 与腿部相反
-        var armSwing = Math.sin(this.player.walkAnimationFrame * Math.PI / 2) * 2;
-        leftArmOffset = -armSwing;
-        rightArmOffset = armSwing;
-    }
-    
-    // 应用上下摆动到整个身体
-    y += bobOffset;
-    
-    this.ctx.save();
-    this.ctx.imageSmoothingEnabled = false; // 保持像素风格
-    
-    // === 身体部分 ===
-    
-    // 白色衣服主体
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillRect(x - 10, y - 6, 20, 18); // 主体衣服
-    
-    // 衣服阴影
-    this.ctx.fillStyle = '#E0E0E0';
-    this.ctx.fillRect(x + 8, y - 4, 2, 14); // 右边阴影
-    this.ctx.fillRect(x - 8, y + 10, 16, 2); // 底部阴影
-    
-    // 衣服褶皱细节
-    this.ctx.fillStyle = '#F0F0F0';
-    this.ctx.fillRect(x - 6, y - 2, 2, 8); // 左侧折痕
-    this.ctx.fillRect(x + 4, y + 2, 2, 6); // 右侧折痕
-    
-    // === 头部区域 ===
-    
-    // 橙色皮肤 - 脸部
-    this.ctx.fillStyle = '#FF8C42'; // 橙色皮肤
-    this.ctx.fillRect(x - 10, y - 20, 20, 16); // 脸部主区域
-    
-    // 皮肤高光
-    this.ctx.fillStyle = '#FFB366';
-    this.ctx.fillRect(x - 8, y - 18, 4, 4); // 左额头高光
-    this.ctx.fillRect(x + 4, y - 16, 4, 3); // 右脸颊高光
-    
-    // 皮肤阴影
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x + 8, y - 16, 2, 12); // 脸部右侧阴影
-    this.ctx.fillRect(x - 6, y - 6, 12, 2); // 下巴阴影
-    
-    // === 黑色头发 ===
-    
-    // 主要头发区域 - 更蓬松的造型
-    this.ctx.fillStyle = '#1A1A1A';
-    this.ctx.fillRect(x - 12, y - 28, 24, 12); // 头发主体
-    this.ctx.fillRect(x - 10, y - 32, 20, 6); // 头发顶部
-    
-    // 头发侧面延伸
-    this.ctx.fillRect(x - 14, y - 26, 4, 8); // 左侧蓬松头发
-    this.ctx.fillRect(x + 10, y - 26, 4, 8); // 右侧蓬松头发
-    
-    // 头发前刘海
-    this.ctx.fillRect(x - 8, y - 22, 16, 4); // 刘海区域
-    this.ctx.fillRect(x - 4, y - 24, 8, 2); // 刘海尖端
-    
-    // 头发高光
-    this.ctx.fillStyle = '#404040';
-    this.ctx.fillRect(x - 6, y - 30, 3, 2); // 左侧高光
-    this.ctx.fillRect(x + 3, y - 32, 3, 2); // 右侧高光
-    this.ctx.fillRect(x - 2, y - 22, 4, 1); // 刘海高光
-    
-    // === 酷炫墨镜 ===
-    
-    // 墨镜镜框
-    this.ctx.fillStyle = '#000000';
-    this.ctx.fillRect(x - 8, y - 18, 16, 6); // 镜框主体
-    
-    // 墨镜镜片 - 深色
-    this.ctx.fillStyle = '#1a1a1a';
-    this.ctx.fillRect(x - 7, y - 17, 6, 4); // 左镜片
-    this.ctx.fillRect(x + 1, y - 17, 6, 4); // 右镜片
-    
-    // 墨镜反光效果
-    this.ctx.fillStyle = '#333333';
-    this.ctx.fillRect(x - 6, y - 17, 2, 1); // 左镜片反光
-    this.ctx.fillRect(x + 2, y - 17, 2, 1); // 右镜片反光
-    this.ctx.fillStyle = '#555555';
-    this.ctx.fillRect(x - 7, y - 16, 1, 2); // 左镜片边缘光
-    this.ctx.fillRect(x + 6, y - 16, 1, 2); // 右镜片边缘光
-    
-    // 墨镜鼻梁
-    this.ctx.fillStyle = '#000000';
-    this.ctx.fillRect(x - 1, y - 17, 2, 2); // 鼻梁连接
-    
-    // 墨镜镜腿
-    this.ctx.fillRect(x - 10, y - 17, 2, 1); // 左镜腿
-    this.ctx.fillRect(x + 8, y - 17, 2, 1); // 右镜腿
-    
-    // === 面部细节 (墨镜下方) ===
-    
-    // 鼻子
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 1, y - 12, 2, 2); // 鼻子阴影
-    this.ctx.fillStyle = '#FFB366';
-    this.ctx.fillRect(x, y - 13, 1, 1); // 鼻子高光
-    
-    // 嘴巴 - 酷酷的表情
-    this.ctx.fillStyle = '#D4621F';
-    this.ctx.fillRect(x - 2, y - 10, 4, 1); // 嘴巴
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 1, y - 9, 2, 1); // 嘴巴阴影
-    
-    // === 手臂（带动画） ===
-    
-    // 左手臂
-    this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 14, y - 4 + leftArmOffset, 4, 10); // 左上臂
-    this.ctx.fillRect(x - 16, y + 4 + leftArmOffset, 4, 8); // 左前臂
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 12, y + 2 + leftArmOffset, 2, 4); // 左臂阴影
-    
-    // 右手臂
-    this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x + 10, y - 4 + rightArmOffset, 4, 10); // 右上臂
-    this.ctx.fillRect(x + 12, y + 4 + rightArmOffset, 4, 8); // 右前臂
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x + 10, y + 2 + rightArmOffset, 2, 4); // 右臂阴影
-    
-    // 手部
-    this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 18, y + 10 + leftArmOffset, 4, 4); // 左手
-    this.ctx.fillRect(x + 14, y + 10 + rightArmOffset, 4, 4); // 右手
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 16, y + 12 + leftArmOffset, 2, 2); // 左手阴影
-    this.ctx.fillRect(x + 14, y + 12 + rightArmOffset, 2, 2); // 右手阴影
-    
-    // === 腿部（带动画） ===
-    
-    // 左腿
-    this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x - 6, y + 12 + leftLegOffset, 5, 14); // 左大腿
-    this.ctx.fillRect(x - 7, y + 24 + leftLegOffset, 5, 8); // 左小腿
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x - 2, y + 20 + leftLegOffset, 2, 6); // 左腿阴影
-    
-    // 右腿
-    this.ctx.fillStyle = '#FF8C42';
-    this.ctx.fillRect(x + 1, y + 12 + rightLegOffset, 5, 14); // 右大腿
-    this.ctx.fillRect(x + 2, y + 24 + rightLegOffset, 5, 8); // 右小腿
-    this.ctx.fillStyle = '#E6732A';
-    this.ctx.fillRect(x + 1, y + 20 + rightLegOffset, 2, 6); // 右腿阴影
-    
-    // === 白色鞋子（带动画） ===
-    
-    // 左脚鞋子
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillRect(x - 10, y + 30 + leftLegOffset, 8, 5); // 左鞋主体
-    this.ctx.fillStyle = '#E0E0E0';
-    this.ctx.fillRect(x - 8, y + 32 + leftLegOffset, 4, 2); // 左鞋阴影
-    this.ctx.fillStyle = '#F8F8F8';
-    this.ctx.fillRect(x - 9, y + 30 + leftLegOffset, 2, 1); // 左鞋高光
-    
-    // 右脚鞋子
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillRect(x + 2, y + 30 + rightLegOffset, 8, 5); // 右鞋主体
-    this.ctx.fillStyle = '#E0E0E0';
-    this.ctx.fillRect(x + 4, y + 32 + rightLegOffset, 4, 2); // 右鞋阴影
-    this.ctx.fillStyle = '#F8F8F8';
-    this.ctx.fillRect(x + 7, y + 30 + rightLegOffset, 2, 1); // 右鞋高光
-    
-    this.ctx.restore();
-    
-    // === 血条 ===
-    if (this.player.health < this.player.maxHealth) {
-        var barWidth = 44;
-        var barHeight = 7;
-        var healthPercent = this.player.health / this.player.maxHealth;
-        
-        // 血条背景
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        this.ctx.fillRect(x - barWidth / 2, y - 42, barWidth, barHeight);
-        
-        // 血条
-        this.ctx.fillStyle = healthPercent > 0.7 ? '#27ae60' : healthPercent > 0.3 ? '#f39c12' : '#e74c3c';
-        this.ctx.fillRect(x - barWidth / 2 + 1, y - 41, (barWidth - 2) * healthPercent, barHeight - 2);
-        
-        // 血条边框
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x - barWidth / 2, y - 42, barWidth, barHeight);
-        
-        // 血条分段线 - 像素风格
-        for (var i = 1; i < 4; i++) {
-            var segmentX = x - barWidth / 2 + (barWidth / 4) * i;
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            this.ctx.beginPath();
-            this.ctx.moveTo(segmentX, y - 42);
-            this.ctx.lineTo(segmentX, y - 35);
-            this.ctx.stroke();
-        }
-    }
-};
-
-/**
- * 渲染时间信息
- */
-GameEngine.prototype.renderTimeInfo = function() {
-    var minutes = Math.floor(this.gameData.timeRemaining / 60000);
-    var seconds = Math.floor((this.gameData.timeRemaining % 60000) / 1000);
-    var timeText = (this.gameData.isDay ? '白天' : '夜晚') + ' ' + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-    
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    this.ctx.fillRect(this.canvas.width - 120, 10, 110, 25);
-    
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '12px Arial';
-    this.ctx.fillText(timeText, this.canvas.width - 115, 27);
-};
-
-/**
- * 渲染子地图
+ * 渲染子地图（建筑内部）
  */
 GameEngine.prototype.renderSubMap = function() {
-    // 背景
+    console.log('[Render] 渲染子地图，当前建筑:', this.currentBuilding ? this.currentBuilding.name : 'null');
+    
+    // 清空画布
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 子地图背景
     this.ctx.fillStyle = '#2c3e50';
-    this.ctx.fillRect(0, 60, this.canvas.width, this.canvas.height - 60);
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
-    // 状态栏
-    this.renderStatusBar();
-    
-    // 子地图房间
-    this.ctx.fillStyle = this.getSubMapColor();
-    this.ctx.fillRect(50, 100, 300, 200);
-    
-    // 房间边框
-    this.ctx.strokeStyle = '#34495e';
-    this.ctx.lineWidth = 3;
+    // 子地图边界
+    this.ctx.strokeStyle = '#ecf0f1';
+    this.ctx.lineWidth = 4;
     this.ctx.strokeRect(50, 100, 300, 200);
     
-    // 地图标题
-    this.ctx.fillStyle = '#ffffff';
+    // 地板纹理
+    this.ctx.fillStyle = '#34495e';
+    this.ctx.fillRect(60, 110, 280, 180);
+    
+    // 地板瓷砖效果
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 1;
+    for (var i = 60; i <= 340; i += 20) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(i, 110);
+        this.ctx.lineTo(i, 290);
+        this.ctx.stroke();
+    }
+    for (var j = 110; j <= 290; j += 20) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(60, j);
+        this.ctx.lineTo(340, j);
+        this.ctx.stroke();
+    }
+    
+    // 门 - 用于退出（放在下面）
+    this.ctx.fillStyle = '#8b4513';
+    this.ctx.fillRect(195, 280, 10, 20); // 门移到下面
+    this.ctx.fillStyle = '#ffd700';
+    this.ctx.fillRect(197, 285, 2, 2); // 门把手
+    
+    // 门标识
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('出口', 200, 315); // 标识移到下面
+    
+    // 建筑信息
+    this.ctx.fillStyle = '#ecf0f1';
     this.ctx.font = '16px Arial';
     this.ctx.textAlign = 'center';
-    this.ctx.fillText(this.currentBuilding.name, this.canvas.width / 2, 90);
+    this.ctx.fillText(this.currentBuilding ? this.currentBuilding.name : '建筑内部', this.canvas.width / 2, 50);
     
     // 渲染僵尸
-    this.renderZombies();
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
+        this.ctx.fillStyle = '#e74c3c';
+        this.ctx.fillRect(zombie.x - 8, zombie.y - 8, 16, 16);
+        this.ctx.fillStyle = '#c0392b';
+        this.ctx.fillRect(zombie.x - 6, zombie.y - 6, 12, 12);
+    }
     
     // 渲染资源
-    this.renderResources();
+    for (var i = 0; i < this.resources.length; i++) {
+        var resource = this.resources[i];
+        this.ctx.fillStyle = '#f39c12';
+        this.ctx.fillRect(resource.x - 6, resource.y - 6, 12, 12);
+        this.ctx.fillStyle = '#e67e22';
+        this.ctx.fillRect(resource.x - 4, resource.y - 4, 8, 8);
+    }
     
     // 渲染玩家
     this.renderPlayer();
     
-    // 返回按钮
-    this.renderBackButton();
+    // 检查玩家是否接近出口（门在下面）
+    var exitX = 200;
+    var exitY = 290; // 门的中心位置
+    var distanceToExit = Math.sqrt(
+        Math.pow(this.player.x - exitX, 2) + 
+        Math.pow(this.player.y - exitY, 2)
+    );
     
-    this.ctx.textAlign = 'left';
-};
-
-/**
- * 获取子地图颜色
- */
-GameEngine.prototype.getSubMapColor = function() {
-    switch (this.subMapType) {
-        case 'police_station': return '#34495e';
-        case 'hospital': return '#ecf0f1';
-        case 'school': return '#f39c12';
-        case 'house': return '#95a5a6';
-        case 'villa': return '#8e44ad';
-        case 'shop': return '#27ae60';
-        case 'bar': return '#d35400';
-        case 'restaurant': return '#e67e22';
-        case 'station': return '#34495e';
-        default: return '#7f8c8d';
-    }
-};
-
-/**
- * 渲染僵尸
- */
-GameEngine.prototype.renderZombies = function() {
-    var self = this;
-    
-    this.zombies.forEach(function(zombie) {
-        // 僵尸主体
-        self.ctx.fillStyle = '#8b0000';
-        self.ctx.beginPath();
-        self.ctx.arc(zombie.x, zombie.y, 8, 0, Math.PI * 2);
-        self.ctx.fill();
+    if (distanceToExit < 25) {
+        this.ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
+        this.ctx.font = '14px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('靠近门口即可退出', this.canvas.width / 2, this.canvas.height - 30);
         
-        // 血条
-        if (zombie.health < zombie.maxHealth) {
-            var barWidth = 16;
-            var barHeight = 3;
-            var healthPercent = zombie.health / zombie.maxHealth;
-            
-            self.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            self.ctx.fillRect(zombie.x - barWidth / 2, zombie.y - 15, barWidth, barHeight);
-            
-            self.ctx.fillStyle = '#e74c3c';
-            self.ctx.fillRect(zombie.x - barWidth / 2, zombie.y - 15, barWidth * healthPercent, barHeight);
+        // 自动退出建筑
+        if (distanceToExit < 15) {
+            this.exitBuilding();
         }
-    });
-};
-
-/**
- * 渲染资源
- */
-GameEngine.prototype.renderResources = function() {
-    var self = this;
-    
-    this.resources.forEach(function(resource) {
-        if (resource.collected) return;
-        
-        // 资源发光效果
-        var gradient = self.ctx.createRadialGradient(resource.x, resource.y, 0, resource.x, resource.y, 20);
-        gradient.addColorStop(0, 'rgba(255, 255, 0, 0.8)');
-        gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
-        self.ctx.fillStyle = gradient;
-        self.ctx.fillRect(resource.x - 20, resource.y - 20, 40, 40);
-        
-        // 资源图标
-        self.ctx.fillStyle = self.getResourceColor(resource.type);
-        self.ctx.fillRect(resource.x - 8, resource.y - 8, 16, 16);
-    });
-};
-
-/**
- * 获取资源颜色
- */
-GameEngine.prototype.getResourceColor = function(type) {
-    switch (type) {
-        case 'food': return '#f39c12';
-        case 'weapon': return '#e74c3c';
-        case 'companion_police': return '#3498db';
-        case 'companion_nurse': return '#e74c3c';
-        case 'companion_chef': return '#f39c12';
-        default: return '#27ae60';
     }
+    
+    // 渲染状态栏
+    this.renderStatusBar();
 };
 
 /**
- * 渲染返回按钮
+ * 退出建筑
  */
-GameEngine.prototype.renderBackButton = function() {
-    this.ctx.fillStyle = 'rgba(52, 73, 94, 0.8)';
-    this.ctx.fillRect(10, this.canvas.height - 40, 80, 30);
+GameEngine.prototype.exitBuilding = function() {
+    console.log('[GameEngine] 退出建筑');
     
-    this.ctx.strokeStyle = '#34495e';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(10, this.canvas.height - 40, 80, 30);
+    // 保存当前建筑引用
+    var building = this.currentBuilding;
     
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '14px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('返回', 50, this.canvas.height - 20);
-};
-
-/**
- * 渲染游戏结束
- */
-GameEngine.prototype.renderGameOver = function() {
-    // 半透明背景
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // 标记建筑为已探索
+    if (building) {
+        building.explored = true;
+        this.exploredBuildings.push(building);
+    }
     
-    // 标题
-    this.ctx.fillStyle = '#e74c3c';
-    this.ctx.font = 'bold 28px Arial';
-    this.ctx.textAlign = 'center';
+    // 将玩家放在建筑门口外面（在重置状态之前）
+    if (building) {
+        var doorInfo = this.calculateDoorInfo(building);
+        this.player.x = doorInfo.x + doorInfo.width / 2;
+        this.player.y = doorInfo.y + doorInfo.height + 30; // 放在门外
+    }
     
-    var title = this.gameData.cause === 'starvation' ? '饥饿死亡' : '全团覆灭';
-    this.ctx.fillText(title, this.canvas.width / 2, 150);
+    // 返回主地图
+    this.gameState = 'playing';
+    this.currentBuilding = null;
+    this.subMapType = null;
     
-    // 统计
-    this.ctx.fillStyle = '#ecf0f1';
-    this.ctx.font = '18px Arial';
-    this.ctx.fillText('生存天数: ' + this.gameData.survivalDays, this.canvas.width / 2, 200);
-    this.ctx.fillText('团队最高人数: ' + this.gameData.maxTeamSize, this.canvas.width / 2, 230);
-    this.ctx.fillText('击杀僵尸总数: ' + this.gameData.zombieKills, this.canvas.width / 2, 260);
-    
-    // 重新开始按钮
-    this.ctx.fillStyle = '#e74c3c';
-    this.ctx.fillRect(175, 320, 150, 40);
-    
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '16px Arial';
-    this.ctx.fillText('重新开始', this.canvas.width / 2, 345);
-    
-    this.ctx.textAlign = 'left';
-};
-
-/**
- * 渲染胜利画面
- */
-GameEngine.prototype.renderVictory = function() {
-    // 背景
-    this.ctx.fillStyle = 'rgba(0, 100, 0, 0.8)';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // 标题
-    this.ctx.fillStyle = '#f1c40f';
-    this.ctx.font = 'bold 28px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('100天生存成功！', this.canvas.width / 2, 120);
-    
-    // 恭喜
-    this.ctx.fillStyle = '#ecf0f1';
-    this.ctx.font = '20px Arial';
-    this.ctx.fillText('恭喜成为末日幸存者！', this.canvas.width / 2, 160);
-    
-    // 统计
-    this.ctx.font = '16px Arial';
-    this.ctx.fillText('生存天数: ' + this.gameData.survivalDays, this.canvas.width / 2, 200);
-    this.ctx.fillText('团队最高人数: ' + this.gameData.maxTeamSize, this.canvas.width / 2, 225);
-    this.ctx.fillText('击杀僵尸总数: ' + this.gameData.zombieKills, this.canvas.width / 2, 250);
-    this.ctx.fillText('收集口粮总数: ' + this.gameData.totalFood, this.canvas.width / 2, 275);
-    
-    // 奖励
-    this.ctx.fillStyle = '#f39c12';
-    this.ctx.font = '14px Arial';
-    this.ctx.fillText('已解锁: 末日幸存者称号', this.canvas.width / 2, 305);
-    this.ctx.fillText('已解锁: 幸存者专属皮肤', this.canvas.width / 2, 325);
-    
-    // 重新开始按钮
-    this.ctx.fillStyle = '#27ae60';
-    this.ctx.fillRect(175, 350, 150, 40);
-    
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '16px Arial';
-    this.ctx.fillText('再次挑战', this.canvas.width / 2, 375);
-    
-    this.ctx.textAlign = 'left';
+    // 清空子地图数据
+    this.zombies = [];
+    this.resources = [];
 };
 
 /**
  * 渲染虚拟摇杆
  */
 GameEngine.prototype.renderJoystick = function() {
+    var joystickRadius = 60;
+    var knobRadius = 25;
+    var joystickX = 100;
+    var joystickY = this.canvas.height - 100;
+    
     this.ctx.save();
     
-    // 外圈背景
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    // 摇杆底座
     this.ctx.beginPath();
-    this.ctx.arc(this.joystick.centerX, this.joystick.centerY, this.joystick.radius, 0, Math.PI * 2);
+    this.ctx.arc(joystickX, joystickY, joystickRadius, 0, 2 * Math.PI);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     this.ctx.fill();
-    
-    // 外圈边框
-    this.ctx.strokeStyle = this.joystick.active ? 'rgba(52, 152, 219, 0.8)' : 'rgba(255, 255, 255, 0.6)';
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     this.ctx.lineWidth = 3;
-    this.ctx.beginPath();
-    this.ctx.arc(this.joystick.centerX, this.joystick.centerY, this.joystick.radius, 0, Math.PI * 2);
     this.ctx.stroke();
     
-    // 内圈（摇杆按钮）
-    var gradient = this.ctx.createRadialGradient(
-        this.joystick.currentX, this.joystick.currentY, 0,
-        this.joystick.currentX, this.joystick.currentY, this.joystick.knobRadius
-    );
-    
-    if (this.joystick.active) {
-        gradient.addColorStop(0, 'rgba(52, 152, 219, 0.9)');
-        gradient.addColorStop(1, 'rgba(41, 128, 185, 0.7)');
-    } else {
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-        gradient.addColorStop(1, 'rgba(236, 240, 241, 0.7)');
-    }
-    
-    this.ctx.fillStyle = gradient;
+    // 内圈指示器
     this.ctx.beginPath();
-    this.ctx.arc(this.joystick.currentX, this.joystick.currentY, this.joystick.knobRadius, 0, Math.PI * 2);
-    this.ctx.fill();
+    this.ctx.arc(joystickX, joystickY, joystickRadius - 15, 0, 2 * Math.PI);
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    this.ctx.lineWidth = 1;
+    this.ctx.stroke();
     
-    // 内圈边框
-    this.ctx.strokeStyle = this.joystick.active ? 'rgba(41, 128, 185, 1)' : 'rgba(189, 195, 199, 1)';
+    // 计算摇杆把手位置
+    var knobX = joystickX + this.joystick.direction.x * (joystickRadius - knobRadius);
+    var knobY = joystickY + this.joystick.direction.y * (joystickRadius - knobRadius);
+    
+    // 摇杆把手
+    this.ctx.beginPath();
+    this.ctx.arc(knobX, knobY, knobRadius, 0, 2 * Math.PI);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    this.ctx.fill();
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 1.0)';
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
     
-    // 方向指示器（当摇杆被按下时显示）
-    if (this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0)) {
-        this.ctx.strokeStyle = 'rgba(231, 76, 60, 0.8)';
-        this.ctx.lineWidth = 3;
+    // 把手中心点
+    this.ctx.beginPath();
+    this.ctx.arc(knobX, knobY, 8, 0, 2 * Math.PI);
+    this.ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+    this.ctx.fill();
+    
+    // 方向指示器（如果有方向输入）
+    if (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0) {
         this.ctx.beginPath();
-        this.ctx.moveTo(this.joystick.centerX, this.joystick.centerY);
-        this.ctx.lineTo(this.joystick.currentX, this.joystick.currentY);
+        this.ctx.moveTo(joystickX, joystickY);
+        this.ctx.lineTo(knobX, knobY);
+        this.ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)';
+        this.ctx.lineWidth = 3;
         this.ctx.stroke();
     }
-    
-    // 添加方向指示标记（十字）
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    this.ctx.lineWidth = 1;
-    var markSize = 8;
-    
-    // 上
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.joystick.centerX, this.joystick.centerY - this.joystick.radius + 10);
-    this.ctx.lineTo(this.joystick.centerX, this.joystick.centerY - this.joystick.radius + 10 + markSize);
-    this.ctx.stroke();
-    
-    // 下
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.joystick.centerX, this.joystick.centerY + this.joystick.radius - 10);
-    this.ctx.lineTo(this.joystick.centerX, this.joystick.centerY + this.joystick.radius - 10 - markSize);
-    this.ctx.stroke();
-    
-    // 左
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.joystick.centerX - this.joystick.radius + 10, this.joystick.centerY);
-    this.ctx.lineTo(this.joystick.centerX - this.joystick.radius + 10 + markSize, this.joystick.centerY);
-    this.ctx.stroke();
-    
-    // 右
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.joystick.centerX + this.joystick.radius - 10, this.joystick.centerY);
-    this.ctx.lineTo(this.joystick.centerX + this.joystick.radius - 10 - markSize, this.joystick.centerY);
-    this.ctx.stroke();
     
     this.ctx.restore();
 };
 
 /**
- * 颜色变亮
+ * 渲染时间信息
  */
-GameEngine.prototype.lightenColor = function(color, amount) {
-    var colorInt = parseInt(color.slice(1), 16);
-    var r = Math.min(255, Math.floor((colorInt >> 16) + 255 * amount));
-    var g = Math.min(255, Math.floor(((colorInt >> 8) & 0x00FF) + 255 * amount));
-    var b = Math.min(255, Math.floor((colorInt & 0x0000FF) + 255 * amount));
+GameEngine.prototype.renderTimeInfo = function() {
+    // 渲染时间信息到右上角
+    this.ctx.save();
     
-    var result = ((r << 16) | (g << 8) | b).toString(16);
-    return '#' + ('000000' + result).slice(-6);
+    // 背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(this.canvas.width - 200, 10, 190, 80);
+    
+    // 边框
+    this.ctx.strokeStyle = '#3498db';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(this.canvas.width - 200, 10, 190, 80);
+    
+    // 文字
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '16px Arial';
+    this.ctx.textAlign = 'left';
+    
+    // 生存天数
+    this.ctx.fillText('生存天数: ' + this.gameData.survivalDays, this.canvas.width - 190, 35);
+    
+    // 当前时间（模拟游戏内时间）
+    var gameTime = Math.floor((Date.now() / 1000) % (24 * 60 * 60)); // 24小时循环
+    var hours = Math.floor(gameTime / 3600);
+    var minutes = Math.floor((gameTime % 3600) / 60);
+    var timeString = (hours < 10 ? '0' : '') + hours + ':' + (minutes < 10 ? '0' : '') + minutes;
+    this.ctx.fillText('时间: ' + timeString, this.canvas.width - 190, 55);
+    
+    // 当前角色信息
+    var character = this.characterManager.getCurrentCharacter();
+    this.ctx.fillText('角色: ' + character.name, this.canvas.width - 190, 75);
+    
+    this.ctx.restore();
 };
 
 /**
- * 游戏初始化函数
+ * 颜色工具函数 - 使颜色变亮
  */
+GameEngine.prototype.lightenColor = function(color, amount) {
+    // 将十六进制颜色转换为RGB
+    var hex = color.replace('#', '');
+    var r = parseInt(hex.substr(0, 2), 16);
+    var g = parseInt(hex.substr(2, 2), 16);
+    var b = parseInt(hex.substr(4, 2), 16);
+    
+    // 增加亮度
+    r = Math.min(255, Math.floor(r + (255 - r) * amount));
+    g = Math.min(255, Math.floor(g + (255 - g) * amount));
+    b = Math.min(255, Math.floor(b + (255 - b) * amount));
+    
+    // 转换回十六进制 (兼容ES5)
+    var rHex = r.toString(16);
+    if (rHex.length === 1) rHex = '0' + rHex;
+    var gHex = g.toString(16);
+    if (gHex.length === 1) gHex = '0' + gHex;
+    var bHex = b.toString(16);
+    if (bHex.length === 1) bHex = '0' + bHex;
+    
+    return '#' + rHex + gHex + bHex;
+};
+
+/**
+ * 渲染玩家 - 使用人物管理器渲染当前选择的角色
+ */
+GameEngine.prototype.renderPlayer = function() {
+    // 使用人物管理器渲染当前角色
+    this.characterManager.renderCurrentCharacter(this.ctx, this.player.x, this.player.y, this.player);
+};
+
+/**
+ * 切换人物
+ */
+GameEngine.prototype.switchCharacter = function(characterId) {
+    if (this.characterManager.switchCharacter(characterId)) {
+        console.log('[Game] 切换到角色: ' + characterId + ' - ' + this.characterManager.getCurrentCharacter().name);
+        return true;
+    }
+    return false;
+};
+
+/**
+ * 获取当前人物信息
+ */
+GameEngine.prototype.getCurrentCharacterInfo = function() {
+    var character = this.characterManager.getCurrentCharacter();
+    return {
+        id: character.id,
+        name: character.name,
+        description: character.description
+    };
+};
+
+/**
+ * 获取所有人物列表
+ */
+GameEngine.prototype.getCharacterList = function() {
+    var list = [];
+    for (var id in this.characterManager.characters) {
+        var character = this.characterManager.characters[id];
+        list.push({
+            id: parseInt(id),
+            name: character.name,
+            description: character.description
+        });
+    }
+    return list.sort(function(a, b) { return a.id - b.id; });
+};
+
 function initGame() {
     try {
         console.log('[Main] 开始初始化游戏...');
