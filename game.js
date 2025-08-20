@@ -808,7 +808,9 @@ GameEngine.prototype.createNPC = function(characterId) {
     // 随机选择街道位置
     var position = this.getRandomStreetPosition();
     
-
+    // 获取角色个性
+    var character = this.characterManager.characters[characterId] || this.characterManager.characters[2];
+    var personality = this.getCharacterPersonality(character);
     
     var npc = {
         id: characterId,
@@ -816,8 +818,28 @@ GameEngine.prototype.createNPC = function(characterId) {
         x: position.x,
         y: position.y,
         isFollowing: false,
+        
         // 角色相关
-        character: this.characterManager.characters[characterId] || this.characterManager.characters[2]
+        character: character,
+        
+        // 个性化属性
+        personality: personality,
+        
+        // 移动相关
+        lastX: position.x,
+        lastY: position.y,
+        isWalking: false,
+        walkAnimationFrame: 0,
+        lastAnimationTime: 0,
+        direction: 'down',
+        
+        // 跟随状态
+        followStartTime: 0,
+        lastFollowUpdate: 0,
+        
+        // 随机行为
+        behaviorTimer: Math.random() * 1000,
+        currentBehavior: 'idle'
     };
     
     return npc;
@@ -1250,9 +1272,64 @@ GameEngine.prototype.updateSingleNPC = function(npc, deltaTime) {
         
         if (!alreadyInTeam) {
             npc.isFollowing = true;
+            npc.followStartTime = Date.now();
+            
+            // 确保跟随者有正确的初始状态
+            npc.lastX = npc.x;
+            npc.lastY = npc.y;
+            npc.isWalking = false;
+            npc.walkAnimationFrame = 0;
+            npc.lastAnimationTime = 0;
+            npc.direction = 'down';
+            
             this.followers.push(npc);
-            console.log('[NPC] 角色', npc.character.name, '加入团队，当前团队人数:', this.followers.length + 1);
+            console.log('[NPC] 角色', npc.characterId, '加入团队，个性类型:', npc.personality.personalityType, '当前团队人数:', this.followers.length);
+            
+            // 验证跟随者数组状态
+            console.log('[NPC] 跟随者数组验证:', {
+                length: this.followers.length,
+                followers: this.followers.map(function(f) {
+                    return {
+                        id: f.characterId,
+                        x: f.x,
+                        y: f.y,
+                        isFollowing: f.isFollowing
+                    };
+                })
+            });
+            
+            // 立即更新跟随者位置，让它们围绕玩家
+            this.updateFollowerPositions();
         }
+    } else {
+        // NPC未跟随时的个性化行为
+        this.updateNPCIdleBehavior(npc, deltaTime);
+    }
+};
+
+/**
+ * 更新所有跟随者的位置，让它们围绕玩家
+ */
+GameEngine.prototype.updateFollowerPositions = function() {
+    for (var i = 0; i < this.followers.length; i++) {
+        var follower = this.followers[i];
+        var character = follower.character || this.characterManager.characters[2];
+        var personality = this.getCharacterPersonality(character);
+        
+        // 计算理想位置
+        var targetOffset = this.calculateFollowerOffset(follower, personality);
+        var targetX = this.player.x + targetOffset.x;
+        var targetY = this.player.y + targetOffset.y;
+        
+        // 立即移动到理想位置（避免重叠）
+        follower.x = targetX;
+        follower.y = targetY;
+        
+        // 更新动画状态
+        follower.isWalking = false;
+        follower.direction = 'down';
+        
+        console.log('[Follower] 角色', follower.characterId, '位置更新到:', targetX, targetY);
     }
 };
 
@@ -1289,15 +1366,227 @@ GameEngine.prototype.canTeamMoveTo = function(deltaX, deltaY) {
 };
 
 /**
- * 移动整个团队
+ * 移动整个团队 - 更自然的跟随系统
  */
 GameEngine.prototype.moveTeam = function(deltaX, deltaY) {
-    // 移动所有团队成员
+    var self = this;
+    
+    // 为每个跟随者计算个性化的移动
     for (var i = 0; i < this.followers.length; i++) {
         var follower = this.followers[i];
-        follower.x += deltaX;
-        follower.y += deltaY;
+        self.moveSingleFollower(follower, deltaX, deltaY);
     }
+};
+
+/**
+ * 移动单个跟随者 - 简化版本，确保可见性
+ */
+GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
+    // 获取角色的个性化属性
+    var character = follower.character || this.characterManager.characters[2];
+    var personality = this.getCharacterPersonality(character);
+    
+    // 计算跟随者的目标位置（相对于玩家）
+    var targetOffset = this.calculateFollowerOffset(follower, personality);
+    var targetX = this.player.x + targetOffset.x;
+    var targetY = this.player.y + targetOffset.y;
+    
+    // 计算当前跟随者到目标位置的距离
+    var currentDistance = Math.sqrt(
+        Math.pow(follower.x - targetX, 2) + 
+        Math.pow(follower.y - targetY, 2)
+    );
+    
+    // 简化移动逻辑：直接移动到目标位置附近
+    if (currentDistance > 10) { // 如果距离超过10像素
+        var directionX = targetX - follower.x;
+        var directionY = targetY - follower.y;
+        var distance = Math.sqrt(directionX * directionX + directionY * directionY);
+        
+        if (distance > 0) {
+            // 标准化方向向量
+            directionX /= distance;
+            directionY /= distance;
+            
+            // 移动跟随者（速度稍慢于玩家）
+            var moveSpeed = 2; // 固定速度，确保可见
+            var moveDistance = Math.min(moveSpeed, currentDistance);
+            
+            follower.x += directionX * moveDistance;
+            follower.y += directionY * moveDistance;
+            
+            // 标记为行走状态
+            follower.isWalking = true;
+        }
+    } else {
+        // 到达目标位置附近，停止行走
+        follower.isWalking = false;
+    }
+    
+    // 更新跟随者的动画状态
+    this.updateFollowerAnimation(follower, personality);
+    
+    // 调试：确保跟随者位置合理
+    if (follower.x < 0 || follower.y < 0 || follower.x > this.mapConfig.width || follower.y > this.mapConfig.height) {
+        console.warn('[Follower] 跟随者位置异常:', follower.characterId, '位置:', follower.x, follower.y);
+        // 重置到玩家附近
+        follower.x = this.player.x + 50;
+        follower.y = this.player.y + 50;
+    }
+};
+
+/**
+ * 获取角色个性属性
+ */
+GameEngine.prototype.getCharacterPersonality = function(character) {
+    // 基于角色ID生成个性化属性
+    var characterId = character.id || 2;
+    var seed = characterId * 12345; // 使用角色ID作为种子
+    
+    // 生成伪随机但一致的个性
+    var random = this.seededRandom(seed);
+    
+    return {
+        // 跟随距离：每个角色有不同的理想跟随距离
+        followDistance: 35 + (random() * 20 - 10), // 25-45像素范围
+        
+        // 移动速度：每个角色有不同的移动速度
+        moveSpeed: 0.8 + (random() * 0.4), // 0.8-1.2倍玩家速度
+        
+        // 跟随积极性：影响角色追赶玩家的速度
+        followAggressiveness: 0.7 + (random() * 0.6), // 0.7-1.3倍
+        
+        // 随机性：角色移动的随机程度
+        randomness: random() * 0.3, // 0-0.3的随机因子
+        
+        // 反应延迟：角色对玩家移动的反应速度
+        reactionDelay: random() * 200, // 0-200ms的延迟
+        
+        // 个性类型
+        personalityType: this.getPersonalityType(characterId)
+    };
+};
+
+/**
+ * 计算跟随者的理想偏移位置
+ */
+GameEngine.prototype.calculateFollowerOffset = function(follower, personality) {
+    var index = this.followers.indexOf(follower);
+    var totalFollowers = this.followers.length;
+    
+    // 基础跟随模式：围绕玩家形成弧形或圆形
+    var baseAngle = (index / totalFollowers) * Math.PI * 2;
+    var radius = personality.followDistance;
+    
+    // 根据个性类型调整跟随模式
+    switch (personality.personalityType) {
+        case 'leader':
+            // 领导者类型：紧跟在玩家身后
+            return { x: -15, y: 0 };
+            
+        case 'supporter':
+            // 支持者类型：在玩家侧面
+            return { x: index % 2 === 0 ? 25 : -25, y: (index % 2 === 0 ? 1 : -1) * 20 };
+            
+        case 'scout':
+            // 侦察者类型：在玩家前方
+            return { x: 20, y: -15 };
+            
+        case 'guardian':
+            // 守护者类型：在玩家周围形成保护圈
+            var angle = baseAngle + (index * 0.3);
+            return {
+                x: Math.cos(angle) * radius * 0.8,
+                y: Math.sin(angle) * radius * 0.8
+            };
+            
+        case 'independent':
+            // 独立者类型：保持较大距离
+            var angle = baseAngle + (index * 0.5);
+            return {
+                x: Math.cos(angle) * (radius + 10),
+                y: Math.sin(angle) * (radius + 10)
+            };
+            
+        default:
+            // 默认：围绕玩家形成弧形
+            var angle = baseAngle + (index * 0.2);
+            return {
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius
+            };
+    }
+};
+
+/**
+ * 获取个性类型
+ */
+GameEngine.prototype.getPersonalityType = function(characterId) {
+    var types = ['leader', 'supporter', 'scout', 'guardian', 'independent'];
+    return types[characterId % types.length];
+};
+
+/**
+ * 更新跟随者动画
+ */
+GameEngine.prototype.updateFollowerAnimation = function(follower, personality) {
+    // 计算跟随者的移动方向
+    var deltaX = follower.x - (follower.lastX || follower.x);
+    var deltaY = follower.y - (follower.lastY || follower.y);
+    
+    // 更新跟随者的动画状态
+    if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
+        follower.isWalking = true;
+        follower.direction = this.getDirectionFromDelta(deltaX, deltaY);
+        
+        // 个性化动画速度
+        if (!follower.lastAnimationTime) follower.lastAnimationTime = 0;
+        follower.lastAnimationTime += 16; // 假设16ms每帧
+        
+        var animationSpeed = personality.moveSpeed * 200; // 基于移动速度的动画速度
+        if (follower.lastAnimationTime >= animationSpeed) {
+            follower.walkAnimationFrame = (follower.walkAnimationFrame || 0) + 1;
+            if (follower.walkAnimationFrame >= 4) follower.walkAnimationFrame = 0;
+            follower.lastAnimationTime = 0;
+        }
+    } else {
+        follower.isWalking = false;
+    }
+    
+    // 保存当前位置用于下次计算
+    follower.lastX = follower.x;
+    follower.lastY = follower.y;
+    
+    // 调试信息
+    if (follower.isWalking) {
+        console.log('[Follower] 角色', follower.characterId, '正在行走，方向:', follower.direction, '动画帧:', follower.walkAnimationFrame);
+    }
+};
+
+/**
+ * 从移动增量获取方向
+ */
+GameEngine.prototype.getDirectionFromDelta = function(deltaX, deltaY) {
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        return deltaX > 0 ? 'right' : 'left';
+    } else {
+        return deltaY > 0 ? 'down' : 'up';
+    }
+};
+
+/**
+ * 种子随机数生成器 - 确保相同角色ID总是生成相同的个性
+ */
+GameEngine.prototype.seededRandom = function(seed) {
+    var m = 0x80000000;
+    var a = 1103515245;
+    var c = 12345;
+    var state = seed ? seed : Math.floor(Math.random() * (m - 1));
+    
+    return function() {
+        state = (a * state + c) % m;
+        return (state & (m - 1)) / (m - 1);
+    };
 };
 
 /**
@@ -2007,6 +2296,9 @@ GameEngine.prototype.renderGame = function() {
     // 绘制NPC
     this.renderNPCs();
     
+    // 绘制团队成员 - 使用个性化渲染
+    this.renderFollowers();
+    
     // 恢复上下文状态
     this.ctx.restore();
     
@@ -2100,6 +2392,274 @@ GameEngine.prototype.renderNPCsInSubMap = function() {
         var follower = this.followers[i];
         this.renderSingleNPC(follower);
     }
+};
+
+/**
+ * 渲染跟随者 - 个性化渲染
+ */
+GameEngine.prototype.renderFollowers = function() {
+    try {
+        if (!this.followers || !Array.isArray(this.followers)) {
+            console.warn('[Render] 跟随者数组无效:', this.followers);
+            return;
+        }
+        
+        console.log('[Render] 开始渲染跟随者，数量:', this.followers.length);
+        
+        for (var i = 0; i < this.followers.length; i++) {
+            var follower = this.followers[i];
+            
+            // 验证跟随者对象
+            if (!follower || typeof follower.x !== 'number' || typeof follower.y !== 'number') {
+                console.warn('[Render] 跟随者对象无效:', follower);
+                continue;
+            }
+            
+            console.log('[Render] 渲染跟随者', i, ':', {
+                id: follower.characterId,
+                x: follower.x,
+                y: follower.y,
+                isWalking: follower.isWalking,
+                personality: follower.personality ? follower.personality.personalityType : 'unknown'
+            });
+            
+            this.renderSingleFollower(follower, i);
+        }
+    } catch (error) {
+        console.error('[Render] 渲染跟随者时出错:', error);
+    }
+};
+
+/**
+ * 渲染单个跟随者 - 个性化渲染
+ */
+GameEngine.prototype.renderSingleFollower = function(follower, index) {
+    var character = follower.character || this.characterManager.characters[2];
+    var personality = follower.personality || this.getCharacterPersonality(character);
+    
+    // 保存当前上下文
+    this.ctx.save();
+    
+    // 应用个性化效果
+    this.applyFollowerPersonalityEffects(follower, personality);
+    
+    // 直接渲染跟随者
+    this.renderFollowerCharacter(follower, character);
+    
+    // 渲染个性化指示器
+    this.renderPersonalityIndicator(follower, personality, index);
+    
+    // 恢复上下文
+    this.ctx.restore();
+    
+    // 调试：确保跟随者可见
+    console.log('[Render] 跟随者', index, '渲染完成，位置:', follower.x, follower.y);
+};
+
+/**
+ * 渲染跟随者角色
+ */
+GameEngine.prototype.renderFollowerCharacter = function(follower, character) {
+    // 直接使用后备渲染方案，确保可见性
+    this.renderDefaultFollower(follower);
+    
+    // 调试：绘制跟随者位置指示器
+    this.ctx.save();
+    this.ctx.strokeStyle = '#ff0000';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([3, 3]);
+    this.ctx.strokeRect(follower.x - 12, follower.y - 12, 24, 24);
+    this.ctx.setLineDash([]);
+    
+    // 添加跟随者ID标签
+    this.ctx.fillStyle = '#ff0000';
+    this.ctx.font = 'bold 14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('F' + follower.characterId, follower.x, follower.y - 20);
+    
+    this.ctx.restore();
+};
+
+/**
+ * 默认跟随者渲染（后备方案）
+ */
+GameEngine.prototype.renderDefaultFollower = function(follower) {
+    this.ctx.save();
+    
+    // 根据个性类型选择颜色
+    var personality = follower.personality;
+    var baseColor = '#3498db';
+    
+    if (personality) {
+        switch (personality.personalityType) {
+            case 'leader': baseColor = '#f1c40f'; break;      // 金色
+            case 'supporter': baseColor = '#e74c3c'; break;   // 红色
+            case 'scout': baseColor = '#3498db'; break;       // 蓝色
+            case 'guardian': baseColor = '#27ae60'; break;    // 绿色
+            case 'independent': baseColor = '#9b59b6'; break; // 紫色
+        }
+    }
+    
+    // 绘制角色主体 - 稍微大一点，确保可见
+    this.ctx.fillStyle = baseColor;
+    this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
+    
+    // 绘制角色边框
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
+    
+    // 绘制角色编号
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(follower.characterId.toString(), follower.x, follower.y + 6);
+    
+    // 如果正在行走，添加行走指示器
+    if (follower.isWalking) {
+        this.ctx.fillStyle = '#2ecc71';
+        this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
+    }
+    
+    // 添加跟随状态指示器
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.beginPath();
+    this.ctx.arc(follower.x + 12, follower.y - 8, 4, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.restore();
+};
+
+/**
+ * 应用跟随者个性化效果
+ */
+GameEngine.prototype.applyFollowerPersonalityEffects = function(follower, personality) {
+    // 根据个性类型应用不同的视觉效果
+    switch (personality.personalityType) {
+        case 'leader':
+            // 领导者：稍微大一点，有光环效果
+            this.ctx.globalAlpha = 0.9;
+            break;
+            
+        case 'supporter':
+            // 支持者：有轻微的脉动效果
+            var pulse = Math.sin(Date.now() * 0.005) * 0.1 + 1;
+            this.ctx.globalAlpha = 0.9;
+            break;
+            
+        case 'scout':
+            // 侦察者：有轻微的闪烁效果
+            this.ctx.globalAlpha = 0.8 + Math.sin(Date.now() * 0.01) * 0.2;
+            break;
+            
+        case 'guardian':
+            // 守护者：有保护光环
+            this.ctx.globalAlpha = 0.95;
+            break;
+            
+        case 'independent':
+            // 独立者：稍微透明，表示独立
+            this.ctx.globalAlpha = 0.7;
+            break;
+            
+        default:
+            this.ctx.globalAlpha = 1.0;
+            break;
+    }
+};
+
+/**
+ * 渲染个性化指示器
+ */
+GameEngine.prototype.renderPersonalityIndicator = function(follower, personality, index) {
+    var indicatorY = follower.y - 25;
+    
+    // 根据个性类型显示不同的指示器
+    switch (personality.personalityType) {
+        case 'leader':
+            // 领导者：显示星星
+            this.renderStarIndicator(follower.x, indicatorY, '#f1c40f');
+            break;
+            
+        case 'supporter':
+            // 支持者：显示心形
+            this.renderHeartIndicator(follower.x, indicatorY, '#e74c3c');
+            break;
+            
+        case 'scout':
+            // 侦察者：显示眼睛
+            this.renderEyeIndicator(follower.x, indicatorY, '#3498db');
+            break;
+            
+        case 'guardian':
+            // 守护者：显示盾牌
+            this.renderShieldIndicator(follower.x, indicatorY, '#27ae60');
+            break;
+            
+        case 'independent':
+            // 独立者：显示箭头
+            this.renderArrowIndicator(follower.x, indicatorY, '#9b59b6');
+            break;
+    }
+    
+    // 显示跟随时间
+    if (follower.followStartTime) {
+        var followDuration = Math.floor((Date.now() - follower.followStartTime) / 1000);
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '10px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(followDuration + 's', follower.x, indicatorY - 10);
+    }
+};
+
+/**
+ * 渲染星星指示器
+ */
+GameEngine.prototype.renderStarIndicator = function(x, y, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('★', x, y);
+};
+
+/**
+ * 渲染心形指示器
+ */
+GameEngine.prototype.renderHeartIndicator = function(x, y, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('♥', x, y);
+};
+
+/**
+ * 渲染眼睛指示器
+ */
+GameEngine.prototype.renderEyeIndicator = function(x, y, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('👁', x, y);
+};
+
+/**
+ * 渲染盾牌指示器
+ */
+GameEngine.prototype.renderShieldIndicator = function(x, y, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('🛡', x, y);
+};
+
+/**
+ * 渲染箭头指示器
+ */
+GameEngine.prototype.renderArrowIndicator = function(x, y, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('→', x, y);
 };
 
 /**
@@ -2832,6 +3392,164 @@ GameEngine.prototype.getCharacterList = function() {
     return list.sort(function(a, b) { return a.id - b.id; });
 };
 
+/**
+ * 更新NPC的闲置行为
+ */
+GameEngine.prototype.updateNPCIdleBehavior = function(npc, deltaTime) {
+    var currentTime = Date.now();
+    
+    // 更新行为计时器
+    if (!npc.behaviorTimer) npc.behaviorTimer = 0;
+    npc.behaviorTimer -= deltaTime || 16; // 假设16ms每帧
+    
+    if (npc.behaviorTimer <= 0) {
+        // 选择新的行为
+        npc.currentBehavior = this.selectNPCBehavior(npc);
+        npc.behaviorTimer = 1000 + Math.random() * 2000; // 1-3秒的行为持续时间
+    }
+    
+    // 执行当前行为
+    this.executeNPCBehavior(npc);
+};
+
+/**
+ * 选择NPC行为
+ */
+GameEngine.prototype.selectNPCBehavior = function(npc) {
+    var behaviors = ['idle', 'wander', 'look_around', 'stretch', 'check_equipment'];
+    var weights = [0.4, 0.3, 0.2, 0.05, 0.05]; // 行为权重
+    
+    var random = Math.random();
+    var cumulativeWeight = 0;
+    
+    for (var i = 0; i < weights.length; i++) {
+        cumulativeWeight += weights[i];
+        if (random <= cumulativeWeight) {
+            return behaviors[i];
+        }
+    }
+    
+    return 'idle';
+};
+
+/**
+ * 执行NPC行为
+ */
+GameEngine.prototype.executeNPCBehavior = function(npc) {
+    switch (npc.currentBehavior) {
+        case 'wander':
+            this.executeWanderBehavior(npc);
+            break;
+        case 'look_around':
+            this.executeLookAroundBehavior(npc);
+            break;
+        case 'stretch':
+            this.executeStretchBehavior(npc);
+            break;
+        case 'check_equipment':
+            this.executeCheckEquipmentBehavior(npc);
+            break;
+        default:
+            // idle - 什么都不做
+            break;
+    }
+};
+
+/**
+ * 执行漫游行为
+ */
+GameEngine.prototype.executeWanderBehavior = function(npc) {
+    if (!npc.wanderTarget) {
+        // 设置漫游目标
+        var wanderRadius = 50 + Math.random() * 100;
+        var angle = Math.random() * Math.PI * 2;
+        npc.wanderTarget = {
+            x: npc.x + Math.cos(angle) * wanderRadius,
+            y: npc.y + Math.sin(angle) * wanderRadius
+        };
+    }
+    
+    // 向目标移动
+    var dx = npc.wanderTarget.x - npc.x;
+    var dy = npc.wanderTarget.y - npc.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 5) {
+        // 移动NPC
+        var moveSpeed = (npc.personality ? npc.personality.moveSpeed : 1) * 0.5;
+        npc.x += (dx / distance) * moveSpeed;
+        npc.y += (dy / distance) * moveSpeed;
+        
+        // 更新动画
+        npc.isWalking = true;
+        npc.direction = this.getDirectionFromDelta(dx, dy);
+    } else {
+        // 到达目标，清除目标
+        npc.wanderTarget = null;
+        npc.isWalking = false;
+    }
+};
+
+/**
+ * 执行环顾四周行为
+ */
+GameEngine.prototype.executeLookAroundBehavior = function(npc) {
+    // 简单的头部转动效果（通过改变方向实现）
+    if (!npc.lookAroundTimer) {
+        npc.lookAroundTimer = 0;
+        npc.lookAroundDirection = 0;
+    }
+    
+    npc.lookAroundTimer += 16;
+    if (npc.lookAroundTimer > 500) {
+        npc.lookAroundDirection = (npc.lookAroundDirection + 1) % 4;
+        npc.lookAroundTimer = 0;
+        
+        var directions = ['up', 'right', 'down', 'left'];
+        npc.direction = directions[npc.lookAroundDirection];
+    }
+};
+
+/**
+ * 执行伸展行为
+ */
+GameEngine.prototype.executeStretchBehavior = function(npc) {
+    // 简单的伸展动画（通过改变位置实现）
+    if (!npc.stretchTimer) {
+        npc.stretchTimer = 0;
+        npc.stretchPhase = 0;
+    }
+    
+    npc.stretchTimer += 16;
+    if (npc.stretchTimer > 200) {
+        npc.stretchTimer = 0;
+        npc.stretchPhase = (npc.stretchPhase + 1) % 4;
+        
+        // 轻微的伸展动作
+        var stretchOffset = Math.sin(npc.stretchPhase * Math.PI / 2) * 2;
+        npc.y += stretchOffset;
+    }
+};
+
+/**
+ * 执行检查装备行为
+ */
+GameEngine.prototype.executeCheckEquipmentBehavior = function(npc) {
+    // 检查装备的动画（通过改变方向实现）
+    if (!npc.checkEquipmentTimer) {
+        npc.checkEquipmentTimer = 0;
+    }
+    
+    npc.checkEquipmentTimer += 16;
+    if (npc.checkEquipmentTimer > 300) {
+        npc.checkEquipmentTimer = 0;
+        
+        // 随机改变方向，模拟检查装备
+        var directions = ['up', 'right', 'down', 'left'];
+        npc.direction = directions[Math.floor(Math.random() * directions.length)];
+    }
+};
+
 function initGame() {
     try {
         console.log('[Main] 开始初始化游戏...');
@@ -2856,16 +3574,156 @@ canvas.height = systemInfo.windowHeight;
         // 创建游戏引擎
         var gameEngine = new GameEngine(canvas, ctx);
         
-        // 启动游戏
-        gameEngine.start();
+            // 启动游戏
+    gameEngine.start();
+    
+    // 测试个性化团队跟随系统
+    console.log('[Main] 测试个性化团队跟随系统...');
+    setTimeout(function() {
+        console.log('[Main] 团队跟随系统状态:', {
+            followers: gameEngine.followers.length,
+            npcs: gameEngine.npcs.length,
+            personalities: gameEngine.followers.map(function(f) {
+                return {
+                    id: f.characterId,
+                    type: f.personality ? f.personality.personalityType : 'unknown'
+                };
+            })
+        });
         
-        console.log('[Main] 游戏启动成功！');
+            // 测试跟随者渲染
+    if (gameEngine.followers.length > 0) {
+        console.log('[Main] 跟随者位置验证:');
+        gameEngine.followers.forEach(function(f, i) {
+            console.log('  跟随者', i, ':', {
+                id: f.characterId,
+                x: f.x,
+                y: f.y,
+                personality: f.personality ? f.personality.personalityType : 'unknown',
+                isWalking: f.isWalking
+            });
+        });
+    }
+    
+    // 添加调试跟随者功能 - 兼容抖音小程序环境
+    try {
+        // 尝试使用全局对象
+        var globalObj = typeof global !== 'undefined' ? global : 
+                       typeof window !== 'undefined' ? window : 
+                       typeof this !== 'undefined' ? this : {};
         
-        // 暴露全局变量供调试
-        if (typeof global !== 'undefined') {
-            global.game = gameEngine;
-            global.canvas = canvas;
-            global.ctx = ctx;
+        globalObj.debugFollowers = function() {
+            console.log('[Debug] 当前跟随者状态:');
+            console.log('  跟随者数量:', gameEngine.followers.length);
+            console.log('  NPC数量:', gameEngine.npcs.length);
+            console.log('  跟随者数组:', gameEngine.followers);
+            console.log('  NPC数组:', gameEngine.npcs);
+            
+            // 强制添加一个测试跟随者
+            if (gameEngine.followers.length === 0) {
+                var testFollower = {
+                    id: 'test_follower',
+                    characterId: 999,
+                    x: gameEngine.player.x + 50,
+                    y: gameEngine.player.y + 50,
+                    isFollowing: true,
+                    personality: { personalityType: 'leader' },
+                    isWalking: false,
+                    walkAnimationFrame: 0,
+                    lastAnimationTime: 0,
+                    direction: 'down'
+                };
+                gameEngine.followers.push(testFollower);
+                console.log('[Debug] 添加测试跟随者成功');
+            }
+        };
+        
+        // 也在游戏引擎上添加调试方法
+        gameEngine.debugFollowers = globalObj.debugFollowers;
+        
+        console.log('[Main] 调试功能已加载，使用 gameEngine.debugFollowers() 或 global.debugFollowers() 来调试跟随者');
+        
+    } catch (error) {
+        console.warn('[Main] 调试功能加载失败:', error);
+        // 直接在游戏引擎上添加调试方法
+        gameEngine.debugFollowers = function() {
+            console.log('[Debug] 当前跟随者状态:');
+            console.log('  跟随者数量:', this.followers.length);
+            console.log('  NPC数量:', this.npcs.length);
+            console.log('  跟随者数组:', this.followers);
+            console.log('  NPC数组:', this.npcs);
+            
+            // 强制添加一个测试跟随者
+            if (this.followers.length === 0) {
+                var testFollower = {
+                    id: 'test_follower',
+                    characterId: 999,
+                    x: this.player.x + 50,
+                    y: this.player.y + 50,
+                    isFollowing: true,
+                    personality: { personalityType: 'unknown' },
+                    isWalking: false,
+                    walkAnimationFrame: 0,
+                    lastAnimationTime: 0,
+                    direction: 'down'
+                };
+                this.followers.push(testFollower);
+                console.log('[Debug] 添加测试跟随者成功');
+            }
+        };
+        
+        console.log('[Main] 调试功能已加载，使用 gameEngine.debugFollowers() 来调试跟随者');
+    }
+    
+    // 添加更多调试方法到游戏引擎
+    gameEngine.debugInfo = function() {
+        console.log('[Debug] 游戏引擎状态:');
+        console.log('  玩家位置:', this.player.x, this.player.y);
+        console.log('  跟随者数量:', this.followers.length);
+        console.log('  NPC数量:', this.npcs.length);
+        console.log('  建筑数量:', this.buildings.length);
+        console.log('  摄像机位置:', this.camera.x, this.camera.y);
+        console.log('  摄像机缩放:', this.camera.zoom);
+    };
+    
+    gameEngine.addTestFollower = function() {
+        var testFollower = {
+            id: 'test_follower_' + Date.now(),
+            characterId: 999,
+            x: this.player.x + 50,
+            y: this.player.y + 50,
+            isFollowing: true,
+            personality: { personalityType: 'leader' },
+            isWalking: false,
+            walkAnimationFrame: 0,
+            lastAnimationTime: 0,
+            direction: 'down',
+            character: this.characterManager.characters[2]
+        };
+        
+        this.followers.push(testFollower);
+        console.log('[Debug] 测试跟随者添加成功，当前跟随者数量:', this.followers.length);
+        return testFollower;
+    };
+    
+    console.log('[Main] 额外调试方法已加载: gameEngine.debugInfo(), gameEngine.addTestFollower()');
+    }, 2000);
+    
+    console.log('[Main] 游戏启动成功！');
+        
+        // 暴露全局变量供调试 - 兼容抖音小程序环境
+        try {
+            var globalObj = typeof global !== 'undefined' ? global : 
+                           typeof window !== 'undefined' ? window : 
+                           typeof this !== 'undefined' ? this : {};
+            
+            globalObj.game = gameEngine;
+            globalObj.canvas = canvas;
+            globalObj.ctx = ctx;
+            
+            console.log('[Main] 全局调试变量已设置');
+        } catch (error) {
+            console.warn('[Main] 全局调试变量设置失败:', error);
         }
         
         return gameEngine;
