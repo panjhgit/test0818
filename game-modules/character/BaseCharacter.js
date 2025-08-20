@@ -138,38 +138,59 @@ BaseCharacter.prototype.renderEyes = function(ctx, x, y, player) {
     ctx.fillRect(x - 6, y - 16, 3, 2); 
     ctx.fillRect(x + 3, y - 16, 3, 2);
     ctx.fillStyle = this.colors.eyesHighlight; 
-    ctx.fillRect(x - 5, y - 15, 1, 1); 
-    ctx.fillRect(x + 4, y - 15, 1, 1);
+    ctx.fillRect(x - 5, y - 16, 1, 1); 
+    ctx.fillRect(x + 4, y - 16, 1, 1);
 };
 
 BaseCharacter.prototype.renderNose = function(ctx, x, y, player) {
     ctx.fillStyle = this.colors.skinShadow; 
-    ctx.fillRect(x - 1, y - 12, 2, 3);
+    ctx.fillRect(x - 1, y - 12, 2, 2);
+    ctx.fillStyle = this.colors.skinHighlight; 
+    ctx.fillRect(x, y - 13, 1, 1);
 };
 
 BaseCharacter.prototype.renderMouth = function(ctx, x, y, player) {
     ctx.fillStyle = this.colors.mouth; 
-    ctx.fillRect(x - 3, y - 8, 6, 2);
+    ctx.fillRect(x - 2, y - 10, 4, 1);
     ctx.fillStyle = this.colors.mouthShadow; 
-    ctx.fillRect(x - 2, y - 7, 4, 1);
+    ctx.fillRect(x - 1, y - 9, 2, 1);
 };
 
 BaseCharacter.prototype.renderArms = function(ctx, x, y, player) {
     var offsets = this.calculateAnimationOffsets(player);
     ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 18 + offsets.leftArmOffset, y - 2, 8, 12);
-    ctx.fillRect(x + 10 + offsets.rightArmOffset, y - 2, 8, 12);
+    ctx.fillRect(x - 14, y - 4 + offsets.leftArmOffset, 4, 10); 
+    ctx.fillRect(x - 16, y + 4 + offsets.leftArmOffset, 4, 8);
+    ctx.fillRect(x + 10, y - 4 + offsets.rightArmOffset, 4, 10); 
+    ctx.fillRect(x + 12, y + 4 + offsets.rightArmOffset, 4, 8);
     ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 12 + offsets.leftArmOffset, y + 8, 2, 2);
-    ctx.fillRect(x + 16 + offsets.rightArmOffset, y + 8, 2, 2);
+    ctx.fillRect(x - 12, y + 2 + offsets.leftArmOffset, 2, 4); 
+    ctx.fillRect(x + 10, y + 2 + offsets.rightArmOffset, 2, 4);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 18, y + 10 + offsets.leftArmOffset, 4, 4); 
+    ctx.fillRect(x + 14, y + 10 + offsets.rightArmOffset, 4, 4);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 16, y + 12 + offsets.leftArmOffset, 2, 2); 
+    ctx.fillRect(x + 14, y + 12 + offsets.rightArmOffset, 2, 2);
 };
 
 BaseCharacter.prototype.renderLegs = function(ctx, x, y, player) {
     var offsets = this.calculateAnimationOffsets(player);
     ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 8 + offsets.leftLegOffset, y + 12, 6, 14);
-    ctx.fillRect(x + 2 + offsets.rightLegOffset, y + 12, 6, 14);
+    ctx.fillRect(x - 6, y + 12 + offsets.leftLegOffset, 5, 14); 
+    ctx.fillRect(x - 7, y + 24 + offsets.leftLegOffset, 5, 8);
+    ctx.fillRect(x + 1, y + 12 + offsets.rightLegOffset, 5, 14); 
+    ctx.fillRect(x + 2, y + 24 + offsets.rightLegOffset, 5, 8);
     ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 6 + offsets.leftLegOffset, y + 24, 2, 2);
-    ctx.fillRect(x + 4 + offsets.rightLegOffset, y + 24, 2, 2);
+    ctx.fillRect(x - 2, y + 20 + offsets.leftLegOffset, 2, 6); 
+    ctx.fillRect(x + 1, y + 20 + offsets.rightLegOffset, 2, 6);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(x - 10, y + 30 + offsets.leftLegOffset, 8, 5); 
+    ctx.fillRect(x + 2, y + 30 + offsets.rightLegOffset, 8, 5);
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillRect(x - 8, y + 32 + offsets.leftLegOffset, 4, 2); 
+    ctx.fillRect(x + 4, y + 32 + offsets.rightLegOffset, 4, 2);
+    ctx.fillStyle = '#F8F8F8';
+    ctx.fillRect(x - 9, y + 30 + offsets.leftLegOffset, 2, 1); 
+    ctx.fillRect(x + 7, y + 30 + offsets.rightLegOffset, 2, 1);
 };

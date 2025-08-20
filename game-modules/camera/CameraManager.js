@@ -42,7 +42,7 @@ CameraManager.prototype.updateCamera = function(deltaTime) {
     targetX = Math.max(0, Math.min(mapConfig.width - viewWidth, targetX));
     targetY = Math.max(0, Math.min(mapConfig.height - viewHeight, targetY));
     
-    // 平滑跟随
+    // 平滑跟随 - 确保摄像机始终跟随玩家
     var smoothing = this.camera.smoothing || 0.1;
     this.camera.x += (targetX - this.camera.x) * smoothing;
     this.camera.y += (targetY - this.camera.y) * smoothing;
@@ -50,6 +50,11 @@ CameraManager.prototype.updateCamera = function(deltaTime) {
     // 确保摄像机不会卡住
     if (Math.abs(targetX - this.camera.x) < 1) this.camera.x = targetX;
     if (Math.abs(targetY - this.camera.y) < 1) this.camera.y = targetY;
+    
+    // 调试：摄像机状态
+    if (this.gameEngine.debugMode) {
+        console.log('[Camera] 摄像机位置:', this.camera.x, this.camera.y, '目标:', targetX, targetY);
+    }
 };
 
 /**

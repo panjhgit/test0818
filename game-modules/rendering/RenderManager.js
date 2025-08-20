@@ -482,3 +482,345 @@ RenderManager.prototype.renderArrowIndicator = function(x, y, color) {
     this.ctx.fill();
     this.ctx.restore();
 };
+
+/**
+ * 渲染菜单
+ */
+RenderManager.prototype.renderMenu = function() {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 创建渐变背景
+    var gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(0.5, '#16213e');
+    gradient.addColorStop(1, '#0f3460');
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 游戏标题
+    this.ctx.save();
+    this.ctx.shadowColor = 'rgba(255, 87, 51, 0.8)';
+    this.ctx.shadowBlur = 20;
+    this.ctx.shadowOffsetX = 0;
+    this.ctx.shadowOffsetY = 0;
+    
+    this.ctx.fillStyle = '#ff5733';
+    this.ctx.font = 'bold 42px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('末日Q行', centerX, 120);
+    this.ctx.restore();
+    
+    // 副标题
+    this.ctx.fillStyle = '#e8e8e8';
+    this.ctx.font = 'bold 18px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('生存至100天的挑战', centerX, 170);
+    
+    // 开始游戏按钮
+    this.renderStartButton(centerX);
+    
+    this.ctx.textAlign = 'left';
+};
+
+/**
+ * 渲染开始按钮
+ */
+RenderManager.prototype.renderStartButton = function(centerX) {
+    var buttonY = this.canvas.height / 2 + 50;
+    var buttonWidth = 220;
+    var buttonHeight = 55;
+    var buttonX = centerX - buttonWidth / 2;
+    
+    // 按钮背景
+    this.ctx.fillStyle = '#27ae60';
+    this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // 按钮边框
+    this.ctx.strokeStyle = '#2ecc71';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // 按钮文字
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 24px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('开始游戏', centerX, buttonY + 35);
+};
+
+/**
+ * 渲染游戏结束画面
+ */
+RenderManager.prototype.renderGameOver = function() {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 半透明背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 游戏结束标题
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.font = 'bold 48px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('游戏结束', centerX, centerY - 60);
+    
+    // 统计信息
+    var gameData = this.gameEngine.gameStateManager.getGameData();
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '24px Arial';
+    this.ctx.fillText('生存天数: ' + gameData.survivalDays, centerX, centerY);
+    this.ctx.fillText('击杀数: ' + gameData.zombieKills, centerX, centerY + 40);
+    this.ctx.fillText('最大团队: ' + gameData.maxTeamSize, centerX, centerY + 80);
+    
+    // 重新开始按钮
+    this.ctx.fillStyle = '#27ae60';
+    this.ctx.fillRect(centerX - 80, centerY + 120, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '20px Arial';
+    this.ctx.fillText('重新开始', centerX, centerY + 150);
+};
+
+/**
+ * 渲染胜利画面
+ */
+RenderManager.prototype.renderVictory = function() {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 半透明背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 胜利标题
+    this.ctx.fillStyle = '#f39c12';
+    this.ctx.font = 'bold 48px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('胜利！', centerX, centerY - 60);
+    
+    // 恭喜信息
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '24px Arial';
+    this.ctx.fillText('恭喜你生存了100天！', centerX, centerY);
+    
+    var gameData = this.gameEngine.gameStateManager.getGameData();
+    this.ctx.fillText('最终击杀数: ' + gameData.zombieKills, centerX, centerY + 40);
+    this.ctx.fillText('最终团队规模: ' + gameData.teamSize, centerX, centerY + 70);
+    
+    // 重新开始按钮
+    this.ctx.fillStyle = '#27ae60';
+    this.ctx.fillRect(centerX - 80, centerY + 100, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '20px Arial';
+    this.ctx.fillText('重新开始', centerX, centerY + 130);
+};
+
+/**
+ * 渲染地图背景
+ */
+RenderManager.prototype.renderMapBackground = function() {
+    // 简化的地图背景
+    this.ctx.fillStyle = '#2c5530';
+    this.ctx.fillRect(0, 0, this.gameEngine.mapConfig.width, this.gameEngine.mapConfig.height);
+};
+
+/**
+ * 渲染街道网格
+ */
+RenderManager.prototype.renderStreetGrid = function() {
+    var mapConfig = this.gameEngine.mapConfig;
+    var camera = this.gameEngine.cameraManager.camera;
+    
+    // 计算可见区域
+    var viewWidth = this.canvas.width / camera.zoom;
+    var viewHeight = this.canvas.height / camera.zoom;
+    var viewLeft = camera.x;
+    var viewRight = camera.x + viewWidth;
+    var viewTop = camera.y;
+    var viewBottom = camera.y + viewHeight;
+    
+    this.ctx.strokeStyle = '#4a4a4a';
+    this.ctx.lineWidth = 2;
+    
+    // 绘制垂直街道
+    var blocksX = Math.ceil(mapConfig.width / mapConfig.blockSize);
+    for (var i = 0; i <= blocksX; i++) {
+        var x = i * mapConfig.blockSize;
+        if (x >= viewLeft && x <= viewRight) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, Math.max(viewTop, 0));
+            this.ctx.lineTo(x, Math.min(viewBottom, mapConfig.height));
+            this.ctx.stroke();
+        }
+    }
+    
+    // 绘制水平街道
+    var blocksY = Math.ceil(mapConfig.height / mapConfig.blockSize);
+    for (var j = 0; j <= blocksY; j++) {
+        var y = j * mapConfig.blockSize;
+        if (y >= viewTop && y <= viewBottom) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(Math.max(viewLeft, 0), y);
+            this.ctx.lineTo(Math.min(viewRight, mapConfig.width), y);
+            this.ctx.stroke();
+        }
+    }
+};
+
+/**
+ * 渲染可见建筑
+ */
+RenderManager.prototype.renderVisibleBuildings = function() {
+    var buildings = this.gameEngine.buildingManager.getBuildings();
+    var camera = this.gameEngine.cameraManager.camera;
+    
+    // 计算可见区域
+    var viewWidth = this.canvas.width / camera.zoom;
+    var viewHeight = this.canvas.height / camera.zoom;
+    var viewLeft = camera.x;
+    var viewRight = camera.x + viewWidth;
+    var viewTop = camera.y;
+    var viewBottom = camera.y + viewHeight;
+    
+    for (var i = 0; i < buildings.length; i++) {
+        var building = buildings[i];
+        
+        // 检查建筑是否在可见区域内
+        if (building.x + building.width >= viewLeft &&
+            building.x <= viewRight &&
+            building.y + building.height >= viewTop &&
+            building.y <= viewBottom) {
+            
+            this.renderSingleBuilding(building);
+        }
+    }
+};
+
+/**
+ * 渲染单个建筑
+ */
+RenderManager.prototype.renderSingleBuilding = function(building) {
+    // 建筑主体
+    this.ctx.fillStyle = building.color;
+    this.ctx.fillRect(building.x, building.y, building.width, building.height);
+    
+    // 建筑边框
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(building.x, building.y, building.width, building.height);
+    
+    // 建筑名称
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(building.name, 
+        building.x + building.width / 2, 
+        building.y + building.height / 2);
+    
+    // 探索状态指示
+    if (building.explored) {
+        this.ctx.fillStyle = 'rgba(46, 204, 113, 0.3)';
+        this.ctx.fillRect(building.x, building.y, building.width, building.height);
+    }
+};
+
+/**
+ * 渲染状态栏
+ */
+RenderManager.prototype.renderStatusBar = function() {
+    var gameData = this.gameEngine.gameStateManager.getGameData();
+    
+    // 状态栏背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(0, 0, this.canvas.width, 50);
+    
+    // 状态信息
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '16px Arial';
+    this.ctx.textAlign = 'left';
+    
+    var statusText = '第' + gameData.survivalDays + '天 | 口粮: ' + gameData.food + ' | 团队: ' + gameData.teamSize;
+    this.ctx.fillText(statusText, 10, 25);
+    
+    // 时间信息
+    var timeText = gameData.isDay ? '白天' : '夜晚';
+    var timeRemaining = Math.ceil(gameData.timeRemaining / 1000);
+    this.ctx.textAlign = 'right';
+    this.ctx.fillText(timeText + ' ' + timeRemaining + 's', this.canvas.width - 10, 25);
+};
+
+/**
+ * 渲染时间信息
+ */
+RenderManager.prototype.renderTimeInfo = function() {
+    // 时间信息已在状态栏中显示
+};
+
+/**
+ * 渲染小地图
+ */
+RenderManager.prototype.renderMiniMap = function() {
+    var miniMapSize = 120;
+    var miniMapX = this.canvas.width - miniMapSize - 10;
+    var miniMapY = 60;
+    
+    // 小地图背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(miniMapX, miniMapY, miniMapSize, miniMapSize);
+    
+    // 小地图边框
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(miniMapX, miniMapY, miniMapSize, miniMapSize);
+    
+    // 玩家位置
+    var player = this.gameEngine.player;
+    var mapConfig = this.gameEngine.mapConfig;
+    var playerX = miniMapX + (player.x / mapConfig.width) * miniMapSize;
+    var playerY = miniMapY + (player.y / mapConfig.height) * miniMapSize;
+    
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.beginPath();
+    this.ctx.arc(playerX, playerY, 3, 0, 2 * Math.PI);
+    this.ctx.fill();
+};
+
+/**
+ * 渲染交互提示
+ */
+RenderManager.prototype.renderInteractionHint = function() {
+    var nearBuilding = this.gameEngine.buildingManager.getNearBuilding();
+    if (nearBuilding) {
+        var centerX = this.canvas.width / 2;
+        var hintY = this.canvas.height - 150;
+        
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(centerX - 100, hintY - 20, 200, 40);
+        
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('点击进入 ' + nearBuilding.name, centerX, hintY);
+    }
+};
+
+/**
+ * 渲染子地图
+ */
+RenderManager.prototype.renderSubMap = function() {
+    // 子地图背景
+    this.ctx.fillStyle = '#8b4513';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 子地图边界
+    this.ctx.strokeStyle = '#654321';
+    this.ctx.lineWidth = 5;
+    this.ctx.strokeRect(50, 100, 300, 200);
+    
+    // 渲染玩家和团队
+    this.renderPlayer();
+    this.renderFollowers();
+    
+    // 渲染子地图UI
+    this.renderStatusBar();
+};
