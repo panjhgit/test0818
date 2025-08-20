@@ -1298,13 +1298,33 @@ GameEngine.prototype.updateSingleNPC = function(npc, deltaTime) {
                 })
             });
             
-            // 立即更新跟随者位置，让它们围绕玩家
-            this.updateFollowerPositions();
+            // 新加入的NPC直接跟随，不刷新现有成员位置
+            this.addNewFollowerToTeam(npc);
         }
     } else {
         // NPC未跟随时的个性化行为
         this.updateNPCIdleBehavior(npc, deltaTime);
     }
+};
+
+/**
+ * 添加新跟随者到团队 - 不影响现有成员位置
+ */
+GameEngine.prototype.addNewFollowerToTeam = function(newFollower) {
+    // 计算新跟随者的理想位置
+    var character = newFollower.character || this.characterManager.characters[2];
+    var personality = this.getCharacterPersonality(character);
+    
+    // 新跟随者直接跟随到玩家附近
+    var targetOffset = this.calculateFollowerOffset(newFollower, personality);
+    newFollower.x = this.player.x + targetOffset.x;
+    newFollower.y = this.player.y + targetOffset.y;
+    
+    // 更新动画状态
+    newFollower.isWalking = false;
+    newFollower.direction = 'down';
+    
+    console.log('[Follower] 新成员', newFollower.characterId, '加入团队，位置:', newFollower.x, newFollower.y);
 };
 
 /**
@@ -1379,7 +1399,7 @@ GameEngine.prototype.moveTeam = function(deltaX, deltaY) {
 };
 
 /**
- * 移动单个跟随者 - 简化版本，确保可见性
+ * 移动单个跟随者 - 智能跟随系统
  */
 GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
     // 获取角色的个性化属性
@@ -1397,8 +1417,8 @@ GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
         Math.pow(follower.y - targetY, 2)
     );
     
-    // 简化移动逻辑：直接移动到目标位置附近
-    if (currentDistance > 10) { // 如果距离超过10像素
+    // 智能跟随逻辑
+    if (currentDistance > 15) { // 如果距离超过15像素
         var directionX = targetX - follower.x;
         var directionY = targetY - follower.y;
         var distance = Math.sqrt(directionX * directionX + directionY * directionY);
@@ -1408,28 +1428,57 @@ GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
             directionX /= distance;
             directionY /= distance;
             
-            // 移动跟随者（速度稍慢于玩家）
-            var moveSpeed = 2; // 固定速度，确保可见
+            // 根据距离调整移动速度
+            var moveSpeed;
+            if (currentDistance > 100) {
+                // 距离很远时，快速移动
+                moveSpeed = 4;
+            } else if (currentDistance > 50) {
+                // 距离较远时，中速移动
+                moveSpeed = 3;
+            } else {
+                // 距离较近时，慢速移动
+                moveSpeed = 2;
+            }
+            
             var moveDistance = Math.min(moveSpeed, currentDistance);
             
+            // 移动跟随者
             follower.x += directionX * moveDistance;
             follower.y += directionY * moveDistance;
             
             // 标记为行走状态
             follower.isWalking = true;
+            follower.direction = this.getDirectionFromDelta(directionX, directionY);
+            
+            // 记录移动历史（用于动画）
+            if (!follower.moveHistory) follower.moveHistory = [];
+            follower.moveHistory.push({ x: follower.x, y: follower.y, time: Date.now() });
+            
+            // 保持移动历史在合理范围内
+            if (follower.moveHistory.length > 10) {
+                follower.moveHistory.shift();
+            }
         }
     } else {
         // 到达目标位置附近，停止行走
         follower.isWalking = false;
+        
+        // 轻微的随机移动，让跟随更自然
+        if (Math.random() < 0.05) { // 5%概率
+            var randomOffset = (Math.random() - 0.5) * 1; // ±0.5像素的随机偏移
+            follower.x += randomOffset;
+            follower.y += randomOffset;
+        }
     }
     
     // 更新跟随者的动画状态
     this.updateFollowerAnimation(follower, personality);
     
-    // 调试：确保跟随者位置合理
+    // 边界检查和修正
     if (follower.x < 0 || follower.y < 0 || follower.x > this.mapConfig.width || follower.y > this.mapConfig.height) {
         console.warn('[Follower] 跟随者位置异常:', follower.characterId, '位置:', follower.x, follower.y);
-        // 重置到玩家附近
+        // 重置到玩家附近的安全位置
         follower.x = this.player.x + 50;
         follower.y = this.player.y + 50;
     }
@@ -1793,7 +1842,7 @@ GameEngine.prototype.circleRectCollision = function(circleX, circleY, circleRadi
 };
 
 /**
- * 更新摄像机
+ * 更新摄像机 - 始终跟随玩家
  */
 GameEngine.prototype.updateCamera = function(deltaTime) {
     if (!this.camera.followTarget) return;
@@ -1810,9 +1859,19 @@ GameEngine.prototype.updateCamera = function(deltaTime) {
     targetX = Math.max(0, Math.min(this.mapConfig.width - viewWidth, targetX));
     targetY = Math.max(0, Math.min(this.mapConfig.height - viewHeight, targetY));
     
-    // 平滑跟随
-    this.camera.x += (targetX - this.camera.x) * this.camera.smoothing;
-    this.camera.y += (targetY - this.camera.y) * this.camera.smoothing;
+    // 平滑跟随 - 确保摄像机始终跟随玩家
+    var smoothing = this.camera.smoothing || 0.1;
+    this.camera.x += (targetX - this.camera.x) * smoothing;
+    this.camera.y += (targetY - this.camera.y) * smoothing;
+    
+    // 确保摄像机不会卡住
+    if (Math.abs(targetX - this.camera.x) < 1) this.camera.x = targetX;
+    if (Math.abs(targetY - this.camera.y) < 1) this.camera.y = targetY;
+    
+    // 调试：摄像机状态
+    if (this.debugMode) {
+        console.log('[Camera] 摄像机位置:', this.camera.x, this.camera.y, '目标:', targetX, targetY);
+    }
 };
 
 /**
