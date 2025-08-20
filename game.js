@@ -254,6 +254,9 @@ function GameEngine(canvas, ctx) {
     this.exploredBuildings = [];
     this.nearBuilding = null; // 当前接近的建筑
     
+    // 建筑进入询问状态
+    this.buildingEntryPrompt = null;
+    
     // 设置摄像机跟随玩家
     this.camera.followTarget = this.player;
     
@@ -702,8 +705,76 @@ GameEngine.prototype.handleMenuClick = function(x, y) {
 GameEngine.prototype.handleGameClick = function(x, y) {
     console.log('[Click] 游戏中点击:', x, y);
     
-    // 现在只使用自动进入，不需要点击触发
-    console.log('[Click] 游戏中点击事件，当前为自动进入模式');
+    // 检查是否在建筑进入询问提示中
+    if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        this.handleBuildingEntryPromptClick(x, y);
+        return;
+    }
+    
+    // ESC键取消询问提示已整合到点击处理中
+    
+    // 现在只使用询问进入，不需要点击触发
+    console.log('[Click] 游戏中点击事件，当前为询问进入模式');
+};
+
+/**
+ * 处理建筑进入询问提示的点击
+ */
+GameEngine.prototype.handleBuildingEntryPromptClick = function(x, y) {
+    console.log('[Prompt] 处理询问提示点击:', x, y);
+    
+    var prompt = this.buildingEntryPrompt;
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 计算按钮位置（与渲染函数保持一致）
+    var boxHeight = 150;
+    var boxY = centerY - boxHeight / 2;
+    var buttonWidth = 80;
+    var buttonHeight = 35;
+    var buttonY = boxY + 90;
+    
+    console.log('[Prompt] 按钮区域计算 - 中心:', centerX, centerY, '按钮Y:', buttonY);
+    
+    // 进入按钮
+    var enterButtonX = centerX - buttonWidth - 20;
+    console.log('[Prompt] 进入按钮区域:', enterButtonX, buttonY, 'to', enterButtonX + buttonWidth, buttonY + buttonHeight);
+    
+    if (x >= enterButtonX && x <= enterButtonX + buttonWidth &&
+        y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('[Prompt] 玩家选择进入建筑:', prompt.building.name);
+        console.log('[Prompt] 建筑ID:', prompt.buildingId);
+        console.log('[Prompt] 验证建筑匹配...');
+        
+        // 严格验证建筑是否仍然是当前接近的建筑
+        if (this.nearBuilding && 
+            this.nearBuilding.id === prompt.building.id && 
+            this.nearBuilding.name === prompt.building.name) {
+            console.log('[Prompt] 建筑验证通过，进入建筑:', prompt.building.name, 'ID:', prompt.building.id);
+            this.exploreBuilding(prompt.building);
+        } else {
+            console.log('[Prompt] 建筑验证失败！');
+            console.log('[Prompt] 当前接近建筑:', this.nearBuilding ? this.nearBuilding.name + '(ID:' + this.nearBuilding.id + ')' : '无');
+            console.log('[Prompt] 询问提示建筑:', prompt.building.name + '(ID:' + prompt.building.id + ')');
+            console.log('[Prompt] 无法进入，建筑不匹配');
+        }
+        
+        this.buildingEntryPrompt = null; // 清除提示
+        return;
+    }
+    
+    // 取消按钮
+    var cancelButtonX = centerX + 20;
+    console.log('[Prompt] 取消按钮区域:', cancelButtonX, buttonY, 'to', cancelButtonX + buttonWidth, buttonY + buttonHeight);
+    
+    if (x >= cancelButtonX && x <= cancelButtonX + buttonWidth &&
+        y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('[Prompt] 玩家选择取消进入建筑');
+        this.buildingEntryPrompt = null; // 清除提示
+        return;
+    }
+    
+    console.log('[Prompt] 点击位置不在按钮区域内');
 };
 
 /**
@@ -713,7 +784,7 @@ GameEngine.prototype.handleSubMapClick = function(x, y) {
     var self = this;
     // 检查返回按钮
     if (x >= 10 && x <= 90 && y >= this.canvas.height - 40 && y <= this.canvas.height - 10) {
-        this.exitSubMap();
+        this.exitBuilding();
         return;
     }
     
@@ -797,9 +868,29 @@ GameEngine.prototype.exploreBuilding = function(building) {
     console.log('[GameEngine] 开始进入建筑: ' + building.name);
     console.log('[GameEngine] 当前游戏状态:', this.gameState, '→ submap');
     
+    // 保存进入前的位置（用于退出时恢复）
+    this.playerPositionBeforeEntering = {
+        x: this.player.x,
+        y: this.player.y
+    };
+    
+    // 保存团队成员进入前的位置
+    this.followersPositionBeforeEntering = [];
+    for (var i = 0; i < this.followers.length; i++) {
+        this.followersPositionBeforeEntering.push({
+            x: this.followers[i].x,
+            y: this.followers[i].y
+        });
+    }
+    
     this.currentBuilding = building;
     this.subMapType = building.type;
     this.gameState = 'submap';
+    
+    console.log('[GameEngine] 场景切换完成，新状态:', this.gameState);
+    console.log('[GameEngine] 当前建筑:', this.currentBuilding.name);
+    console.log('[GameEngine] 子地图类型:', this.subMapType);
+    console.log('[GameEngine] 已保存进入前位置:', this.playerPositionBeforeEntering);
     
     // 将玩家放在子地图入口处（上方进入）
     this.player.x = 200; // 子地图中心X
@@ -1128,23 +1219,7 @@ GameEngine.prototype.collectResource = function(resource) {
     }
 };
 
-/**
- * 退出子地图
- */
-GameEngine.prototype.exitSubMap = function() {
-    if (this.currentBuilding) {
-        this.currentBuilding.explored = true;
-        this.exploredBuildings.push(this.currentBuilding.id);
-    }
-    
-    this.gameState = 'playing';
-    this.currentBuilding = null;
-    this.subMapType = null;
-    this.zombies = [];
-    this.resources = [];
-    
-    console.log('[GameEngine] 退出子地图');
-};
+// 退出子地图功能已统一到exitBuilding函数
 
 /**
  * 启动游戏循环
@@ -1242,15 +1317,7 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
                     this.moveTeam(0, deltaY);
                 }
                 
-                // 如果完全无法移动，尝试自动解锁
-                if (!canMoveX && !canMoveY) {
-                    console.log('[Player] 玩家完全无法移动，尝试自动解锁...');
-                    this.autoUnlockPlayer();
-                }
             }
-            
-            // 检查是否接近建筑门
-            this.checkNearDoor();
             
         } else if (this.gameState === 'submap') {
             // 子地图中的团队移动边界检查
@@ -1288,6 +1355,8 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
         this.updateCamera(deltaTime);
         // 更新NPC
         this.updateNPCs(deltaTime);
+        // 检查是否接近建筑门（无论是否移动都检查）
+        this.checkNearDoor();
     }
 };
 
@@ -1446,7 +1515,7 @@ GameEngine.prototype.canTeamMoveTo = function(deltaX, deltaY) {
     return true;
 };
 
-// 推力机制已删除，保持代码简洁
+// 团队移动系统已优化
 
 /**
  * 移动整个团队 - 智能跟随系统
@@ -1829,7 +1898,7 @@ GameEngine.prototype.isCharacterInDoorArea = function(x, y, building) {
     return inDoorArea;
 };
 
-// 边缘检测函数已删除，保持代码简洁
+// 碰撞检测系统已优化
 
 /**
  * 为跟随者寻找替代路径（绕过障碍物）
@@ -1880,6 +1949,76 @@ GameEngine.prototype.findAlternativePath = function(follower, targetX, targetY) 
 };
 
 /**
+ * 渲染建筑进入询问提示
+ */
+GameEngine.prototype.renderBuildingEntryPrompt = function() {
+    console.log('[Render] renderBuildingEntryPrompt被调用，状态:', this.buildingEntryPrompt);
+    
+    if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active) {
+        console.log('[Render] 询问提示未激活，跳过渲染');
+        return;
+    }
+    
+    console.log('[Render] 开始渲染询问提示');
+    var prompt = this.buildingEntryPrompt;
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 半透明背景
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 提示框背景
+    var boxWidth = 300;
+    var boxHeight = 150;
+    var boxX = centerX - boxWidth / 2;
+    var boxY = centerY - boxHeight / 2;
+    
+    this.ctx.fillStyle = '#2c3e50';
+    this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    this.ctx.strokeStyle = '#3498db';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    
+    // 标题
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 18px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('进入建筑', centerX, boxY + 30);
+    
+    // 消息
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '16px Arial';
+    this.ctx.fillText(prompt.message, centerX, boxY + 60);
+    
+    // 按钮
+    var buttonWidth = 80;
+    var buttonHeight = 35;
+    var buttonY = boxY + 90;
+    
+    // 进入按钮
+    var enterButtonX = centerX - buttonWidth - 20;
+    this.ctx.fillStyle = '#27ae60';
+    this.ctx.fillRect(enterButtonX, buttonY, buttonWidth, buttonHeight);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '16px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('进入', centerX - buttonWidth - 20 + buttonWidth/2, buttonY + 25);
+    
+    // 取消按钮
+    var cancelButtonX = centerX + 20;
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.fillRect(cancelButtonX, buttonY, buttonWidth, buttonHeight);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '16px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('取消', centerX + 20 + buttonWidth/2, buttonY + 25);
+    
+    this.ctx.restore();
+};
+
+/**
  * 检查玩家是否接近建筑门
  */
 GameEngine.prototype.checkNearDoor = function() {
@@ -1889,6 +2028,8 @@ GameEngine.prototype.checkNearDoor = function() {
     
     // 重置当前接近的建筑
     this.nearBuilding = null;
+    
+    // 调试日志已简化
     
     // 检查可见区域内的建筑
     var viewWidth = this.canvas.width / this.camera.zoom;
@@ -1950,21 +2091,34 @@ GameEngine.prototype.checkNearDoor = function() {
             if (teamNearDoor) {
                 this.nearBuilding = building;
                 
-                // 显示详细调试信息（只在接近时）
-                console.log('[Debug] 团队接近建筑:', building.name, '最近成员:', nearestMember);
-                console.log('[Debug] 建筑位置:', building.x, building.y, building.width, building.height);
-                console.log('[Debug] 门位置:', doorInfo.x, doorInfo.y, doorInfo.width, doorInfo.height);
-                console.log('[Debug] 门中心:', doorCenterX, doorCenterY);
-                console.log('[Debug] 最近距离:', nearestDistance, '触发距离:', playerRadius + 35);
+                // 显示关键调试信息
+                console.log('[Door] 团队接近建筑:', building.name, '距离:', nearestDistance.toFixed(1));
                 
-                // 自动进入建筑 - 增大触发范围，更容易进入
-                if (nearestDistance <= playerRadius + 35) {
-                    console.log('[Door] 团队触发自动进入建筑:', building.name, '最近成员:', nearestMember, '距离:', nearestDistance);
-                    this.exploreBuilding(building);
+                // 检查是否在进入范围内，显示询问提示
+                if (nearestDistance <= playerRadius + 25) { // 统一触发距离，确保提示能出现
+                    console.log('[Door] 团队接近建筑入口:', building.name, '最近成员:', nearestMember, '距离:', nearestDistance);
+                    
+                    // 设置询问状态，绑定到特定建筑
+                    this.buildingEntryPrompt = {
+                        building: building,
+                        buildingId: building.id || building.name, // 添加建筑ID确保唯一性
+                        active: true,
+                        message: '是否进入 ' + building.name + '？',
+                        options: ['进入', '取消']
+                    };
+                    
+                    console.log('[Door] 询问提示已设置，建筑:', building.name, 'ID:', building.id);
+                    console.log('[Door] 建筑位置:', building.x, building.y, '门位置:', doorCenterX, doorCenterY);
                 }
                 break;
             }
         }
+    }
+    
+    // 如果没有接近任何建筑，清除询问提示
+    if (!this.nearBuilding && this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        console.log('[Door] 离开建筑门口，清除询问提示');
+        this.buildingEntryPrompt = null;
     }
 };
 
@@ -2537,6 +2691,11 @@ GameEngine.prototype.renderGame = function() {
     this.renderTimeInfo();
     this.renderMiniMap();
     this.renderInteractionHint();
+    
+    // 渲染建筑进入询问提示（不受摄像机影响）
+    if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        this.renderBuildingEntryPrompt();
+    }
 };
 
 /**
@@ -3417,29 +3576,60 @@ GameEngine.prototype.exitBuilding = function() {
         this.exploredBuildings.push(building);
     }
     
-    // 将玩家和团队成员放在建筑门口外面（在重置状态之前）
-    if (building) {
-        var doorInfo = this.calculateDoorInfo(building);
-        this.player.x = doorInfo.x + doorInfo.width / 2;
-        this.player.y = doorInfo.y + doorInfo.height + 30; // 放在门外
+    // 恢复玩家和团队成员到进入前的位置
+    if (building && this.playerPositionBeforeEntering) {
+        // 恢复玩家位置
+        this.player.x = this.playerPositionBeforeEntering.x;
+        this.player.y = this.playerPositionBeforeEntering.y;
         
-        // 将团队成员也带出建筑，排列在玩家周围
-        for (var i = 0; i < this.followers.length; i++) {
-            var follower = this.followers[i];
-            var row = Math.floor(i / 3); // 每行3个
-            var col = i % 3;
-            var offsetX = (col - 1) * 40; // 左右分布
-            var offsetY = row * 35 + 40; // 在玩家后方
+        console.log('[GameEngine] 玩家位置已恢复到:', this.player.x, this.player.y);
+        
+        // 恢复团队成员位置
+        if (this.followersPositionBeforeEntering) {
+            for (var i = 0; i < Math.min(this.followers.length, this.followersPositionBeforeEntering.length); i++) {
+                var follower = this.followers[i];
+                var savedPosition = this.followersPositionBeforeEntering[i];
+                
+                follower.x = savedPosition.x;
+                follower.y = savedPosition.y;
+                
+                // 确保不超出地图边界
+                follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
+                follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+            }
             
-            follower.x = this.player.x + offsetX;
-            follower.y = this.player.y + offsetY;
-            
-            // 确保不超出地图边界
-            follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
-            follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+            console.log('[GameEngine] 团队成员位置已恢复，数量:', this.followers.length);
         }
         
-        console.log('[GameEngine] 团队成员数量:', this.followers.length, '全部带出建筑');
+        // 清理保存的位置数据
+        this.playerPositionBeforeEntering = null;
+        this.followersPositionBeforeEntering = null;
+        
+    } else {
+        console.log('[GameEngine] 警告：没有保存的进入前位置，使用门口位置');
+        
+        // 后备方案：使用门口位置
+        if (building) {
+            var doorInfo = this.calculateDoorInfo(building);
+            this.player.x = doorInfo.x + doorInfo.width / 2;
+            this.player.y = doorInfo.y + doorInfo.height + 30; // 放在门外
+            
+            // 将团队成员排列在玩家周围
+            for (var i = 0; i < this.followers.length; i++) {
+                var follower = this.followers[i];
+                var row = Math.floor(i / 3); // 每行3个
+                var col = i % 3;
+                var offsetX = (col - 1) * 40; // 左右分布
+                var offsetY = row * 35 + 40; // 在玩家后方
+                
+                follower.x = this.player.x + offsetX;
+                follower.y = this.player.y + offsetY;
+                
+                // 确保不超出地图边界
+                follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
+                follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+            }
+        }
     }
     
     // 返回主地图
@@ -4033,6 +4223,66 @@ canvas.height = systemInfo.windowHeight;
     };
     
     console.log('[Main] 紧急解锁功能已加载: gameEngine.emergencyUnlock()');
+    
+    // 重复的全局函数已删除，使用原型方法
+    
+    console.log('[Main] 建筑进入询问提示功能已加载');
+    
+    // 添加调试功能：手动测试询问提示
+    gameEngine.testBuildingPrompt = function(buildingName) {
+        var building = this.buildings.find(function(b) { return b.name === buildingName; });
+        if (building) {
+            // 统一使用相同的状态设置逻辑
+            this.buildingEntryPrompt = {
+                building: building,
+                active: true,
+                message: '是否进入 ' + building.name + '？',
+                options: ['进入', '取消']
+            };
+            console.log('[Debug] 手动设置询问提示:', this.buildingEntryPrompt);
+        } else {
+            console.log('[Debug] 未找到建筑:', buildingName);
+            console.log('[Debug] 可用建筑:', this.buildings.map(function(b) { return b.name; }).slice(0, 5));
+        }
+    };
+    
+    console.log('[Main] 调试功能已加载: gameEngine.testBuildingPrompt("建筑名称")');
+    
+    // 立即测试询问提示功能
+    setTimeout(function() {
+        console.log('[Test] 3秒后自动测试询问提示...');
+        if (gameEngine.buildings && gameEngine.buildings.length > 0) {
+            var testBuilding = gameEngine.buildings[0];
+            gameEngine.buildingEntryPrompt = {
+                building: testBuilding,
+                active: true,
+                message: '测试询问提示 - 是否进入 ' + testBuilding.name + '？',
+                options: ['进入', '取消']
+            };
+            console.log('[Test] 测试询问提示已设置:', gameEngine.buildingEntryPrompt);
+        }
+    }, 3000);
+    
+    // 添加更多调试功能
+    gameEngine.debugBuildingPrompt = function() {
+        console.log('[Debug] 当前询问提示状态:', this.buildingEntryPrompt);
+        console.log('[Debug] 当前游戏状态:', this.gameState);
+        console.log('[Debug] 玩家位置:', this.player.x, this.player.y);
+        console.log('[Debug] 建筑数量:', this.buildings.length);
+        
+        // 显示最近的几个建筑
+        for (var i = 0; i < Math.min(3, this.buildings.length); i++) {
+            var building = this.buildings[i];
+            var doorInfo = this.calculateDoorInfo(building);
+            var distance = Math.sqrt(
+                Math.pow(this.player.x - (doorInfo.x + doorInfo.width/2), 2) + 
+                Math.pow(this.player.y - (doorInfo.y + doorInfo.height/2), 2)
+            );
+            console.log('[Debug] 建筑', i, ':', building.name, '距离:', distance);
+        }
+    };
+    
+    console.log('[Main] 调试功能已加载: gameEngine.debugBuildingPrompt()');
     }, 2000);
     
     console.log('[Main] 游戏启动成功！');
