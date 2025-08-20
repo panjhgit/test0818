@@ -405,33 +405,41 @@ GameEngine.prototype.setupInput = function() {
     this.joystick.centerY = this.canvas.height - 80;
     this.joystick.currentY = this.joystick.centerY;
     
-    // 抖音小程序触摸事件
+    // 抖音小程序触摸事件 - 增强版本
     if (typeof tt !== 'undefined') {
         // 使用抖音小程序的触摸事件API
         this.canvas.addEventListener('touchstart', function(e) {
+            console.log('[Input] 抖音触摸开始事件触发');
             self.onTouchStart(e);
         });
         this.canvas.addEventListener('touchmove', function(e) {
+            console.log('[Input] 抖音触摸移动事件触发');
             self.onTouchMove(e);
         });
         this.canvas.addEventListener('touchend', function(e) {
+            console.log('[Input] 抖音触摸结束事件触发');
             self.onTouchEnd(e);
         });
         this.canvas.addEventListener('tap', function(e) {
+            console.log('[Input] 抖音点击事件触发');
             self.onClick(e);
         });
     } else {
         // 标准浏览器事件
         this.canvas.addEventListener('touchstart', function(e) {
+            console.log('[Input] 浏览器触摸开始事件触发');
             self.onTouchStart(e);
         });
         this.canvas.addEventListener('touchmove', function(e) {
+            console.log('[Input] 浏览器触摸移动事件触发');
             self.onTouchMove(e);
         });
         this.canvas.addEventListener('touchend', function(e) {
+            console.log('[Input] 浏览器触摸结束事件触发');
             self.onTouchEnd(e);
         });
         this.canvas.addEventListener('click', function(e) {
+            console.log('[Input] 浏览器点击事件触发');
             self.onClick(e);
         });
     }
@@ -443,44 +451,57 @@ GameEngine.prototype.setupInput = function() {
  * 触摸开始
  */
 GameEngine.prototype.onTouchStart = function(e) {
-    if (e.preventDefault) e.preventDefault();
-    
-    var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-    var x, y;
-    
-    // 抖音小程序坐标处理
-    if (touch.x !== undefined && touch.y !== undefined) {
-        x = touch.x;
-        y = touch.y;
-    } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
-        x = touch.clientX;
-        y = touch.clientY;
-    } else {
-        x = 0;
-        y = 0;
-    }
-    
-    console.log('[Input] 触摸开始位置:', x, y);
-    
-    // 保存触摸开始位置，用于后续的tap检测
-    this.touchStartX = x;
-    this.touchStartY = y;
-    this.touchStartTime = Date.now();
-    
-    // 检查是否在虚拟摇杆区域
-    if (this.gameState === 'playing' || this.gameState === 'submap') {
-        var joystickDistance = Math.sqrt(
-            Math.pow(x - this.joystick.centerX, 2) + 
-            Math.pow(y - this.joystick.centerY, 2)
-        );
+    try {
+        if (e.preventDefault) e.preventDefault();
         
-        if (joystickDistance <= this.joystick.radius) {
-            this.joystick.active = true;
-            this.joystick.currentX = x;
-            this.joystick.currentY = y;
-            this.updateJoystickDirection();
-            console.log('[Input] 虚拟摇杆激活');
+        var touch = e.touches && e.touches[0] ? e.touches[0] : e;
+        var x, y;
+        
+        // 抖音小程序坐标处理
+        if (touch.x !== undefined && touch.y !== undefined) {
+            x = touch.x;
+            y = touch.y;
+        } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
+            x = touch.clientX;
+            y = touch.clientY;
+        } else {
+            console.warn('[Input] 触摸坐标获取失败:', touch);
+            x = 0;
+            y = 0;
         }
+        
+        console.log('[Input] 触摸开始位置:', x, y, '游戏状态:', this.gameState);
+        
+        // 保存触摸开始位置，用于后续的tap检测
+        this.touchStartX = x;
+        this.touchStartY = y;
+        this.touchStartTime = Date.now();
+        
+        // 检查是否在虚拟摇杆区域
+        if (this.gameState === 'playing' || this.gameState === 'submap') {
+            var joystickDistance = Math.sqrt(
+                Math.pow(x - this.joystick.centerX, 2) + 
+                Math.pow(y - this.joystick.centerY, 2)
+            );
+            
+            console.log('[Input] 摇杆距离检查:', joystickDistance, '摇杆半径:', this.joystick.radius);
+            
+            if (joystickDistance <= this.joystick.radius) {
+                this.joystick.active = true;
+                this.joystick.currentX = x;
+                this.joystick.currentY = y;
+                this.updateJoystickDirection();
+                console.log('[Input] 虚拟摇杆激活成功');
+            } else {
+                console.log('[Input] 触摸位置不在摇杆范围内');
+            }
+        } else {
+            console.log('[Input] 当前游戏状态不支持摇杆操作:', this.gameState);
+        }
+    } catch (error) {
+        console.error('[Input] 触摸开始处理错误:', error);
+        // 重置摇杆状态
+        this.resetJoystick();
     }
 };
 
@@ -488,62 +509,90 @@ GameEngine.prototype.onTouchStart = function(e) {
  * 触摸移动
  */
 GameEngine.prototype.onTouchMove = function(e) {
-    if (e.preventDefault) e.preventDefault();
-    if (!this.joystick.active) return;
-    
-    var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-    var x, y;
-    
-    // 抖音小程序坐标处理
-    if (touch.x !== undefined && touch.y !== undefined) {
-        x = touch.x;
-        y = touch.y;
-    } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
-        x = touch.clientX;
-        y = touch.clientY;
-    } else {
-        return;
+    try {
+        if (e.preventDefault) e.preventDefault();
+        
+        if (!this.joystick.active) {
+            console.log('[Input] 摇杆未激活，忽略触摸移动');
+            return;
+        }
+        
+        var touch = e.touches && e.touches[0] ? e.touches[0] : e;
+        var x, y;
+        
+        // 抖音小程序坐标处理
+        if (touch.x !== undefined && touch.y !== undefined) {
+            x = touch.x;
+            y = touch.y;
+        } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
+            x = touch.clientX;
+            y = touch.clientY;
+        } else {
+            console.warn('[Input] 触摸移动坐标获取失败');
+            return;
+        }
+        
+        console.log('[Input] 触摸移动位置:', x, y, '摇杆状态:', this.joystick.active);
+        
+        // 限制摇杆移动范围
+        var dx = x - this.joystick.centerX;
+        var dy = y - this.joystick.centerY;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= this.joystick.maxDistance) {
+            this.joystick.currentX = x;
+            this.joystick.currentY = y;
+        } else {
+            // 限制在最大距离内
+            var angle = Math.atan2(dy, dx);
+            this.joystick.currentX = this.joystick.centerX + Math.cos(angle) * this.joystick.maxDistance;
+            this.joystick.currentY = this.joystick.centerY + Math.sin(angle) * this.joystick.maxDistance;
+        }
+        
+        this.updateJoystickDirection();
+        console.log('[Input] 摇杆方向更新:', this.joystick.direction.x, this.joystick.direction.y);
+        
+    } catch (error) {
+        console.error('[Input] 触摸移动处理错误:', error);
+        this.resetJoystick();
     }
-    
-    // 限制摇杆移动范围
-    var dx = x - this.joystick.centerX;
-    var dy = y - this.joystick.centerY;
-    var distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance <= this.joystick.maxDistance) {
-        this.joystick.currentX = x;
-        this.joystick.currentY = y;
-    } else {
-        // 限制在最大距离内
-        var angle = Math.atan2(dy, dx);
-        this.joystick.currentX = this.joystick.centerX + Math.cos(angle) * this.joystick.maxDistance;
-        this.joystick.currentY = this.joystick.centerY + Math.sin(angle) * this.joystick.maxDistance;
-    }
-    
-    this.updateJoystickDirection();
 };
 
 /**
  * 触摸结束
  */
 GameEngine.prototype.onTouchEnd = function(e) {
-    if (e.preventDefault) e.preventDefault();
-    console.log('[Input] 触摸结束');
-    
-    // 检测是否为快速点击（tap）
-    var touchEndTime = Date.now();
-    var touchDuration = touchEndTime - this.touchStartTime;
-    
-    if (touchDuration < 300 && !this.joystick.active) { // 300ms内的快速触摸且不是摇杆操作
-        console.log('[Input] 检测到点击手势，触发点击事件');
-        // 模拟点击事件
-        this.onClick({
-            x: this.touchStartX,
-            y: this.touchStartY
-        });
+    try {
+        if (e.preventDefault) e.preventDefault();
+        console.log('[Input] 触摸结束，摇杆状态:', this.joystick.active);
+        
+        // 检测是否为快速点击（tap）
+        var touchEndTime = Date.now();
+        var touchDuration = touchEndTime - this.touchStartTime;
+        
+        if (touchDuration < 300 && !this.joystick.active) { // 300ms内的快速触摸且不是摇杆操作
+            console.log('[Input] 检测到点击手势，触发点击事件');
+            // 模拟点击事件
+            this.onClick({
+                x: this.touchStartX,
+                y: this.touchStartY
+            });
+        }
+        
+        // 重置摇杆状态
+        this.resetJoystick();
+        
+    } catch (error) {
+        console.error('[Input] 触摸结束处理错误:', error);
+        this.resetJoystick();
     }
-    
-    // 重置摇杆状态
+};
+
+/**
+ * 重置摇杆状态
+ */
+GameEngine.prototype.resetJoystick = function() {
+    console.log('[Input] 重置摇杆状态');
     this.joystick.active = false;
     this.joystick.currentX = this.joystick.centerX;
     this.joystick.currentY = this.joystick.centerY;
@@ -555,17 +604,37 @@ GameEngine.prototype.onTouchEnd = function(e) {
  * 更新摇杆方向
  */
 GameEngine.prototype.updateJoystickDirection = function() {
-    var dx = this.joystick.currentX - this.joystick.centerX;
-    var dy = this.joystick.currentY - this.joystick.centerY;
-    var distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance > 5) { // 死区，避免微小抖动
-        var normalizedDistance = Math.min(distance, this.joystick.maxDistance) / this.joystick.maxDistance;
-        this.joystick.direction.x = (dx / distance) * normalizedDistance;
-        this.joystick.direction.y = (dy / distance) * normalizedDistance;
-    } else {
-        this.joystick.direction.x = 0;
-        this.joystick.direction.y = 0;
+    try {
+        var dx = this.joystick.currentX - this.joystick.centerX;
+        var dy = this.joystick.currentY - this.joystick.centerY;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        
+        console.log('[Input] 摇杆方向计算:', {
+            dx: dx,
+            dy: dy,
+            distance: distance,
+            maxDistance: this.joystick.maxDistance,
+            deadZone: 5
+        });
+        
+        if (distance > 5) { // 死区，避免微小抖动
+            var normalizedDistance = Math.min(distance, this.joystick.maxDistance) / this.joystick.maxDistance;
+            this.joystick.direction.x = (dx / distance) * normalizedDistance;
+            this.joystick.direction.y = (dy / distance) * normalizedDistance;
+            
+            console.log('[Input] 摇杆方向已更新:', {
+                x: this.joystick.direction.x,
+                y: this.joystick.direction.y,
+                normalizedDistance: normalizedDistance
+            });
+        } else {
+            this.joystick.direction.x = 0;
+            this.joystick.direction.y = 0;
+            console.log('[Input] 摇杆在死区内，方向重置为0');
+        }
+    } catch (error) {
+        console.error('[Input] 摇杆方向更新错误:', error);
+        this.resetJoystick();
     }
 };
 
@@ -1172,6 +1241,12 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
                     this.player.y = newY;
                     this.moveTeam(0, deltaY);
                 }
+                
+                // 如果完全无法移动，尝试自动解锁
+                if (!canMoveX && !canMoveY) {
+                    console.log('[Player] 玩家完全无法移动，尝试自动解锁...');
+                    this.autoUnlockPlayer();
+                }
             }
             
             // 检查是否接近建筑门
@@ -1354,44 +1429,32 @@ GameEngine.prototype.updateFollowerPositions = function() {
 };
 
 /**
- * 检查团队是否可以移动到指定位置
+ * 检查团队是否可以移动到指定位置 - 主人物优先版本
  */
 GameEngine.prototype.canTeamMoveTo = function(deltaX, deltaY) {
-    // 检查玩家是否可以移动
+    // 只检查玩家是否可以移动，团队成员被卡住不影响主人物
     var playerNewX = this.player.x + deltaX;
     var playerNewY = this.player.y + deltaY;
-    if (this.checkCollisionWithBuildings(playerNewX, playerNewY).collision) {
+    var playerCollision = this.checkCollisionWithBuildings(playerNewX, playerNewY);
+    
+    if (playerCollision.collision) {
+        console.log('[Team] 玩家移动被建筑阻挡:', playerCollision.building.name);
         return false;
     }
     
-    // 检查所有团队成员是否可以移动
-    for (var i = 0; i < this.followers.length; i++) {
-        var follower = this.followers[i];
-        var followerNewX = follower.x + deltaX;
-        var followerNewY = follower.y + deltaY;
-        
-        // 边界检查
-        if (followerNewX < 100 || followerNewX > this.mapConfig.width - 100 ||
-            followerNewY < 100 || followerNewY > this.mapConfig.height - 100) {
-            return false;
-        }
-        
-        // 建筑物碰撞检测
-        if (this.checkCollisionWithBuildings(followerNewX, followerNewY).collision) {
-            return false;
-        }
-    }
-    
+    // 主人物可以移动，直接返回true，团队成员跟随时会自动处理碰撞
     return true;
 };
 
+// 推力机制已删除，保持代码简洁
+
 /**
- * 移动整个团队 - 更自然的跟随系统
+ * 移动整个团队 - 智能跟随系统
  */
 GameEngine.prototype.moveTeam = function(deltaX, deltaY) {
     var self = this;
     
-    // 为每个跟随者计算个性化的移动
+    // 为每个跟随者计算个性化的移动，允许绕过障碍物
     for (var i = 0; i < this.followers.length; i++) {
         var follower = this.followers[i];
         self.moveSingleFollower(follower, deltaX, deltaY);
@@ -1399,7 +1462,7 @@ GameEngine.prototype.moveTeam = function(deltaX, deltaY) {
 };
 
 /**
- * 移动单个跟随者 - 智能跟随系统
+ * 移动单个跟随者 - 智能跟随系统（带障碍物绕过）
  */
 GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
     // 获取角色的个性化属性
@@ -1443,9 +1506,24 @@ GameEngine.prototype.moveSingleFollower = function(follower, deltaX, deltaY) {
             
             var moveDistance = Math.min(moveSpeed, currentDistance);
             
-            // 移动跟随者
-            follower.x += directionX * moveDistance;
-            follower.y += directionY * moveDistance;
+            // 尝试直接移动，如果被阻挡则寻找替代路径
+            var newX = follower.x + directionX * moveDistance;
+            var newY = follower.y + directionY * moveDistance;
+            
+            // 检查新位置是否有碰撞
+            var collision = this.checkCollisionWithBuildings(newX, newY);
+            if (!collision.collision) {
+                // 没有碰撞，直接移动
+                follower.x = newX;
+                follower.y = newY;
+            } else {
+                // 有碰撞，尝试寻找替代路径
+                var alternativePath = this.findAlternativePath(follower, targetX, targetY);
+                if (alternativePath.success) {
+                    follower.x = alternativePath.x;
+                    follower.y = alternativePath.y;
+                }
+            }
             
             // 标记为行走状态
             follower.isWalking = true;
@@ -1680,11 +1758,12 @@ GameEngine.prototype.updateWalkAnimation = function(deltaTime) {
 };
 
 /**
- * 检查玩家与建筑的碰撞
+ * 检查玩家与建筑的碰撞 - 简化版本
  */
 GameEngine.prototype.checkCollisionWithBuildings = function(x, y) {
     var playerRadius = 18; // 玩家半径
-    var self = this;
+    var bufferDistance = 3; // 减小缓冲距离，让角色更贴近建筑
+    var effectiveRadius = playerRadius + bufferDistance;
     
     // 检查可见区域内的建筑
     var viewWidth = this.canvas.width / this.camera.zoom;
@@ -1706,17 +1785,98 @@ GameEngine.prototype.checkCollisionWithBuildings = function(x, y) {
             // 计算门的位置和尺寸
             var doorInfo = this.calculateDoorInfo(building);
             
-            // 检查是否与建筑主体碰撞（排除门区域）
-            if (this.circleRectCollision(x, y, playerRadius, building.x, building.y, building.width, building.height)) {
+            // 检查是否与建筑主体碰撞
+            if (this.circleRectCollision(x, y, effectiveRadius, building.x, building.y, building.width, building.height)) {
                 // 检查是否在门区域内
-                if (!this.circleRectCollision(x, y, playerRadius, doorInfo.x, doorInfo.y, doorInfo.width, doorInfo.height)) {
+                var doorBufferDistance = 1; // 门区域缓冲距离更小
+                var doorEffectiveRadius = playerRadius + doorBufferDistance;
+                
+                if (!this.circleRectCollision(x, y, doorEffectiveRadius, doorInfo.x, doorInfo.y, doorInfo.width, doorInfo.height)) {
+                    // 不在门区域内，发生碰撞
                     return { collision: true, building: building };
+                } else {
+                    // 在门区域内，允许通过
+                    return { collision: false, building: null };
                 }
             }
         }
     }
     
     return { collision: false, building: null };
+};
+
+/**
+ * 检查角色是否在门区域内
+ */
+GameEngine.prototype.isCharacterInDoorArea = function(x, y, building) {
+    var playerRadius = 18;
+    var doorBufferDistance = 3; // 门区域缓冲距离
+    var doorEffectiveRadius = playerRadius + doorBufferDistance;
+    
+    var doorInfo = this.calculateDoorInfo(building);
+    
+    // 检查是否在门区域内
+    var inDoorArea = this.circleRectCollision(x, y, doorEffectiveRadius, doorInfo.x, doorInfo.y, doorInfo.width, doorInfo.height);
+    
+    if (this.debugMode && inDoorArea) {
+        console.log('[Door] 角色在门区域内:', {
+            position: { x: x, y: y },
+            door: { x: doorInfo.x, y: doorInfo.y, width: doorInfo.width, height: doorInfo.height },
+            building: building.name
+        });
+    }
+    
+    return inDoorArea;
+};
+
+// 边缘检测函数已删除，保持代码简洁
+
+/**
+ * 为跟随者寻找替代路径（绕过障碍物）
+ */
+GameEngine.prototype.findAlternativePath = function(follower, targetX, targetY) {
+    var searchRadius = 30; // 搜索半径
+    var stepSize = 5; // 搜索步长
+    
+    // 尝试8个方向寻找可移动位置
+    var directions = [
+        { dx: 1, dy: 0 },   // 右
+        { dx: -1, dy: 0 },  // 左
+        { dx: 0, dy: 1 },   // 下
+        { dx: 0, dy: -1 },  // 上
+        { dx: 1, dy: 1 },   // 右下
+        { dx: 1, dy: -1 },  // 右上
+        { dx: -1, dy: 1 },  // 左下
+        { dx: -1, dy: -1 }  // 左上
+    ];
+    
+    for (var radius = stepSize; radius <= searchRadius; radius += stepSize) {
+        for (var i = 0; i < directions.length; i++) {
+            var dir = directions[i];
+            var testX = follower.x + dir.dx * radius;
+            var testY = follower.y + dir.dy * radius;
+            
+            // 检查测试位置是否可行
+            var collision = this.checkCollisionWithBuildings(testX, testY);
+            if (!collision.collision) {
+                // 检查是否更接近目标
+                var currentDistance = Math.sqrt(
+                    Math.pow(follower.x - targetX, 2) + 
+                    Math.pow(follower.y - targetY, 2)
+                );
+                var testDistance = Math.sqrt(
+                    Math.pow(testX - targetX, 2) + 
+                    Math.pow(testY - targetY, 2)
+                );
+                
+                if (testDistance < currentDistance) {
+                    return { success: true, x: testX, y: testY };
+                }
+            }
+        }
+    }
+    
+    return { success: false };
 };
 
 /**
@@ -1826,7 +1986,7 @@ GameEngine.prototype.calculateDoorInfo = function(building) {
 };
 
 /**
- * 圆形与矩形碰撞检测
+ * 圆形与矩形碰撞检测 - 改进版本
  */
 GameEngine.prototype.circleRectCollision = function(circleX, circleY, circleRadius, rectX, rectY, rectWidth, rectHeight) {
     // 找到矩形上距离圆心最近的点
@@ -1837,6 +1997,17 @@ GameEngine.prototype.circleRectCollision = function(circleX, circleY, circleRadi
     var distanceX = circleX - closestX;
     var distanceY = circleY - closestY;
     var distanceSquared = distanceX * distanceX + distanceY * distanceY;
+    
+    // 添加调试信息
+    if (this.debugMode) {
+        console.log('[Collision] 圆形矩形碰撞检测:', {
+            circle: { x: circleX, y: circleY, radius: circleRadius },
+            rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight },
+            closest: { x: closestX, y: closestY },
+            distance: Math.sqrt(distanceSquared),
+            collision: distanceSquared < (circleRadius * circleRadius)
+        });
+    }
     
     return distanceSquared < (circleRadius * circleRadius);
 };
@@ -3766,6 +3937,102 @@ canvas.height = systemInfo.windowHeight;
     };
     
     console.log('[Main] 额外调试方法已加载: gameEngine.debugInfo(), gameEngine.addTestFollower()');
+    
+    // 添加调试模式开关
+    gameEngine.debugMode = false;
+    gameEngine.toggleDebugMode = function() {
+        this.debugMode = !this.debugMode;
+        console.log('[Debug] 调试模式:', this.debugMode ? '开启' : '关闭');
+    };
+    
+    // 添加摇杆调试和修复方法
+    gameEngine.debugJoystick = function() {
+        console.log('[Debug] 摇杆状态检查:');
+        console.log('  摇杆对象:', this.joystick);
+        console.log('  是否激活:', this.joystick.active);
+        console.log('  中心位置:', this.joystick.centerX, this.joystick.centerY);
+        console.log('  当前位置:', this.joystick.currentX, this.joystick.currentY);
+        console.log('  方向向量:', this.joystick.direction.x, this.joystick.direction.y);
+        console.log('  游戏状态:', this.gameState);
+        console.log('  触摸开始位置:', this.touchStartX, this.touchStartY);
+        console.log('  触摸开始时间:', this.touchStartTime);
+    };
+    
+    gameEngine.fixJoystick = function() {
+        console.log('[Debug] 尝试修复摇杆...');
+        
+        // 重置摇杆状态
+        this.resetJoystick();
+        
+        // 重新初始化摇杆位置
+        this.joystick.centerY = this.canvas.height - 80;
+        this.joystick.currentY = this.joystick.centerY;
+        
+        // 重置触摸状态
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.touchStartTime = 0;
+        
+        console.log('[Debug] 摇杆修复完成');
+        this.debugJoystick();
+    };
+    
+    console.log('[Main] 摇杆调试方法已加载: gameEngine.debugJoystick(), gameEngine.fixJoystick()');
+    
+    // 添加碰撞检测调试方法
+    gameEngine.debugCollision = function(x, y) {
+        console.log('[Debug] 碰撞检测调试 - 位置:', x, y);
+        
+        // 检查所有建筑的碰撞
+        for (var i = 0; i < this.buildings.length; i++) {
+            var building = this.buildings[i];
+            var collision = this.checkCollisionWithBuildings(x, y);
+            var inDoorArea = this.isCharacterInDoorArea(x, y, building);
+            
+            console.log('[Debug] 建筑', i, ':', building.name, {
+                position: { x: building.x, y: building.y, width: building.width, height: building.height },
+                collision: collision.collision,
+                inDoorArea: inDoorArea,
+                doorInfo: this.calculateDoorInfo(building)
+            });
+        }
+    };
+    
+    console.log('[Main] 碰撞检测调试方法已加载: gameEngine.debugCollision(x, y)');
+    
+    // 添加紧急解锁功能
+    gameEngine.emergencyUnlock = function() {
+        console.log('[Emergency] 执行紧急解锁...');
+        
+        // 检查玩家是否被建筑包围
+        var playerX = this.player.x;
+        var playerY = this.player.y;
+        var searchRadius = 50;
+        
+        // 在周围寻找可移动的位置
+        for (var radius = 10; radius <= searchRadius; radius += 5) {
+            for (var angle = 0; angle < 360; angle += 45) {
+                var rad = angle * Math.PI / 180;
+                var testX = playerX + Math.cos(rad) * radius;
+                var testY = playerY + Math.sin(rad) * radius;
+                
+                var collision = this.checkCollisionWithBuildings(testX, testY);
+                if (!collision.collision) {
+                    // 找到可移动位置，强制移动玩家
+                    this.player.x = testX;
+                    this.player.y = testY;
+                    
+                    console.log('[Emergency] 紧急解锁成功，新位置:', testX, testY);
+                    return true;
+                }
+            }
+        }
+        
+        console.log('[Emergency] 紧急解锁失败，无法找到可移动位置');
+        return false;
+    };
+    
+    console.log('[Main] 紧急解锁功能已加载: gameEngine.emergencyUnlock()');
     }, 2000);
     
     console.log('[Main] 游戏启动成功！');
