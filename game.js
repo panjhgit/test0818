@@ -1654,6 +1654,103 @@ GameEngine.prototype.render = function() {
     if (this.gameState === 'playing' || this.gameState === 'submap') {
         this.renderJoystick();
     }
+    
+    // 渲染FPS（调试用）
+    if (this.showFPS) {
+        this.renderFPS();
+    }
+};
+
+/**
+ * 渲染FPS信息
+ */
+GameEngine.prototype.renderFPS = function() {
+    if (!this.fps) return;
+    
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '14px Arial';
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText('FPS: ' + this.fps, 10, 20);
+    this.ctx.fillText('Delta: ' + this.deltaTime.toFixed(2) + 'ms', 10, 40);
+};
+
+/**
+ * 渲染游戏结束画面
+ */
+GameEngine.prototype.renderGameOver = function() {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 半透明黑色背景
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 游戏结束标题
+    this.ctx.fillStyle = '#e74c3c';
+    this.ctx.font = 'bold 48px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('游戏结束', centerX, centerY - 60);
+    
+    // 生存天数
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '24px Arial';
+    this.ctx.fillText('生存天数: ' + this.gameData.survivalDays, centerX, centerY);
+    
+    // 击杀僵尸数
+    this.ctx.fillText('击杀僵尸: ' + this.gameData.zombieKills, centerX, centerY + 40);
+    
+    // 重新开始按钮
+    this.ctx.fillStyle = '#3498db';
+    this.ctx.fillRect(centerX - 80, centerY + 80, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '20px Arial';
+    this.ctx.fillText('重新开始', centerX, centerY + 110);
+    
+    // 返回菜单按钮
+    this.ctx.fillStyle = '#95a5a6';
+    this.ctx.fillRect(centerX - 80, centerY + 150, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText('返回菜单', centerX, centerY + 180);
+};
+
+/**
+ * 渲染胜利画面
+ */
+GameEngine.prototype.renderVictory = function() {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    
+    // 半透明金色背景
+    this.ctx.fillStyle = 'rgba(255, 215, 0, 0.1)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 胜利标题
+    this.ctx.fillStyle = '#f39c12';
+    this.ctx.font = 'bold 48px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('胜利！', centerX, centerY - 60);
+    
+    // 恭喜信息
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '24px Arial';
+    this.ctx.fillText('恭喜你生存了100天！', centerX, centerY);
+    
+    // 最终统计
+    this.ctx.fillText('最终击杀数: ' + this.gameData.zombieKills, centerX, centerY + 40);
+    this.ctx.fillText('最终团队规模: ' + this.gameData.teamSize, centerX, centerY + 70);
+    
+    // 重新开始按钮
+    this.ctx.fillStyle = '#27ae60';
+    this.ctx.fillRect(centerX - 80, centerY + 100, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '20px Arial';
+    this.ctx.fillText('重新开始', centerX, centerY + 130);
+    
+    // 返回菜单按钮
+    this.ctx.fillStyle = '#95a5a6';
+    this.ctx.fillRect(centerX - 80, centerY + 170, 160, 50);
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText('返回菜单', centerX, centerY + 190);
 };
 
 /**
