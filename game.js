@@ -1768,10 +1768,10 @@ GameEngine.prototype.initializeZombies = function() {
 GameEngine.prototype.spawnZombiesByDay = function() {
     var currentDay = this.gameData.survivalDays;
     
-    // 计算僵尸数量：基础5只 + 每天增加2只，最多30只
-    var baseCount = 5;
-    var perDayIncrease = 2;
-    var maxZombies = 30;
+    // 计算僵尸数量：基础10只 + 每天增加3只，最多50只
+    var baseCount = 10;
+    var perDayIncrease = 3;
+    var maxZombies = 50;
     var zombieCount = Math.min(maxZombies, baseCount + (currentDay - 1) * perDayIncrease);
     
     console.log('[Zombie] 第', currentDay, '天，生成', zombieCount, '只僵尸');
@@ -1847,12 +1847,12 @@ GameEngine.prototype.getRandomZombieType = function(day) {
 GameEngine.prototype.spawnNewDayZombies = function() {
     var currentDay = this.gameData.survivalDays;
     
-    // 每天额外生成2只僵尸
-    var newZombieCount = 2;
+    // 每天额外生成5只僵尸
+    var newZombieCount = 5;
     
     // 第5天开始每5天生成一次大波僵尸
     if (currentDay >= 5 && currentDay % 5 === 0) {
-        newZombieCount = 5;
+        newZombieCount = 10;
         console.log('[Zombie] 第', currentDay, '天！大波僵尸来袭！');
     }
     
@@ -2205,19 +2205,34 @@ GameEngine.prototype.generateSubMapContent = function() {
 };
 
 /**
- * 生成僵尸
+ * 生成僵尸（大幅减少子地图僵尸）
  */
 GameEngine.prototype.generateZombies = function() {
-    var random = Math.random();
-    var count;
+    // 大幅减少房屋内僵尸数量，只有少数建筑类型有僵尸
+    var buildingType = this.currentBuilding ? this.currentBuilding.type : 'house';
+    var count = 0;
     
-    if (random < 0.1) {
-        count = 5 + Math.floor(Math.random() * 4); // 5-8只
-    } else if (random < 0.3) {
-        count = 1 + Math.floor(Math.random() * 2); // 1-2只
-    } else {
-        count = 3 + Math.floor(Math.random() * 2); // 3-4只
+    // 只有特定建筑类型才有僵尸
+    switch (buildingType) {
+        case 'police_station':
+        case 'hospital':
+            count = 1; // 重要建筑只有1只僵尸
+            break;
+        case 'mall':
+        case 'factory':
+            count = 2; // 大型建筑2只僵尸
+            break;
+        default:
+            // 大部分建筑没有僵尸
+            if (Math.random() < 0.3) { // 30%概率有僵尸
+                count = 1;
+            } else {
+                count = 0;
+            }
+            break;
     }
+    
+    console.log('[SubMap] 建筑类型:', buildingType, '生成僵尸数量:', count);
     
     for (var i = 0; i < count; i++) {
         var zombie = {
@@ -2652,12 +2667,33 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
 };
 
 /**
- * 更新NPC系统
+ * 更新NPC系统（性能优化）
  */
 GameEngine.prototype.updateNPCs = function(deltaTime) {
+    // 降低NPC更新频率
+    if (!this.npcUpdateTimer) this.npcUpdateTimer = 0;
+    this.npcUpdateTimer += deltaTime;
+    
+    // 每100ms更新一次NPC
+    if (this.npcUpdateTimer < 100) return;
+    this.npcUpdateTimer = 0;
+    
+    // 只更新屏幕附近的NPC
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x - 100;
+    var viewRight = this.camera.x + viewWidth + 100;
+    var viewTop = this.camera.y - 100;
+    var viewBottom = this.camera.y + viewHeight + 100;
+    
     for (var i = 0; i < this.npcs.length; i++) {
         var npc = this.npcs[i];
-        this.updateSingleNPC(npc, deltaTime);
+        
+        // 只更新视野范围内的NPC
+        if (npc.x >= viewLeft && npc.x <= viewRight &&
+            npc.y >= viewTop && npc.y <= viewBottom) {
+            this.updateSingleNPC(npc, deltaTime);
+        }
     }
 };
 
@@ -2718,20 +2754,9 @@ GameEngine.prototype.updateSingleNPC = function(npc, deltaTime) {
             npc.direction = 'down';
             
             this.followers.push(npc);
-            console.log('[NPC] 角色', npc.characterId, '加入团队，个性类型:', npc.personality.personalityType, '当前团队人数:', this.followers.length);
+            console.log('[NPC] 角色', npc.characterId, '加入团队，当前团队人数:', this.followers.length);
             
-            // 验证跟随者数组状态
-            console.log('[NPC] 跟随者数组验证:', {
-                length: this.followers.length,
-                followers: this.followers.map(function(f) {
-                    return {
-                        id: f.characterId,
-                        x: f.x,
-                        y: f.y,
-                        isFollowing: f.isFollowing
-                    };
-                })
-            });
+            // 移除详细验证日志以提高性能
             
             // 新加入的NPC直接跟随，不刷新现有成员位置
             this.addNewFollowerToTeam(npc);
@@ -2759,7 +2784,7 @@ GameEngine.prototype.addNewFollowerToTeam = function(newFollower) {
     newFollower.isWalking = false;
     newFollower.direction = 'down';
     
-    console.log('[Follower] 新成员', newFollower.characterId, '加入团队，位置:', newFollower.x, newFollower.y);
+            // 移除日志以提高性能
 };
 
 /**
@@ -4042,33 +4067,22 @@ GameEngine.prototype.renderNPCsInSubMap = function() {
 };
 
 /**
- * 渲染跟随者 - 个性化渲染
+ * 渲染跟随者 - 优化版本
  */
 GameEngine.prototype.renderFollowers = function() {
     try {
         if (!this.followers || !Array.isArray(this.followers)) {
-            console.warn('[Render] 跟随者数组无效:', this.followers);
             return;
         }
         
-        console.log('[Render] 开始渲染跟随者，数量:', this.followers.length);
-        
+        // 移除大量调试信息以提高性能
         for (var i = 0; i < this.followers.length; i++) {
             var follower = this.followers[i];
             
             // 验证跟随者对象
             if (!follower || typeof follower.x !== 'number' || typeof follower.y !== 'number') {
-                console.warn('[Render] 跟随者对象无效:', follower);
                 continue;
             }
-            
-            console.log('[Render] 渲染跟随者', i, ':', {
-                id: follower.characterId,
-                x: follower.x,
-                y: follower.y,
-                isWalking: follower.isWalking,
-                personality: follower.personality ? follower.personality.personalityType : 'unknown'
-            });
             
             this.renderSingleFollower(follower, i);
         }
@@ -4099,15 +4113,14 @@ GameEngine.prototype.renderSingleFollower = function(follower, index) {
     // 恢复上下文
     this.ctx.restore();
     
-    // 调试：确保跟随者可见
-    console.log('[Render] 跟随者', index, '渲染完成，位置:', follower.x, follower.y);
+    // 移除调试信息以提高性能
 };
 
 /**
- * 渲染跟随者角色
+ * 渲染跟随者角色（简化版本）
  */
 GameEngine.prototype.renderFollowerCharacter = function(follower, character) {
-    // 直接使用后备渲染方案，确保可见性
+    // 使用简化的渲染方案
     this.renderDefaultFollower(follower);
     
     // 渲染跟随者血条
@@ -4115,21 +4128,7 @@ GameEngine.prototype.renderFollowerCharacter = function(follower, character) {
         this.renderCharacterHealthBar(follower, follower.x, follower.y);
     }
     
-    // 调试：绘制跟随者位置指示器
-    this.ctx.save();
-    this.ctx.strokeStyle = '#ff0000';
-    this.ctx.lineWidth = 2;
-    this.ctx.setLineDash([3, 3]);
-    this.ctx.strokeRect(follower.x - 12, follower.y - 12, 24, 24);
-    this.ctx.setLineDash([]);
-    
-    // 添加跟随者ID标签
-    this.ctx.fillStyle = '#ff0000';
-    this.ctx.font = 'bold 14px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('F' + follower.characterId, follower.x, follower.y - 20);
-    
-    this.ctx.restore();
+    // 移除调试边框和标签以提高性能
 };
 
 /**
@@ -4751,21 +4750,7 @@ GameEngine.prototype.renderSubMap = function() {
     this.ctx.fillStyle = '#34495e';
     this.ctx.fillRect(60, 110, 280, 180);
     
-    // 地板瓷砖效果
-    this.ctx.strokeStyle = '#2c3e50';
-    this.ctx.lineWidth = 1;
-    for (var i = 60; i <= 340; i += 20) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(i, 110);
-        this.ctx.lineTo(i, 290);
-        this.ctx.stroke();
-    }
-    for (var j = 110; j <= 290; j += 20) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(60, j);
-        this.ctx.lineTo(340, j);
-        this.ctx.stroke();
-    }
+    // 移除地板瓷砖效果以简化渲染
     
     // 门 - 用于退出（放在下面）
     this.ctx.fillStyle = '#8b4513';
