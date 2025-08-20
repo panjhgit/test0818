@@ -736,14 +736,44 @@ GameEngine.prototype.exploreBuilding = function(building) {
     this.player.x = 200; // 子地图中心X
     this.player.y = 130; // 子地图上方，刚进入房间
     
-    // 将整个团队也带入建筑，排列在玩家附近
-    for (var i = 0; i < this.followers.length; i++) {
+    // 将整个团队也带入建筑，智能排列避免重叠和越界
+    var maxTeamSize = Math.min(this.followers.length, 12); // 限制最大显示数量
+    var submapBounds = { minX: 70, maxX: 330, minY: 120, maxY: 280 }; // 子地图有效区域
+    
+    for (var i = 0; i < maxTeamSize; i++) {
         var follower = this.followers[i];
-        // 将团队成员排列在玩家周围
-        var offsetX = (i % 3 - 1) * 40; // 每行3个，居中排列
-        var offsetY = Math.floor(i / 3) * 30; // 多行排列
-        follower.x = this.player.x + offsetX;
-        follower.y = this.player.y + offsetY + 40; // 在玩家后方
+        var placed = false;
+        var attempts = 0;
+        
+        // 尝试找到合适的位置
+        while (!placed && attempts < 10) {
+            var row = Math.floor(i / 4); // 每行4个
+            var col = i % 4;
+            var baseOffsetX = (col - 1.5) * 35; // 更合理的间距
+            var baseOffsetY = (row + 1) * 35; // 在玩家后方
+            
+            // 添加少量随机偏移避免完全对齐
+            var randomOffsetX = (Math.random() - 0.5) * 10;
+            var randomOffsetY = (Math.random() - 0.5) * 10;
+            
+            var newX = this.player.x + baseOffsetX + randomOffsetX;
+            var newY = this.player.y + baseOffsetY + randomOffsetY;
+            
+            // 确保在边界内
+            newX = Math.max(submapBounds.minX, Math.min(submapBounds.maxX, newX));
+            newY = Math.max(submapBounds.minY, Math.min(submapBounds.maxY, newY));
+            
+            follower.x = newX;
+            follower.y = newY;
+            placed = true;
+            attempts++;
+        }
+    }
+    
+    // 对于超出显示限制的团队成员，暂时隐藏（设置到屏幕外）
+    for (var j = maxTeamSize; j < this.followers.length; j++) {
+        this.followers[j].x = -100;
+        this.followers[j].y = -100;
     }
     
     console.log('[GameEngine] 玩家位置设为:', this.player.x, this.player.y);
@@ -778,25 +808,14 @@ GameEngine.prototype.createNPC = function(characterId) {
     // 随机选择街道位置
     var position = this.getRandomStreetPosition();
     
-    // 随机速度（主人物速度是4，NPC在2-6之间）
-    var speed = 2 + Math.random() * 4; // 2-6的随机速度
-    
-    // 随机移动方向
-    var direction = Math.random() * Math.PI * 2;
+
     
     var npc = {
         id: characterId,
         characterId: characterId,
         x: position.x,
         y: position.y,
-        speed: speed,
-        direction: direction,
         isFollowing: false,
-        followDistance: 30 + Math.random() * 20, // 30-50像素的跟随距离
-        // 添加随机漫游参数
-        wanderDirection: direction,
-        wanderTimer: 0,
-        wanderChangeInterval: 2000 + Math.random() * 3000, // 2-5秒改变方向
         // 角色相关
         character: this.characterManager.characters[characterId] || this.characterManager.characters[2]
     };
@@ -1137,8 +1156,28 @@ GameEngine.prototype.updatePlayer = function(deltaTime) {
             this.checkNearDoor();
             
         } else if (this.gameState === 'submap') {
-            this.player.x = Math.max(60, Math.min(340, newX));
-            this.player.y = Math.max(110, Math.min(290, newY));
+            // 子地图中的团队移动边界检查
+            var deltaX = newX - this.player.x;
+            var deltaY = newY - this.player.y;
+            
+            if (this.canTeamMoveInSubmap(deltaX, deltaY)) {
+                this.player.x = Math.max(60, Math.min(340, newX));
+                this.player.y = Math.max(110, Math.min(290, newY));
+                this.moveTeam(deltaX, deltaY);
+            } else {
+                // 尝试单轴移动
+                var canMoveX = this.canTeamMoveInSubmap(deltaX, 0);
+                var canMoveY = this.canTeamMoveInSubmap(0, deltaY);
+                
+                if (canMoveX) {
+                    this.player.x = Math.max(60, Math.min(340, newX));
+                    this.moveTeam(deltaX, 0);
+                }
+                if (canMoveY) {
+                    this.player.y = Math.max(110, Math.min(290, newY));
+                    this.moveTeam(0, deltaY);
+                }
+            }
         }
         
     } else {
@@ -1169,35 +1208,52 @@ GameEngine.prototype.updateNPCs = function(deltaTime) {
  * 更新单个NPC
  */
 GameEngine.prototype.updateSingleNPC = function(npc, deltaTime) {
-    // 检查与玩家或团队成员的碰撞
-    var distanceToPlayer = Math.sqrt(
-        Math.pow(npc.x - this.player.x, 2) + 
-        Math.pow(npc.y - this.player.y, 2)
-    );
+    // 如果已经加入团队，跳过处理节省性能
+    if (npc.isFollowing) {
+        return;
+    }
     
-    // 检查与团队成员的碰撞
-    var collidedWithTeam = false;
-    for (var i = 0; i < this.followers.length; i++) {
-        var follower = this.followers[i];
-        var distanceToFollower = Math.sqrt(
-            Math.pow(npc.x - follower.x, 2) + 
-            Math.pow(npc.y - follower.y, 2)
-        );
-        if (distanceToFollower < 30) {
-            collidedWithTeam = true;
-            break;
+    var collisionThresholdSquared = 900; // 30^2 = 900，避免开方运算
+    
+    // 检查与玩家的碰撞（使用距离平方比较）
+    var distanceSquaredToPlayer = 
+        Math.pow(npc.x - this.player.x, 2) + 
+        Math.pow(npc.y - this.player.y, 2);
+    
+    var shouldJoinTeam = distanceSquaredToPlayer < collisionThresholdSquared;
+    
+    // 如果与玩家未碰撞，检查与团队成员的碰撞
+    if (!shouldJoinTeam) {
+        for (var i = 0; i < this.followers.length; i++) {
+            var follower = this.followers[i];
+            var distanceSquaredToFollower = 
+                Math.pow(npc.x - follower.x, 2) + 
+                Math.pow(npc.y - follower.y, 2);
+            
+            if (distanceSquaredToFollower < collisionThresholdSquared) {
+                shouldJoinTeam = true;
+                break;
+            }
         }
     }
     
-    // 如果距离小于30像素且未加入团队，加入团队
-    if ((distanceToPlayer < 30 || collidedWithTeam) && !npc.isFollowing) {
-        npc.isFollowing = true;
-        this.followers.push(npc);
-        console.log('[NPC] 角色', npc.character.name, '加入团队，当前团队人数:', this.followers.length + 1);
+    // 加入团队（防止重复加入）
+    if (shouldJoinTeam) {
+        // 检查是否已经在followers数组中
+        var alreadyInTeam = false;
+        for (var j = 0; j < this.followers.length; j++) {
+            if (this.followers[j].id === npc.id) {
+                alreadyInTeam = true;
+                break;
+            }
+        }
+        
+        if (!alreadyInTeam) {
+            npc.isFollowing = true;
+            this.followers.push(npc);
+            console.log('[NPC] 角色', npc.character.name, '加入团队，当前团队人数:', this.followers.length + 1);
+        }
     }
-    
-    // NPC本身保持静止，不进行移动更新
-    // 如果已加入团队，位置由团队移动逻辑控制
 };
 
 /**
@@ -1242,6 +1298,35 @@ GameEngine.prototype.moveTeam = function(deltaX, deltaY) {
         follower.x += deltaX;
         follower.y += deltaY;
     }
+};
+
+/**
+ * 检查团队在子地图中是否可以移动
+ */
+GameEngine.prototype.canTeamMoveInSubmap = function(deltaX, deltaY) {
+    var submapBounds = { minX: 60, maxX: 340, minY: 110, maxY: 290 };
+    
+    // 检查玩家边界
+    var playerNewX = this.player.x + deltaX;
+    var playerNewY = this.player.y + deltaY;
+    if (playerNewX < submapBounds.minX || playerNewX > submapBounds.maxX ||
+        playerNewY < submapBounds.minY || playerNewY > submapBounds.maxY) {
+        return false;
+    }
+    
+    // 检查所有团队成员边界
+    for (var i = 0; i < this.followers.length; i++) {
+        var follower = this.followers[i];
+        var followerNewX = follower.x + deltaX;
+        var followerNewY = follower.y + deltaY;
+        
+        if (followerNewX < submapBounds.minX || followerNewX > submapBounds.maxX ||
+            followerNewY < submapBounds.minY || followerNewY > submapBounds.maxY) {
+            return false;
+        }
+    }
+    
+    return true;
 };
 
 /**
@@ -2445,11 +2530,29 @@ GameEngine.prototype.exitBuilding = function() {
         this.exploredBuildings.push(building);
     }
     
-    // 将玩家放在建筑门口外面（在重置状态之前）
+    // 将玩家和团队成员放在建筑门口外面（在重置状态之前）
     if (building) {
         var doorInfo = this.calculateDoorInfo(building);
         this.player.x = doorInfo.x + doorInfo.width / 2;
         this.player.y = doorInfo.y + doorInfo.height + 30; // 放在门外
+        
+        // 将团队成员也带出建筑，排列在玩家周围
+        for (var i = 0; i < this.followers.length; i++) {
+            var follower = this.followers[i];
+            var row = Math.floor(i / 3); // 每行3个
+            var col = i % 3;
+            var offsetX = (col - 1) * 40; // 左右分布
+            var offsetY = row * 35 + 40; // 在玩家后方
+            
+            follower.x = this.player.x + offsetX;
+            follower.y = this.player.y + offsetY;
+            
+            // 确保不超出地图边界
+            follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
+            follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+        }
+        
+        console.log('[GameEngine] 团队成员数量:', this.followers.length, '全部带出建筑');
     }
     
     // 返回主地图
