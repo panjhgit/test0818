@@ -3899,77 +3899,77 @@ function initGame() {
         
             // 添加调试方法
             try {
-        var globalObj = typeof global !== 'undefined' ? global : 
-                       typeof window !== 'undefined' ? window : 
-                       typeof this !== 'undefined' ? this : {};
-        
+                var globalObj = typeof global !== 'undefined' ? global : 
+                               typeof window !== 'undefined' ? window : 
+                               typeof this !== 'undefined' ? this : {};
+                
                 globalObj.game = gameEngine;
                 globalObj.canvas = canvas;
                 globalObj.ctx = ctx;
                 
-                // 调试功能
-        gameEngine.debugFollowers = function() {
-            console.log('[Debug] 当前跟随者状态:');
-            console.log('  跟随者数量:', this.followers.length);
-            console.log('  NPC数量:', this.npcs.length);
-            console.log('  跟随者数组:', this.followers);
-            console.log('  NPC数组:', this.npcs);
+                // 调试功能 - 修复this绑定问题
+                gameEngine.debugFollowers = function() {
+                    console.log('[Debug] 当前跟随者状态:');
+                    console.log('  跟随者数量:', this.followers.length);
+                    console.log('  NPC数量:', this.npcs.length);
+                    console.log('  跟随者数组:', this.followers);
+                    console.log('  NPC数组:', this.npcs);
                 };
                 
-    gameEngine.debugInfo = function() {
-        console.log('[Debug] 游戏引擎状态:');
-        console.log('  玩家位置:', this.player.x, this.player.y);
-        console.log('  跟随者数量:', this.followers.length);
-        console.log('  NPC数量:', this.npcs.length);
-        console.log('  建筑数量:', this.buildings.length);
-        console.log('  摄像机位置:', this.camera.x, this.camera.y);
-        console.log('  摄像机缩放:', this.camera.zoom);
-    };
-    
-    gameEngine.addTestFollower = function() {
-        var testFollower = {
-            id: 'test_follower_' + Date.now(),
-            characterId: 999,
-            x: this.player.x + 50,
-            y: this.player.y + 50,
-            isFollowing: true,
-            personality: { personalityType: 'leader' },
-            isWalking: false,
-            walkAnimationFrame: 0,
-            lastAnimationTime: 0,
-            direction: 'down',
-            character: this.characterManager.characters[2]
-        };
-        
-        this.followers.push(testFollower);
-        console.log('[Debug] 测试跟随者添加成功，当前跟随者数量:', this.followers.length);
-        return testFollower;
-    };
-    
-    gameEngine.spawnZombie = function(type, x, y) {
-        type = type || 'thin';
-        x = x || this.player.x + 100;
-        y = y || this.player.y + 100;
-        
-        var zombie = this.zombieManager.createZombie(type, x, y);
-        if (zombie) {
-            console.log('[Debug] 创建僵尸成功:', type, '位置:', x, y);
-            console.log('[Debug] 当前僵尸数量:', this.zombieManager.zombies.length);
-        }
-        return zombie;
-    };
-    
-    gameEngine.clearZombies = function() {
-        this.zombieManager.zombies = [];
-        console.log('[Debug] 已清除所有僵尸');
-    };
-    
-    gameEngine.healPlayer = function(amount) {
-        amount = amount || 20;
-        this.player.health = Math.min(this.player.maxHealth, this.player.health + amount);
-        console.log('[Debug] 玩家恢复', amount, '点血量，当前血量:', this.player.health);
-    };
-    
+                gameEngine.debugInfo = function() {
+                    console.log('[Debug] 游戏引擎状态:');
+                    console.log('  玩家位置:', this.player.x, this.player.y);
+                    console.log('  跟随者数量:', this.followers.length);
+                    console.log('  NPC数量:', this.npcs.length);
+                    console.log('  建筑数量:', this.buildings.length);
+                    console.log('  摄像机位置:', this.camera.x, this.camera.y);
+                    console.log('  摄像机缩放:', this.camera.zoom);
+                };
+                
+                gameEngine.addTestFollower = function() {
+                    var testFollower = {
+                        id: 'test_follower_' + Date.now(),
+                        characterId: 999,
+                        x: this.player.x + 50,
+                        y: this.player.y + 50,
+                        isFollowing: true,
+                        personality: { personalityType: 'leader' },
+                        isWalking: false,
+                        walkAnimationFrame: 0,
+                        lastAnimationTime: 0,
+                        direction: 'down',
+                        character: this.characterManager.characters[2]
+                    };
+                    
+                    this.followers.push(testFollower);
+                    console.log('[Debug] 测试跟随者添加成功，当前跟随者数量:', this.followers.length);
+                    return testFollower;
+                };
+                
+                gameEngine.spawnZombie = function(type, x, y) {
+                    type = type || 'thin';
+                    x = x || this.player.x + 100;
+                    y = y || this.player.y + 100;
+                    
+                    var zombie = this.zombieManager.createZombie(type, x, y);
+                    if (zombie) {
+                        console.log('[Debug] 创建僵尸成功:', type, '位置:', x, y);
+                        console.log('[Debug] 当前僵尸数量:', this.zombieManager.zombies.length);
+                    }
+                    return zombie;
+                };
+                
+                gameEngine.clearZombies = function() {
+                    this.zombieManager.zombies = [];
+                    console.log('[Debug] 已清除所有僵尸');
+                };
+                
+                gameEngine.healPlayer = function(amount) {
+                    amount = amount || 20;
+                    this.player.health = Math.min(this.player.maxHealth, this.player.health + amount);
+                    console.log('[Debug] 玩家恢复', amount, '点血量，当前血量:', this.player.health);
+                };
+                
                 console.log('[Main] 调试功能已加载');
                 
             } catch (error) {
