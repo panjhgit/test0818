@@ -205,60 +205,27 @@ function CharacterManager() {
 
 CharacterManager.prototype.initializeCharacters = function () {
     var configs = [{
-        id: 1,
-        name: '酷炫墨镜哥',
-        colors: {clothes: '#FFFFFF', hair: '#1A1A1A'},
-        features: {hasGlasses: true}
+        id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}
     }, {
-        id: 2,
-        name: '金发女战士',
-        colors: {clothes: '#8E24AA', hair: '#FFD700'},
-        features: {hasGlasses: false}
+        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: false}
     }, {id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: false}}, {
-        id: 4,
-        name: '机械工程师',
-        colors: {clothes: '#FF9800', hair: '#795548'},
-        features: {hasGlasses: true}
+        id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
     }, {id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: false}}, {
-        id: 6,
-        name: '海盗船长',
-        colors: {clothes: '#8D6E63', hair: '#FF5722'},
-        features: {hasGlasses: false}
+        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: false}
     }, {id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}}, {
-        id: 8,
-        name: '武士',
-        colors: {clothes: '#F44336', hair: '#424242'},
-        features: {hasGlasses: false}
+        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: false}
     }, {id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}}, {
-        id: 10,
-        name: '神秘学者',
-        colors: {clothes: '#009688', hair: '#37474F'},
-        features: {hasGlasses: false}
+        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: false}
     }, {id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}}, {
-        id: 12,
-        name: '军事指挥官',
-        colors: {clothes: '#4CAF50', hair: '#616161'},
-        features: {hasGlasses: false}
+        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: false}
     }, {id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}}, {
-        id: 14,
-        name: '网络黑客',
-        colors: {clothes: '#00E676', hair: '#1DE9B6'},
-        features: {hasGlasses: false}
+        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: false}
     }, {id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}}, {
-        id: 16,
-        name: '外星访客',
-        colors: {clothes: '#00BCD4', hair: '#4FC3F7'},
-        features: {hasGlasses: false}
+        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: false}
     }, {id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}}, {
-        id: 18,
-        name: '时间旅行者',
-        colors: {clothes: '#673AB7', hair: '#9C27B0'},
-        features: {hasGlasses: false}
+        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: false}
     }, {id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}}, {
-        id: 20,
-        name: '超级英雄',
-        colors: {clothes: '#2196F3', hair: '#FFC107'},
-        features: {hasGlasses: false}
+        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: false}
     }];
     for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
 };
@@ -409,8 +376,7 @@ BaseZombie.prototype.findZombieAlternativePath = function (targetX, targetY, gam
     var searchRadius = 50;
     var stepSize = 10;
     var directions = [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}, {dx: 1, dy: 1}, {
-        dx: 1,
-        dy: -1
+        dx: 1, dy: -1
     }, {dx: -1, dy: 1}, {dx: -1, dy: -1}];
 
     for (var radius = stepSize; radius <= searchRadius; radius += stepSize) {
@@ -768,15 +734,15 @@ ZombieBoss1.prototype.attackTarget = function (target) {
 function ZombieManager() {
     this.zombies = [];
     this.zombieTypes = this.getZombieTypes();
-    
+
     // 性能优化：空间分区系统
     this.spatialGrid = {};
     this.gridSize = 200;
-    
+
     // 性能优化：对象池
     this.zombiePool = [];
     this.maxPoolSize = 100;
-    
+
     // 性能优化：更新频率控制
     this.updateIntervals = {
         near: 100,    // 近距离僵尸更新频率
@@ -813,7 +779,7 @@ ZombieManager.prototype.createZombie = function (type, x, y) {
 
     // 性能优化：从对象池获取僵尸
     var zombie = this.getZombieFromPool(type);
-    
+
     if (!zombie) {
         var config = {
             type: type,
@@ -868,7 +834,7 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
 
     // 性能优化：批量处理僵尸死亡
     var deadZombies = [];
-    
+
     for (var i = this.zombies.length - 1; i >= 0; i--) {
         var zombie = this.zombies[i];
 
@@ -878,10 +844,8 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
         if (inView || isChasing) {
             // 性能优化：动态更新频率
             var distanceToPlayer = Math.sqrt(Math.pow(zombie.x - gameEngine.player.x, 2) + Math.pow(zombie.y - gameEngine.player.y, 2));
-            var updateInterval = distanceToPlayer < 300 ? this.updateIntervals.near : 
-                               distanceToPlayer < 800 ? this.updateIntervals.medium : 
-                               this.updateIntervals.far;
-            
+            var updateInterval = distanceToPlayer < 300 ? this.updateIntervals.near : distanceToPlayer < 800 ? this.updateIntervals.medium : this.updateIntervals.far;
+
             if (!zombie.lastUpdateTime) zombie.lastUpdateTime = 0;
             if (Date.now() - zombie.lastUpdateTime >= updateInterval) {
                 zombie.update(deltaTime, gameEngine);
@@ -894,17 +858,17 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
             gameEngine.gameData.zombieKills++;
         }
     }
-    
+
     // 性能优化：批量删除死亡僵尸
     for (var j = deadZombies.length - 1; j >= 0; j--) {
         var zombieIndex = deadZombies[j];
         var zombie = this.zombies[zombieIndex];
-        
+
         // 回收到对象池
         if (this.zombiePool.length < this.maxPoolSize) {
             this.recycleZombie(zombie);
         }
-        
+
         this.zombies.splice(zombieIndex, 1);
     }
 };
@@ -973,36 +937,27 @@ var GAME_CONFIG = {
         MIN_DISTANCE: 300,
         MAX_ATTEMPTS_MULTIPLIER: 10
     },
-    
+
     // 玩家配置
     PLAYER: {
-        BASE_HEALTH: 50,
-        BASE_ATTACK: 15,
-        ATTACK_RANGE: 35,
-        ATTACK_COOLDOWN: 800,
-        MOVE_SPEED: 4,
-        CHARACTER_RADIUS: 18
+        BASE_HEALTH: 50, BASE_ATTACK: 15, ATTACK_RANGE: 35, ATTACK_COOLDOWN: 800, MOVE_SPEED: 4, CHARACTER_RADIUS: 18
     },
-    
+
     // 团队配置
     TEAM: {
-        MAX_SIZE: 20,
-        FOLLOW_DISTANCE: 35,
-        COLLISION_THRESHOLD: 900
+        MAX_SIZE: 20, FOLLOW_DISTANCE: 35, COLLISION_THRESHOLD: 900
     },
-    
+
     // 时间配置
     TIME: {
         DAY_DURATION: 300000,    // 5分钟
         NIGHT_DURATION: 60000,   // 1分钟
         FOOD_COST_PER_DAY: 1
     },
-    
+
     // 建筑配置
     BUILDING: {
-        INTERACTION_DISTANCE: 60,
-        TRIGGER_DISTANCE: 50,
-        EXIT_COOLDOWN: 2000
+        INTERACTION_DISTANCE: 60, TRIGGER_DISTANCE: 50, EXIT_COOLDOWN: 2000
     }
 };
 
@@ -1142,85 +1097,27 @@ GameEngine.prototype.initializeBuildings = function () {
 
 GameEngine.prototype.getBuildingTypes = function () {
     return [{
-        type: 'police_station',
-        name: '警察局',
-        width: 80,
-        height: 80,
-        color: '#3498db',
-        weight: 1
+        type: 'police_station', name: '警察局', width: 80, height: 80, color: '#3498db', weight: 1
     }, {type: 'hospital', name: '医院', width: 80, height: 80, color: '#e74c3c', weight: 1}, {
-        type: 'school',
-        name: '学校',
-        width: 70,
-        height: 70,
-        color: '#f39c12',
-        weight: 2
+        type: 'school', name: '学校', width: 70, height: 70, color: '#f39c12', weight: 2
     }, {type: 'station', name: '车站', width: 70, height: 60, color: '#34495e', weight: 2}, {
-        type: 'mall',
-        name: '商场',
-        width: 90,
-        height: 70,
-        color: '#27ae60',
-        weight: 1
+        type: 'mall', name: '商场', width: 90, height: 70, color: '#27ae60', weight: 1
     }, {
-        type: 'shop',
-        name: '商店',
-        width: 60,
-        height: 50,
-        color: '#27ae60',
-        weight: 4,
-        oneTimeOnly: true
+        type: 'shop', name: '商店', width: 60, height: 50, color: '#27ae60', weight: 4, oneTimeOnly: true
     }, {
-        type: 'restaurant',
-        name: '餐厅',
-        width: 60,
-        height: 50,
-        color: '#e67e22',
-        weight: 4,
-        oneTimeOnly: true
+        type: 'restaurant', name: '餐厅', width: 60, height: 50, color: '#e67e22', weight: 4, oneTimeOnly: true
     }, {
-        type: 'bar',
-        name: '酒吧',
-        width: 50,
-        height: 50,
-        color: '#d35400',
-        weight: 3,
-        oneTimeOnly: true
+        type: 'bar', name: '酒吧', width: 50, height: 50, color: '#d35400', weight: 3, oneTimeOnly: true
     }, {type: 'cafe', name: '咖啡厅', width: 50, height: 50, color: '#8e44ad', weight: 3}, {
-        type: 'bank',
-        name: '银行',
-        width: 70,
-        height: 60,
-        color: '#2c3e50',
-        weight: 2
+        type: 'bank', name: '银行', width: 70, height: 60, color: '#2c3e50', weight: 2
     }, {type: 'house', name: '民房', width: 50, height: 50, color: '#95a5a6', weight: 8}, {
-        type: 'villa',
-        name: '别墅',
-        width: 80,
-        height: 60,
-        color: '#8e44ad',
-        weight: 4
+        type: 'villa', name: '别墅', width: 80, height: 60, color: '#8e44ad', weight: 4
     }, {type: 'apartment', name: '公寓', width: 60, height: 80, color: '#7f8c8d', weight: 6}, {
-        type: 'factory',
-        name: '工厂',
-        width: 90,
-        height: 70,
-        color: '#555555',
-        weight: 2
+        type: 'factory', name: '工厂', width: 90, height: 70, color: '#555555', weight: 2
     }, {type: 'warehouse', name: '仓库', width: 80, height: 60, color: '#666666', weight: 3}, {
-        type: 'gas_station',
-        name: '加油站',
-        width: 70,
-        height: 50,
-        color: '#f1c40f',
-        weight: 2
+        type: 'gas_station', name: '加油站', width: 70, height: 50, color: '#f1c40f', weight: 2
     }, {type: 'gym', name: '健身房', width: 60, height: 60, color: '#9b59b6', weight: 2}, {
-        type: 'library',
-        name: '图书馆',
-        width: 70,
-        height: 70,
-        color: '#16a085',
-        weight: 1
+        type: 'library', name: '图书馆', width: 70, height: 70, color: '#16a085', weight: 1
     }];
 };
 
@@ -1373,13 +1270,10 @@ GameEngine.prototype.setupInput = function () {
         visible: true,
         maxDistance: 50
     };
-    
+
     // 性能优化：事件监听器引用，便于解绑
     this.eventHandlers = {
-        touchStart: null,
-        touchMove: null,
-        touchEnd: null,
-        click: null
+        touchStart: null, touchMove: null, touchEnd: null, click: null
     };
 
     this.joystick.centerY = this.canvas.height - 80;
@@ -1399,7 +1293,7 @@ GameEngine.prototype.setupInput = function () {
             this.eventHandlers.touchEnd = function (res) {
                 self.onTouchEnd(res);
             };
-            
+
             tt.onTouchStart(this.eventHandlers.touchStart);
             tt.onTouchMove(this.eventHandlers.touchMove);
             tt.onTouchEnd(this.eventHandlers.touchEnd);
@@ -1941,7 +1835,7 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
         // 性能优化：动态移动速度，根据摇杆推拉程度调整
         var joystickIntensity = Math.sqrt(this.joystick.direction.x * this.joystick.direction.x + this.joystick.direction.y * this.joystick.direction.y);
         var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED * Math.max(0.3, Math.min(1.5, joystickIntensity));
-        
+
         var newX = this.player.x + this.joystick.direction.x * moveSpeed;
         var newY = this.player.y + this.joystick.direction.y * moveSpeed;
 
@@ -2066,7 +1960,7 @@ GameEngine.prototype.updateTime = function (deltaTime) {
                     chefCount++;
                 }
             });
-            
+
             if (chefCount > 0) {
                 var foodProduction = chefCount * 5;
                 this.gameData.food += foodProduction;
@@ -2111,14 +2005,14 @@ GameEngine.prototype.restartGame = function () {
 GameEngine.prototype.gameOver = function (cause) {
     this.gameState = 'gameover';
     this.gameData.cause = cause;
-    
+
     // 性能优化：清理资源
     this.cleanupInput();
 };
 
 GameEngine.prototype.gameWin = function () {
     this.gameState = 'victory';
-    
+
     // 性能优化：清理资源
     this.cleanupInput();
 };
@@ -2262,7 +2156,7 @@ GameEngine.prototype.addNewFollowerToTeam = function (newFollower) {
     var targetOffset = this.calculateFollowerOffset(newFollower, personality);
     newFollower.x = this.player.x + targetOffset.x;
     newFollower.y = this.player.y + targetOffset.y;
-    
+
     // 游戏平衡优化：限制最大团队规模
     if (this.gameData.teamSize >= GAME_CONFIG.TEAM.MAX_SIZE) {
         console.log('[Team] 团队已达到最大规模限制');
@@ -2451,8 +2345,7 @@ GameEngine.prototype.findAlternativePathForFollower = function (follower, target
     var searchRadius = 40;
     var stepSize = 8;
     var directions = [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}, {dx: 1, dy: 1}, {
-        dx: 1,
-        dy: -1
+        dx: 1, dy: -1
     }, {dx: -1, dy: 1}, {dx: -1, dy: -1}];
 
     for (var radius = stepSize; radius <= searchRadius; radius += stepSize) {
@@ -2696,12 +2589,12 @@ GameEngine.prototype.initializeZombies = function () {
 
 GameEngine.prototype.spawnZombiesByDay = function () {
     var currentDay = this.gameData.survivalDays;
-    
+
     // 游戏平衡优化：动态难度系统
     var baseCount = GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
     var perDayIncrease = GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE;
     var maxZombies = GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES;
-    
+
     // 根据团队规模调整僵尸数量
     var teamSizeMultiplier = Math.max(0.5, Math.min(2.0, this.gameData.teamSize / 5));
     var zombieCount = Math.min(maxZombies, Math.floor((baseCount + (currentDay - 1) * perDayIncrease) * teamSizeMultiplier));
