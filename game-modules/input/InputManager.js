@@ -6,6 +6,10 @@ function InputManager(canvas, gameEngine) {
     this.canvas = canvas;
     this.gameEngine = gameEngine;
     
+    // 缓存canvas的尺寸信息，避免频繁访问DOM
+    this.canvasWidth = canvas.width || 375;
+    this.canvasHeight = canvas.height || 667;
+    
     // 摇杆状态
     this.joystick = {
         active: false,
@@ -26,6 +30,68 @@ function InputManager(canvas, gameEngine) {
     this.touchStartTime = 0;
     
     this.setupInput();
+}
+
+/**
+ * 安全的坐标提取函数 - 兼容抖音小程序
+ */
+InputManager.prototype.extractCoordinates = function(e, touch) {
+    var x, y;
+    
+    try {
+        // 优先级1: 抖音小程序的标准坐标
+        if (touch && touch.x !== undefined && touch.y !== undefined) {
+            x = touch.x;
+            y = touch.y;
+        }
+        // 优先级2: 标准浏览器的client坐标
+        else if (touch && touch.clientX !== undefined && touch.clientY !== undefined) {
+            x = touch.clientX;
+            y = touch.clientY;
+        }
+        // 优先级3: page坐标
+        else if (touch && touch.pageX !== undefined && touch.pageY !== undefined) {
+            x = touch.pageX;
+            y = touch.pageY;
+        }
+        // 优先级4: 抖音小程序的detail格式
+        else if (e && e.detail && e.detail.x !== undefined && e.detail.y !== undefined) {
+            x = e.detail.x;
+            y = e.detail.y;
+        }
+        // 优先级5: 事件对象直接包含坐标
+        else if (e && e.x !== undefined && e.y !== undefined) {
+            x = e.x;
+            y = e.y;
+        }
+        else if (e && e.clientX !== undefined && e.clientY !== undefined) {
+            x = e.clientX;
+            y = e.clientY;
+        }
+        else if (e && e.pageX !== undefined && e.pageY !== undefined) {
+            x = e.pageX;
+            y = e.pageY;
+        }
+        // 兜底方案: 使用canvas中心点
+        else {
+            x = this.canvasWidth / 2;
+            y = this.canvasHeight / 2;
+            console.warn('[Input] 无法获取触摸坐标，使用默认中心点:', x, y);
+        }
+        
+        // 坐标有效性检查
+        if (isNaN(x) || isNaN(y) || x < 0 || y < 0) {
+            x = this.canvasWidth / 2;
+            y = this.canvasHeight / 2;
+            console.warn('[Input] 坐标无效，使用默认中心点:', x, y);
+        }
+        
+        return { x: x, y: y };
+        
+    } catch (error) {
+        console.error('[Input] 坐标提取错误:', error);
+        return { x: this.canvasWidth / 2, y: this.canvasHeight / 2 };
+    }
 }
 
 /**
@@ -88,20 +154,9 @@ InputManager.prototype.onTouchStart = function(e) {
         if (e.preventDefault) e.preventDefault();
         
         var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-        var x, y;
-        
-        // 抖音小程序坐标处理
-        if (touch.x !== undefined && touch.y !== undefined) {
-            x = touch.x;
-            y = touch.y;
-        } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
-            x = touch.clientX;
-            y = touch.clientY;
-        } else {
-            console.warn('[Input] 触摸坐标获取失败:', touch);
-            x = 0;
-            y = 0;
-        }
+        var coords = this.extractCoordinates(e, touch);
+        var x = coords.x;
+        var y = coords.y;
         
         console.log('[Input] 触摸开始位置:', x, y, '游戏状态:', this.gameEngine.gameState);
         
@@ -151,19 +206,9 @@ InputManager.prototype.onTouchMove = function(e) {
         }
         
         var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-        var x, y;
-        
-        // 抖音小程序坐标处理
-        if (touch.x !== undefined && touch.y !== undefined) {
-            x = touch.x;
-            y = touch.y;
-        } else if (touch.clientX !== undefined && touch.clientY !== undefined) {
-            x = touch.clientX;
-            y = touch.clientY;
-        } else {
-            console.warn('[Input] 触摸移动坐标获取失败');
-            return;
-        }
+        var coords = this.extractCoordinates(e, touch);
+        var x = coords.x;
+        var y = coords.y;
         
         console.log('[Input] 触摸移动位置:', x, y, '摇杆状态:', this.joystick.active);
         
@@ -225,23 +270,10 @@ InputManager.prototype.onTouchEnd = function(e) {
  * 点击事件处理
  */
 InputManager.prototype.onClick = function(e) {
-    var x, y;
-    
-    // 抖音小程序坐标处理
-    if (e.x !== undefined && e.y !== undefined) {
-        x = e.x;
-        y = e.y;
-    } else if (e.clientX !== undefined && e.clientY !== undefined) {
-        x = e.clientX;
-        y = e.clientY;
-    } else if (e.touches && e.touches[0]) {
-        var touch = e.touches[0];
-        x = touch.x || touch.clientX || 0;
-        y = touch.y || touch.clientY || 0;
-    } else {
-        x = 0;
-        y = 0;
-    }
+    var touch = e.touches && e.touches[0] ? e.touches[0] : null;
+    var coords = this.extractCoordinates(e, touch);
+    var x = coords.x;
+    var y = coords.y;
     
     console.log('[Input] 点击位置:', x, y, '游戏状态:', this.gameEngine.gameState);
     
