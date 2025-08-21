@@ -207,25 +207,43 @@ CharacterManager.prototype.initializeCharacters = function () {
     var configs = [{
         id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}
     }, {
-        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: false}
-    }, {id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: false}}, {
+        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: true}
+    }, {
+        id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: true}
+    }, {
         id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
-    }, {id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: false}}, {
-        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: false}
-    }, {id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}}, {
-        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: false}
-    }, {id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}}, {
-        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: false}
-    }, {id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}}, {
-        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: false}
-    }, {id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}}, {
-        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: false}
-    }, {id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}}, {
-        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: false}
-    }, {id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}}, {
-        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: false}
-    }, {id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}}, {
-        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: false}
+    }, {
+        id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: true}
+    }, {
+        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: true}
+    }, {
+        id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}
+    }, {
+        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: true}
+    }, {
+        id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}
+    }, {
+        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: true}
+    }, {
+        id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}
+    }, {
+        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: true}
+    }, {
+        id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}
+    }, {
+        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: true}
+    }, {
+        id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}
+    }, {
+        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: true}
+    }, {
+        id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
+    }, {
+        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: true}
+    }, {
+        id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}
+    }, {
+        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: true}
     }];
     for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
 };
@@ -1575,6 +1593,326 @@ var GAME_CONFIG = {
 };
 
 // ========================================
+// 视距裁剪系统 (Viewport Culling System)
+// ========================================
+
+// 视距裁剪系统配置
+var VIEWPORT_CONFIG = {
+    GRID_SIZE: 500,           // 网格区块大小
+    EXTRA_RENDER: 1,          // 额外渲染区块数
+    MAX_VIEW_DISTANCE: 1000,  // 最大视距
+    UPDATE_FREQUENCIES: {
+        CORE: 1,              // 60fps (每帧更新)
+        IMPORTANT: 2,         // 30fps (每2帧更新)
+        NORMAL: 4,            // 15fps (每4帧更新)
+        LOW: 30,              // 2fps (每30帧更新)
+        SLEEP: 0              // 停止更新
+    }
+};
+
+// 边界框类
+function Bounds(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+}
+
+Bounds.prototype.contains = function(x, y) {
+    return x >= this.x && x <= this.x + this.width &&
+           y >= this.y && y <= this.y + this.height;
+};
+
+Bounds.prototype.intersects = function(other) {
+    return !(this.x > other.x + other.width ||
+             this.x + this.width < other.x ||
+             this.y > other.y + other.height ||
+             this.y + this.height < other.y);
+};
+
+// 四叉树节点类
+function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
+    this.bounds = bounds;           // 边界 {x, y, width, height}
+    this.maxObjects = maxObjects || 10;
+    this.maxLevels = maxLevels || 5;
+    this.level = level || 0;
+    this.objects = [];
+    this.nodes = [];
+    this.isLeaf = true;
+}
+
+QuadTreeNode.prototype.insert = function(object) {
+    if (!this.bounds.contains(object.x, object.y)) {
+        return false;
+    }
+    
+    if (this.isLeaf && this.objects.length < this.maxObjects) {
+        this.objects.push(object);
+        return true;
+    }
+    
+    if (this.isLeaf && this.level < this.maxLevels) {
+        this.split();
+    }
+    
+    for (var i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].insert(object)) {
+            return true;
+        }
+    }
+    
+    return false;
+};
+
+QuadTreeNode.prototype.split = function() {
+    var subWidth = this.bounds.width / 2;
+    var subHeight = this.bounds.height / 2;
+    var x = this.bounds.x;
+    var y = this.bounds.y;
+    
+    this.nodes[0] = new QuadTreeNode(new Bounds(x + subWidth, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[1] = new QuadTreeNode(new Bounds(x, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[2] = new QuadTreeNode(new Bounds(x, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[3] = new QuadTreeNode(new Bounds(x + subWidth, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.isLeaf = false;
+    
+    // 重新分配现有对象
+    for (var i = 0; i < this.objects.length; i++) {
+        for (var j = 0; j < this.nodes.length; j++) {
+            if (this.nodes[j].insert(this.objects[i])) {
+                break;
+            }
+        }
+    }
+    this.objects = [];
+};
+
+QuadTreeNode.prototype.query = function(range) {
+    var result = [];
+    
+    if (!this.bounds.intersects(range)) {
+        return result;
+    }
+    
+    for (var i = 0; i < this.objects.length; i++) {
+        if (range.contains(this.objects[i].x, this.objects[i].y)) {
+            result.push(this.objects[i]);
+        }
+    }
+    
+    if (!this.isLeaf) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            result = result.concat(this.nodes[i].query(range));
+        }
+    }
+    
+    return result;
+};
+
+// 从四叉树中移除对象
+QuadTreeNode.prototype.remove = function(object) {
+    if (this.isLeaf) {
+        // 在叶子节点中查找并移除对象
+        for (var i = 0; i < this.objects.length; i++) {
+            if (this.objects[i] === object) {
+                this.objects.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    } else {
+        // 在子节点中查找并移除对象
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].remove(object)) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+// 视距裁剪管理器
+function ViewportCullingManager() {
+    this.quadTree = null;
+    this.visibleEntities = {
+        players: [],
+        followers: [],
+        zombies: [],
+        buildings: [],
+        decorations: []
+    };
+    this.updateCounters = {
+        core: 0,
+        important: 0,
+        normal: 0,
+        low: 0
+    };
+    this.camera = {x: 0, y: 0, width: 800, height: 600};
+}
+
+ViewportCullingManager.prototype.init = function(mapWidth, mapHeight) {
+    this.quadTree = new QuadTreeNode(new Bounds(0, 0, mapWidth, mapHeight));
+};
+
+ViewportCullingManager.prototype.updateCamera = function(x, y, width, height) {
+    this.camera.x = x;
+    this.camera.y = y;
+    this.camera.width = width;
+    this.camera.height = height;
+};
+
+ViewportCullingManager.prototype.getVisibleRange = function() {
+    var extra = VIEWPORT_CONFIG.GRID_SIZE * VIEWPORT_CONFIG.EXTRA_RENDER;
+    return new Bounds(
+        Math.max(0, this.camera.x - extra),
+        Math.max(0, this.camera.y - extra),
+        this.camera.width + extra * 2,
+        this.camera.height + extra * 2
+    );
+};
+
+ViewportCullingManager.prototype.updateVisibleEntities = function(gameEngine) {
+    // 高性能算法：只在必要时重新计算
+    var currentTime = Date.now();
+    
+    // 计算稳定的视口范围（使用整数坐标避免浮点数问题）
+    var stableRange = this.getStableVisibleRange();
+    
+    // 检查是否需要重新查询（避免频繁查询）
+    if (this.shouldUpdateVisibleQuery(stableRange, currentTime)) {
+        this.performVisibleQuery(stableRange, gameEngine);
+        this.lastQueryTime = currentTime;
+        this.lastQueryRange = stableRange;
+    }
+    
+    // 只更新移动实体的位置（静态实体永远不变）
+    this.updateMovingEntitiesOnly(gameEngine);
+    
+    // 轻量级计数器更新
+    this.updateCounters.core++;
+    if (this.updateCounters.core % 10 === 0) this.updateCounters.important++;
+    if (this.updateCounters.core % 30 === 0) this.updateCounters.normal++;
+    if (this.updateCounters.core % 60 === 0) this.updateCounters.low++;
+};
+
+// 获取稳定的视口范围（使用整数坐标）
+ViewportCullingManager.prototype.getStableVisibleRange = function() {
+    var extra = VIEWPORT_CONFIG.GRID_SIZE * VIEWPORT_CONFIG.EXTRA_RENDER;
+    
+    // 使用整数坐标，避免浮点数精度问题
+    var stableX = Math.floor(this.camera.x / 50) * 50; // 50像素网格对齐
+    var stableY = Math.floor(this.camera.y / 50) * 50;
+    
+    return new Bounds(
+        Math.max(0, stableX - extra),
+        Math.max(0, stableY - extra),
+        this.camera.width + extra * 2,
+        this.camera.height + extra * 2
+    );
+};
+
+// 检查是否需要重新查询（高性能判断）
+ViewportCullingManager.prototype.shouldUpdateVisibleQuery = function(currentRange, currentTime) {
+    // 首次查询
+    if (!this.lastQueryTime || !this.lastQueryRange) {
+        return true;
+    }
+    
+    // 时间间隔检查（至少500ms才重新查询）
+    if (currentTime - this.lastQueryTime < 500) {
+        return false;
+    }
+    
+    // 视口范围变化检查（只有显著变化才重新查询）
+    var rangeChanged = Math.abs(currentRange.x - this.lastQueryRange.x) > 200 ||
+                      Math.abs(currentRange.y - this.lastQueryRange.y) > 200;
+    
+    return rangeChanged;
+};
+
+// 执行可见实体查询（重型操作，尽量少调用）
+ViewportCullingManager.prototype.performVisibleQuery = function(range, gameEngine) {
+    console.log('[HighPerf] 执行视口查询，范围:', range.x, range.y, range.width, range.height);
+    
+    var allEntities = this.quadTree.query(range);
+    
+    // 清空并重新分类（只在查询时做一次）
+    for (var key in this.visibleEntities) {
+        this.visibleEntities[key] = [];
+    }
+    
+    for (var i = 0; i < allEntities.length; i++) {
+        var entity = allEntities[i];
+        
+        // 快速类型分类（避免复杂计算）
+        if (entity === gameEngine.player) {
+            this.visibleEntities.players.push(entity);
+        } else if (entity.type === 'building') {
+            this.visibleEntities.buildings.push(entity);
+        } else if (entity.type === 'follower' || (entity.isFollowing && entity.type === 'npc')) {
+            this.visibleEntities.followers.push(entity);
+        } else if (entity.type === 'thin' || entity.type === 'fat' || entity.type === 'boss1') {
+            this.visibleEntities.zombies.push(entity);
+        } else if (entity.type === 'npc') {
+            this.visibleEntities.decorations.push(entity);
+        } else {
+            this.visibleEntities.decorations.push(entity);
+        }
+    }
+};
+
+// 只更新移动实体（轻量级操作，每帧可调用）
+ViewportCullingManager.prototype.updateMovingEntitiesOnly = function(gameEngine) {
+    // 快速更新玩家位置（如果在可见列表中）
+    for (var i = 0; i < this.visibleEntities.players.length; i++) {
+        var player = this.visibleEntities.players[i];
+        if (player === gameEngine.player) {
+            // 玩家位置已经是最新的，无需更新
+            break;
+        }
+    }
+    
+    // 快速更新跟随者位置（如果在可见列表中）
+    for (var i = 0; i < this.visibleEntities.followers.length; i++) {
+        var follower = this.visibleEntities.followers[i];
+        // 跟随者位置由游戏逻辑更新，这里只需要确认可见性
+        var distance = Math.sqrt(
+            Math.pow(follower.x - gameEngine.player.x, 2) +
+            Math.pow(follower.y - gameEngine.player.y, 2)
+        );
+        
+        // 如果距离过远，标记为不可见（但不从列表中移除，避免数组操作）
+        follower.tooFarToRender = distance > VIEWPORT_CONFIG.MAX_VIEW_DISTANCE;
+    }
+};
+
+ViewportCullingManager.prototype.shouldUpdateEntity = function(entity, updateType) {
+    // 简化的更新判断（减少计算）
+    if (entity.tooFarToRender) {
+        return false;
+    }
+    
+    switch (updateType) {
+        case 'core':
+            return true; // 每帧更新
+        case 'important':
+            return this.updateCounters.important % 2 === 0;
+        case 'normal':
+            return this.updateCounters.normal % 4 === 0;
+        case 'low':
+            return this.updateCounters.low % 8 === 0;
+        case 'sleep':
+            return false;
+        default:
+            return true;
+    }
+};
+
+// ========================================
 // 游戏引擎 (Game Engine)
 // ========================================
 
@@ -2920,16 +3258,18 @@ GameEngine.prototype.gameWin = function () {
 // ========================================
 
 GameEngine.prototype.initializeNPCs = function () {
-
+    // 伙伴应该预先存在于地图中，在地图初始化时就创建
     for (var i = 0; i < 19; i++) {
         var characterId = i + 2;
         var npc = this.createNPC(characterId);
         this.npcs.push(npc);
     }
-
+    
+    console.log('[NPC] 伙伴系统初始化完成，在地图中创建了', this.npcs.length, '个伙伴');
 };
 
 GameEngine.prototype.createNPC = function (characterId) {
+    // 伙伴应该预先存在于地图中，使用随机街道位置
     var position = this.getRandomStreetPosition();
     var character = this.characterManager.characters[characterId] || this.characterManager.characters[2];
     var personality = this.getCharacterPersonality(character);
@@ -2951,7 +3291,8 @@ GameEngine.prototype.createNPC = function (characterId) {
         followStartTime: 0,
         lastFollowUpdate: 0,
         behaviorTimer: Math.random() * 1000,
-        currentBehavior: 'idle'
+        currentBehavior: 'idle',
+        type: 'npc' // 添加类型标识
     };
 
     return npc;
@@ -3065,8 +3406,14 @@ GameEngine.prototype.updateSingleNPC = function (npc, deltaTime) {
 
     var collisionThresholdSquared = GAME_CONFIG.TEAM.COLLISION_THRESHOLD;
     var distanceSquaredToPlayer = Math.pow(npc.x - this.player.x, 2) + Math.pow(npc.y - this.player.y, 2);
+    var distanceToPlayer = Math.sqrt(distanceSquaredToPlayer);
 
     var shouldJoinTeam = distanceSquaredToPlayer < collisionThresholdSquared;
+
+    // 调试信息：显示NPC状态
+    if (distanceToPlayer < 1000) { // 只显示近距离NPC的调试信息
+        console.log('[NPC] NPC', npc.id, '距离玩家:', distanceToPlayer.toFixed(0), '像素，碰撞阈值:', Math.sqrt(collisionThresholdSquared).toFixed(0), '像素');
+    }
 
     if (!shouldJoinTeam) {
         for (var i = 0; i < this.followers.length; i++) {
@@ -3075,6 +3422,7 @@ GameEngine.prototype.updateSingleNPC = function (npc, deltaTime) {
 
             if (distanceSquaredToFollower < collisionThresholdSquared) {
                 shouldJoinTeam = true;
+                console.log('[NPC] NPC', npc.id, '通过跟随者加入团队');
                 break;
             }
         }
@@ -3090,6 +3438,8 @@ GameEngine.prototype.updateSingleNPC = function (npc, deltaTime) {
         }
 
         if (!alreadyInTeam) {
+            console.log('[NPC] NPC', npc.id, '加入团队！距离玩家:', distanceToPlayer.toFixed(0), '像素');
+            
             npc.isFollowing = true;
             npc.followStartTime = Date.now();
             npc.lastX = npc.x;
@@ -3122,8 +3472,16 @@ GameEngine.prototype.addNewFollowerToTeam = function (newFollower) {
         return;
     }
 
+    // 更新团队规模
+    this.gameData.teamSize = this.followers.length + 1;
+    if (this.gameData.teamSize > this.gameData.maxTeamSize) {
+        this.gameData.maxTeamSize = this.gameData.teamSize;
+    }
+
     newFollower.isWalking = false;
     newFollower.direction = 'down';
+    
+    console.log('[Team] 新伙伴加入团队，当前团队规模:', this.gameData.teamSize, '，跟随者数量:', this.followers.length);
 };
 
 GameEngine.prototype.moveTeam = function (deltaX, deltaY) {
@@ -4500,48 +4858,48 @@ GameEngine.prototype.renderStreetLines = function () {
     this.ctx.setLineDash([]);
 };
 
-// 分层渲染系统
+// 高性能分层渲染系统
 GameEngine.prototype.renderLayer = function (layerType) {
-    // 安全检查：如果视距裁剪系统出错，回退到传统渲染
+    // 快速检查：如果视距裁剪系统出错，回退到传统渲染
     if (this.fallbackToTraditionalRendering) {
         this.renderLayerFallback(layerType);
         return;
     }
     
-    try {
-        var entities = this.viewportCulling.visibleEntities[layerType] || [];
-        
-        for (var i = 0; i < entities.length; i++) {
-            var entity = entities[i];
-            
-            // 检查是否应该更新此实体
-            if (!this.viewportCulling.shouldUpdateEntity(entity, this.getEntityUpdateType(entity))) {
-                continue;
+    var entities = this.viewportCulling.visibleEntities[layerType];
+    if (!entities || entities.length === 0) {
+        return; // 没有实体需要渲染，直接返回
+    }
+    
+    // 高性能渲染：直接渲染，减少检查
+    switch (layerType) {
+        case 'players':
+            for (var i = 0; i < entities.length; i++) {
+                this.renderPlayerEntity(entities[i]);
             }
-            
-            switch (layerType) {
-                case 'players':
-                    this.renderPlayerEntity(entity);
-                    break;
-                case 'followers':
-                    this.renderFollowerEntity(entity);
-                    break;
-                case 'zombies':
-                    this.renderZombieEntity(entity);
-                    break;
-                case 'buildings':
-                    this.renderBuildingEntity(entity);
-                    break;
-                case 'decorations':
-                    this.renderDecorationEntity(entity);
-                    break;
+            break;
+        case 'followers':
+            for (var i = 0; i < entities.length; i++) {
+                if (!entities[i].tooFarToRender) {
+                    this.renderFollowerEntity(entities[i]);
+                }
             }
-        }
-    } catch (error) {
-        console.error('[RenderLayer] 分层渲染出错:', error);
-        // 出错时回退到传统渲染
-        this.fallbackToTraditionalRendering = true;
-        this.renderLayerFallback(layerType);
+            break;
+        case 'zombies':
+            for (var i = 0; i < entities.length; i++) {
+                this.renderZombieEntity(entities[i]);
+            }
+            break;
+        case 'buildings':
+            for (var i = 0; i < entities.length; i++) {
+                this.renderBuildingEntity(entities[i]);
+            }
+            break;
+        case 'decorations':
+            for (var i = 0; i < entities.length; i++) {
+                this.renderDecorationEntity(entities[i]);
+            }
+            break;
     }
 };
 
@@ -4595,11 +4953,92 @@ GameEngine.prototype.renderFollowerEntity = function (follower) {
 };
 
 GameEngine.prototype.renderZombieEntity = function (zombie) {
-    this.zombieManager.renderSingleZombie(this.ctx, zombie, this.camera);
+    // 使用僵尸的render方法
+    if (zombie && typeof zombie.render === 'function') {
+        zombie.render(this.ctx, this.camera);
+    }
 };
 
 GameEngine.prototype.renderBuildingEntity = function (building) {
-    this.renderVisibleBuildings();
+    // 渲染单个建筑，避免重复渲染
+    if (building && typeof building.x === 'number' && typeof building.y === 'number') {
+        this.renderSingleBuilding(building);
+    }
+};
+
+// 渲染单个建筑
+GameEngine.prototype.renderSingleBuilding = function (building) {
+    if (!building || typeof building.x !== 'number' || typeof building.y !== 'number') {
+        return;
+    }
+    
+    // 检查建筑是否在视口内
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x;
+    var viewRight = this.camera.x + viewWidth;
+    var viewTop = this.camera.y;
+    var viewBottom = this.camera.y + viewHeight;
+    
+    if (building.x + building.width < viewLeft || building.x > viewRight || 
+        building.y + building.height < viewTop || building.y > viewBottom) {
+        return; // 不在视口内，不渲染
+    }
+    
+    // 渲染建筑主体
+    this.ctx.fillStyle = building.explored ? building.color : this.lightenColor(building.color, 0.3);
+    this.ctx.fillRect(building.x, building.y, building.width, building.height);
+    
+    // 渲染门
+    var doorWidth = Math.max(30, Math.floor(building.width / 8));
+    var doorHeight = Math.max(40, Math.floor(building.height / 6));
+    var doorX = building.x + (building.width - doorWidth) / 2;
+    var doorY = building.y + building.height - doorHeight - 5;
+    
+    this.ctx.fillStyle = building.explored ? 'rgba(139, 69, 19, 0.9)' : 'rgba(139, 69, 19, 0.6)';
+    this.ctx.fillRect(doorX, doorY, doorWidth, doorHeight);
+    
+    // 高亮当前靠近的建筑
+    if (this.nearBuilding && this.nearBuilding.id === building.id) {
+        this.ctx.save();
+        this.ctx.shadowColor = '#3498db';
+        this.ctx.shadowBlur = 15;
+        this.ctx.strokeStyle = '#3498db';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(doorX - 2, doorY - 2, doorWidth + 4, doorHeight + 4);
+        this.ctx.restore();
+    }
+    
+    // 建筑边框
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(building.x, building.y, building.width, building.height);
+    
+    // 未探索建筑的黄色虚线边框
+    if (!building.explored) {
+        this.ctx.strokeStyle = '#f1c40f';
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([5, 5]);
+        this.ctx.strokeRect(building.x - 3, building.y - 3, building.width + 6, building.height + 6);
+        this.ctx.setLineDash([]);
+    }
+    
+    // 建筑名称
+    var fontSize = Math.max(20, Math.floor(building.width / 12));
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold ' + fontSize + 'px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.strokeStyle = '#000000';
+    this.ctx.lineWidth = Math.max(3, Math.floor(fontSize / 6));
+    
+    var textX = building.x + building.width / 2;
+    var textY = building.y + building.height / 3;
+    
+    this.ctx.strokeText(building.name, textX, textY);
+    this.ctx.fillText(building.name, textX, textY);
+    
+    // 重置文本对齐
+    this.ctx.textAlign = 'left';
 };
 
 GameEngine.prototype.renderDecorationEntity = function (decoration) {
@@ -4623,19 +5062,26 @@ GameEngine.prototype.updateViewportCulling = function () {
             this.canvas.height / this.camera.zoom
         );
         
-        // 清空四叉树
-        this.viewportCulling.quadTree = new QuadTreeNode({
-            x: 0,
-            y: 0,
-            width: this.mapConfig.width,
-            height: this.mapConfig.height
-        });
-        
-        // 插入所有实体到四叉树
-        this.insertEntitiesToQuadTree();
+        // 只在第一次或地图变化时重建四叉树
+        if (!this.viewportCulling.quadTreeInitialized) {
+            this.viewportCulling.quadTree = new QuadTreeNode(new Bounds(0, 0, this.mapConfig.width, this.mapConfig.height));
+            this.markStaticEntities(); // 标记静态实体
+            this.insertEntitiesToQuadTree();
+            this.viewportCulling.quadTreeInitialized = true;
+            console.log('[ViewportCulling] 四叉树初始化完成');
+        } else {
+                    // 高性能更新：让ViewportCullingManager自己决定何时更新
+        // 不需要复杂的判断逻辑，ViewportCullingManager内部已经优化
+        }
         
         // 更新可见实体列表
         this.viewportCulling.updateVisibleEntities(this);
+        
+        // 性能监控：只在必要时输出日志
+        if (this.viewportCulling.lastQueryTime && Date.now() - this.viewportCulling.lastQueryTime < 100) {
+            console.log('[HighPerf] 视口查询执行，建筑:', this.viewportCulling.visibleEntities.buildings.length, 
+                       '僵尸:', this.viewportCulling.visibleEntities.zombies.length);
+        }
     } catch (error) {
         console.error('[ViewportCulling] 更新视距裁剪系统时出错:', error);
         // 出错时回退到传统渲染
@@ -4662,30 +5108,217 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
             }
         }
         
-        // 插入僵尸
+        // 插入僵尸（只插入一次，避免重复）
         if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
             for (var i = 0; i < this.zombieManager.zombies.length; i++) {
                 var zombie = this.zombieManager.zombies[i];
                 if (zombie && typeof zombie.x === 'number' && typeof zombie.y === 'number') {
-                    zombie.type = 'zombie_' + (zombie.zombieType || 'thin');
+                    // 僵尸已经有type属性，不需要重新设置
+                    zombie.quadTreeInserted = true; // 标记已插入
                     this.viewportCulling.quadTree.insert(zombie);
                 }
             }
         }
         
-        // 插入建筑
+        // 插入建筑（只插入一次，避免重复）
         if (this.buildings && Array.isArray(this.buildings)) {
             for (var i = 0; i < this.buildings.length; i++) {
                 var building = this.buildings[i];
                 if (building && typeof building.x === 'number' && typeof building.y === 'number') {
                     building.type = 'building';
+                    building.quadTreeInserted = true; // 标记已插入
                     this.viewportCulling.quadTree.insert(building);
+                }
+            }
+        }
+        
+        // 插入NPC（只插入一次，避免重复）
+        if (this.npcs && Array.isArray(this.npcs)) {
+            for (var i = 0; i < this.npcs.length; i++) {
+                var npc = this.npcs[i];
+                if (npc && typeof npc.x === 'number' && typeof npc.y === 'number') {
+                    // NPC已经有type属性，不需要重新设置
+                    npc.quadTreeInserted = true; // 标记已插入
+                    this.viewportCulling.quadTree.insert(npc);
                 }
             }
         }
     } catch (error) {
         console.error('[InsertEntities] 插入实体到四叉树时出错:', error);
         throw error;
+    }
+};
+
+// 增量更新四叉树中的移动实体
+GameEngine.prototype.updateMovingEntitiesInQuadTree = function () {
+    try {
+        // 更新玩家位置（如果移动了）
+        if (this.player && typeof this.player.x === 'number' && typeof this.player.y === 'number') {
+            if (this.player.lastQuadTreeX !== this.player.x || this.player.lastQuadTreeY !== this.player.y) {
+                // 玩家移动了，更新四叉树
+                this.viewportCulling.quadTree.remove(this.player);
+                this.viewportCulling.quadTree.insert(this.player);
+                this.player.lastQuadTreeX = this.player.x;
+                this.player.lastQuadTreeY = this.player.y;
+            }
+        }
+        
+        // 更新跟随者位置（如果移动了）
+        if (this.followers && Array.isArray(this.followers)) {
+            for (var i = 0; i < this.followers.length; i++) {
+                var follower = this.followers[i];
+                if (follower && typeof follower.x === 'number' && typeof follower.y === 'number') {
+                    if (follower.lastQuadTreeX !== follower.x || follower.lastQuadTreeY !== follower.y) {
+                        // 跟随者移动了，更新四叉树
+                        this.viewportCulling.quadTree.remove(follower);
+                        this.viewportCulling.quadTree.insert(follower);
+                        follower.lastQuadTreeX = follower.x;
+                        follower.lastQuadTreeY = follower.y;
+                    }
+                }
+            }
+        }
+        
+        // 更新僵尸位置（如果移动了）
+        if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
+            for (var i = 0; i < this.zombieManager.zombies.length; i++) {
+                var zombie = this.zombieManager.zombies[i];
+                if (zombie && typeof zombie.x === 'number' && typeof zombie.y === 'number') {
+                    if (zombie.lastQuadTreeX !== zombie.x || zombie.lastQuadTreeY !== zombie.y) {
+                        // 僵尸移动了，更新四叉树
+                        this.viewportCulling.quadTree.remove(zombie);
+                        this.viewportCulling.quadTree.insert(zombie);
+                        zombie.lastQuadTreeX = zombie.x;
+                        zombie.lastQuadTreeY = zombie.y;
+                    }
+                }
+            }
+        }
+        
+        // 建筑和NPC是静态的，不需要更新位置
+    } catch (error) {
+        console.error('[UpdateMovingEntities] 更新移动实体时出错:', error);
+        // 出错时重建四叉树
+        this.viewportCulling.quadTreeInitialized = false;
+    }
+};
+
+// 优化：为静态实体添加缓存标记
+GameEngine.prototype.markStaticEntities = function() {
+    // 标记建筑为静态实体
+    if (this.buildings && Array.isArray(this.buildings)) {
+        for (var i = 0; i < this.buildings.length; i++) {
+            var building = this.buildings[i];
+            if (building) {
+                building.isStatic = true;
+                building.lastQuadTreeX = building.x;
+                building.lastQuadTreeY = building.y;
+            }
+        }
+    }
+    
+    // 标记NPC为静态实体（除非加入团队）
+    if (this.npcs && Array.isArray(this.npcs)) {
+        for (var i = 0; i < this.npcs.length; i++) {
+            var npc = this.npcs[i];
+            if (npc) {
+                npc.isStatic = !npc.isFollowing;
+                npc.lastQuadTreeX = npc.x;
+                npc.lastQuadTreeY = npc.y;
+            }
+        }
+    }
+    
+    // 记录玩家初始位置
+    if (this.player) {
+        this.player.lastViewportUpdateX = this.player.x;
+        this.player.lastViewportUpdateY = this.player.y;
+    }
+};
+
+// 智能判断是否需要更新视距裁剪系统
+GameEngine.prototype.shouldUpdateViewportCulling = function(timeSinceLastUpdate) {
+    // 基础更新间隔：至少200ms
+    if (timeSinceLastUpdate < 200) {
+        return false;
+    }
+    
+    // 检查玩家是否移动了足够距离
+    if (this.player && this.player.lastViewportUpdateX !== undefined) {
+        var distanceMoved = Math.sqrt(
+            Math.pow(this.player.x - this.player.lastViewportUpdateX, 2) +
+            Math.pow(this.player.y - this.player.lastViewportUpdateY, 2)
+        );
+        
+        // 玩家移动超过300像素才更新
+        if (distanceMoved < 300) {
+            return false;
+        }
+        
+        // 更新记录的位置
+        this.player.lastViewportUpdateX = this.player.x;
+        this.player.lastViewportUpdateY = this.player.y;
+    }
+    
+    return true;
+};
+
+// 更新视口外的实体（确保玩家移动时能遇到新内容）
+GameEngine.prototype.updateViewportEntities = function() {
+    try {
+        // 计算扩展的视口范围（比当前视口大一些，确保平滑过渡）
+        var viewWidth = this.canvas.width / this.camera.zoom;
+        var viewHeight = this.canvas.height / this.camera.zoom;
+        var extendedRange = 1000; // 扩展1000像素
+        
+        var extendedViewport = new Bounds(
+            this.camera.x - extendedRange,
+            this.camera.y - extendedRange,
+            viewWidth + extendedRange * 2,
+            viewHeight + extendedRange * 2
+        );
+        
+        // 查询扩展视口内的所有实体
+        var extendedEntities = this.viewportCulling.quadTree.query(extendedViewport);
+        
+        // 更新僵尸的可见性（只更新在扩展视口内的僵尸）
+        if (this.zombieManager && this.zombieManager.zombies) {
+            for (var i = 0; i < this.zombieManager.zombies.length; i++) {
+                var zombie = this.zombieManager.zombies[i];
+                if (zombie && typeof zombie.x === 'number' && typeof zombie.y === 'number') {
+                    var inExtendedViewport = extendedViewport.contains(zombie.x, zombie.y);
+                    zombie.inExtendedViewport = inExtendedViewport;
+                    
+                    // 如果僵尸从视口外进入扩展视口，重新插入四叉树
+                    if (inExtendedViewport && !zombie.quadTreeInserted) {
+                        this.viewportCulling.quadTree.insert(zombie);
+                        zombie.quadTreeInserted = true;
+                    }
+                }
+            }
+        }
+        
+        // 更新NPC的可见性
+        if (this.npcs && Array.isArray(this.npcs)) {
+            for (var i = 0; i < this.npcs.length; i++) {
+                var npc = this.npcs[i];
+                if (npc && typeof npc.x === 'number' && typeof npc.y === 'number') {
+                    var inExtendedViewport = extendedViewport.contains(npc.x, npc.y);
+                    npc.inExtendedViewport = inExtendedViewport;
+                    
+                    // 如果NPC从视口外进入扩展视口，重新插入四叉树
+                    if (inExtendedViewport && !npc.quadTreeInserted) {
+                        this.viewportCulling.quadTree.insert(npc);
+                        npc.quadTreeInserted = true;
+                    }
+                }
+            }
+        }
+        
+        console.log('[ViewportUpdate] 扩展视口更新完成，扩展范围:', extendedRange, '像素');
+        
+    } catch (error) {
+        console.error('[ViewportUpdate] 更新视口外实体时出错:', error);
     }
 };
 
@@ -4740,6 +5373,14 @@ GameEngine.prototype.renderStatusBar = function () {
     this.ctx.fillText('第 ' + this.gameData.survivalDays + ' 天', 10, 25);
     this.ctx.fillText('🍞 ' + this.gameData.food, 10, 45);
     this.ctx.fillText('👥 ' + this.gameData.teamSize, 120, 25);
+    
+    // 调试信息：显示NPC和跟随者数量
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.font = '12px Arial';
+    this.ctx.fillText('NPC:' + this.npcs.length + ' 跟随:' + this.followers.length, 10, 55);
+    
+    // 显示碰撞阈值信息
+    this.ctx.fillText('碰撞阈值:' + Math.sqrt(GAME_CONFIG.TEAM.COLLISION_THRESHOLD) + 'px', 200, 55);
 };
 
 GameEngine.prototype.renderTimeInfo = function () {
@@ -5549,249 +6190,4 @@ try {
     console.error('[Main] 游戏启动失败:', error);
 }
 
-// 视距裁剪系统配置
-var VIEWPORT_CONFIG = {
-    GRID_SIZE: 500,           // 网格区块大小
-    EXTRA_RENDER: 1,          // 额外渲染区块数
-    MAX_VIEW_DISTANCE: 1000,  // 最大视距
-    UPDATE_FREQUENCIES: {
-        CORE: 1,              // 60fps (每帧更新)
-        IMPORTANT: 2,         // 30fps (每2帧更新)
-        NORMAL: 4,            // 15fps (每4帧更新)
-        LOW: 30,              // 2fps (每30帧更新)
-        SLEEP: 0              // 停止更新
-    }
-};
 
-// 四叉树节点类
-function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
-    this.bounds = bounds;           // 边界 {x, y, width, height}
-    this.maxObjects = maxObjects || 10;
-    this.maxLevels = maxLevels || 5;
-    this.level = level || 0;
-    this.objects = [];
-    this.nodes = [];
-    this.isLeaf = true;
-}
-
-QuadTreeNode.prototype.insert = function(object) {
-    if (!this.bounds.contains(object.x, object.y)) {
-        return false;
-    }
-    
-    if (this.isLeaf && this.objects.length < this.maxObjects) {
-        this.objects.push(object);
-        return true;
-    }
-    
-    if (this.isLeaf && this.level < this.maxLevels) {
-        this.split();
-    }
-    
-    for (var i = 0; i < this.nodes.length; i++) {
-        if (this.nodes[i].insert(object)) {
-            return true;
-        }
-    }
-    
-    return false;
-};
-
-QuadTreeNode.prototype.split = function() {
-    var subWidth = this.bounds.width / 2;
-    var subHeight = this.bounds.height / 2;
-    var x = this.bounds.x;
-    var y = this.bounds.y;
-    
-    this.nodes[0] = new QuadTreeNode({
-        x: x + subWidth,
-        y: y,
-        width: subWidth,
-        height: subHeight
-    }, this.maxObjects, this.maxLevels, this.level + 1);
-    
-    this.nodes[1] = new QuadTreeNode({
-        x: x,
-        y: y,
-        width: subWidth,
-        height: subHeight
-    }, this.maxObjects, this.maxLevels, this.level + 1);
-    
-    this.nodes[2] = new QuadTreeNode({
-        x: x,
-        y: y + subHeight,
-        width: subWidth,
-        height: subHeight
-    }, this.maxObjects, this.maxLevels, this.level + 1);
-    
-    this.nodes[3] = new QuadTreeNode({
-        x: x + subWidth,
-        y: y + subHeight,
-        width: subWidth,
-        height: subHeight
-    }, this.maxObjects, this.maxLevels, this.level + 1);
-    
-    this.isLeaf = false;
-    
-    // 重新分配现有对象
-    for (var i = 0; i < this.objects.length; i++) {
-        for (var j = 0; j < this.nodes.length; j++) {
-            if (this.nodes[j].insert(this.objects[i])) {
-                break;
-            }
-        }
-    }
-    this.objects = [];
-};
-
-QuadTreeNode.prototype.query = function(range) {
-    var result = [];
-    
-    if (!this.bounds.intersects(range)) {
-        return result;
-    }
-    
-    for (var i = 0; i < this.objects.length; i++) {
-        if (range.contains(this.objects[i].x, this.objects[i].y)) {
-            result.push(this.objects[i]);
-        }
-    }
-    
-    if (!this.isLeaf) {
-        for (var i = 0; i < this.nodes.length; i++) {
-            result = result.concat(this.nodes[i].query(range));
-        }
-    }
-    
-    return result;
-};
-
-// 边界框类
-function Bounds(x, y, width, height) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-}
-
-Bounds.prototype.contains = function(x, y) {
-    return x >= this.x && x <= this.x + this.width &&
-           y >= this.y && y <= this.y + this.height;
-};
-
-Bounds.prototype.intersects = function(other) {
-    return !(this.x > other.x + other.width ||
-             this.x + this.width < other.x ||
-             this.y > other.y + other.height ||
-             this.y + this.height < other.y);
-};
-
-// 视距裁剪管理器
-function ViewportCullingManager() {
-    this.quadTree = null;
-    this.visibleEntities = {
-        players: [],
-        followers: [],
-        zombies: [],
-        buildings: [],
-        decorations: []
-    };
-    this.updateCounters = {
-        core: 0,
-        important: 0,
-        normal: 0,
-        low: 0
-    };
-    this.camera = {x: 0, y: 0, width: 800, height: 600};
-}
-
-ViewportCullingManager.prototype.init = function(mapWidth, mapHeight) {
-    this.quadTree = new QuadTreeNode({
-        x: 0,
-        y: 0,
-        width: mapWidth,
-        height: mapHeight
-    });
-};
-
-ViewportCullingManager.prototype.updateCamera = function(x, y, width, height) {
-    this.camera.x = x;
-    this.camera.y = y;
-    this.camera.width = width;
-    this.camera.height = height;
-};
-
-ViewportCullingManager.prototype.getVisibleRange = function() {
-    var extra = VIEWPORT_CONFIG.GRID_SIZE * VIEWPORT_CONFIG.EXTRA_RENDER;
-    return {
-        x: Math.max(0, this.camera.x - extra),
-        y: Math.max(0, this.camera.y - extra),
-        width: this.camera.width + extra * 2,
-        height: this.camera.height + extra * 2
-    };
-};
-
-ViewportCullingManager.prototype.updateVisibleEntities = function(gameEngine) {
-    var visibleRange = this.getVisibleRange();
-    var allEntities = this.quadTree.query(visibleRange);
-    
-    // 清空可见实体列表
-    for (var key in this.visibleEntities) {
-        this.visibleEntities[key] = [];
-    }
-    
-    // 按优先级分类实体
-    for (var i = 0; i < allEntities.length; i++) {
-        var entity = allEntities[i];
-        var distance = Math.sqrt(
-            Math.pow(entity.x - gameEngine.player.x, 2) +
-            Math.pow(entity.y - gameEngine.player.y, 2)
-        );
-        
-        // 超出最大视距的实体不渲染
-        if (distance > VIEWPORT_CONFIG.MAX_VIEW_DISTANCE) {
-            continue;
-        }
-        
-        // 按类型分类
-        if (entity === gameEngine.player) {
-            this.visibleEntities.players.push(entity);
-        } else if (entity.type === 'follower') {
-            this.visibleEntities.followers.push(entity);
-        } else if (entity.type && entity.type.includes('zombie')) {
-            this.visibleEntities.zombies.push(entity);
-        } else if (entity.type === 'building') {
-            this.visibleEntities.buildings.push(entity);
-        } else {
-            this.visibleEntities.decorations.push(entity);
-        }
-    }
-    
-    // 更新计数器
-    this.updateCounters.core++;
-    if (this.updateCounters.core % 2 === 0) this.updateCounters.important++;
-    if (this.updateCounters.core % 4 === 0) this.updateCounters.normal++;
-    if (this.updateCounters.core % 30 === 0) this.updateCounters.low++;
-};
-
-ViewportCullingManager.prototype.shouldUpdateEntity = function(entity, updateType) {
-    var distance = Math.sqrt(
-        Math.pow(entity.x - this.camera.x, 2) +
-        Math.pow(entity.y - this.camera.y, 2)
-    );
-    
-    switch (updateType) {
-        case 'core':
-            return true; // 每帧更新
-        case 'important':
-            return this.updateCounters.important % 2 === 0 && distance < 500;
-        case 'normal':
-            return this.updateCounters.normal % 4 === 0 && distance < 1000;
-        case 'low':
-            return this.updateCounters.low % 30 === 0;
-        case 'sleep':
-            return false;
-        default:
-            return true;
-    }
-};
