@@ -266,7 +266,7 @@ function BaseZombie(config) {
     this.size = config.size || 1.2; // 比人物大一点
 
     // AI状态机
-    this.state = 'wandering'; // wandering, chasing, attacking
+    this.state = 'wandering'; // wandering, aware, chasing, attacking
     this.target = null;
     this.lastAttackTime = 0;
     this.attackCooldown = config.attackCooldown || 1500; // 攻击冷却时间
@@ -285,7 +285,39 @@ function BaseZombie(config) {
     this.walkAnimationFrame = 0;
     this.lastAnimationTime = 0;
     this.walkAnimationSpeed = 300; // 比人物慢一点
+    
+    // 对象池相关
+    this.active = true;
 }
+
+// 重置僵尸状态（用于对象池）
+BaseZombie.prototype.reset = function(type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.health = this.maxHealth;
+    this.state = 'wandering';
+    this.target = null;
+    this.lastAttackTime = 0;
+    this.aiUpdateTimer = 0;
+    this.wanderTarget = null;
+    this.wanderTimer = 0;
+    this.isWalking = false;
+    this.direction = 'down';
+    this.walkAnimationFrame = 0;
+    this.lastAnimationTime = 0;
+    
+    // 更新配置
+    var zombieTypes = this.gameEngine ? this.gameEngine.zombieManager.zombieTypes : {};
+    if (zombieTypes[type]) {
+        var config = zombieTypes[type];
+        this.attack = config.attack;
+        this.moveSpeed = config.moveSpeed;
+        this.detectionRange = config.detectionRange;
+        this.attackCooldown = config.attackCooldown;
+        this.size = config.size;
+    }
+};
 
 BaseZombie.prototype.update = function (deltaTime, gameEngine) {
     this.gameEngine = gameEngine;
@@ -309,6 +341,9 @@ BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
         case 'wandering':
             this.updateWanderingState(playerDistance, gameEngine, currentTime);
             break;
+        case 'aware':
+            this.updateAwareState(playerDistance, gameEngine, currentTime);
+            break;
         case 'chasing':
             this.updateChasingState(playerDistance, gameEngine, currentTime);
             break;
@@ -323,18 +358,71 @@ BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
 
 // 游荡状态更新
 BaseZombie.prototype.updateWanderingState = function (playerDistance, gameEngine, currentTime) {
-    // 检测是否有人类进入范围
-    if (playerDistance <= this.detectionRange && gameEngine.player.health > 0 && !gameEngine.player.isDead) {
-        // 游荡→追击：检测到人类进入范围
-        this.state = 'chasing';
+    // 检测是否有人类进入察觉范围（70%检测范围）
+    var awareRange = this.detectionRange * 0.7;
+    if (playerDistance <= awareRange && gameEngine.player.health > 0 && !gameEngine.player.isDead) {
+        // 游荡→察觉：检测到人类进入察觉范围
+        this.state = 'aware';
         this.target = gameEngine.player;
         this.lastStateChangeTime = currentTime;
-        console.log('[ZombieAI]', this.type, '从游荡切换到追击状态');
+        console.log('[ZombieAI]', this.type, '从游荡切换到察觉状态，距离:', playerDistance.toFixed(0));
         return;
     }
     
     // 继续游荡
     this.wander(100); // 固定时间间隔
+};
+
+// 察觉状态更新（新增）
+BaseZombie.prototype.updateAwareState = function (playerDistance, gameEngine, currentTime) {
+    // 检查目标是否仍然有效
+    if (!this.target || this.target.health <= 0 || this.target.isDead) {
+        // 察觉→游荡：目标无效
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从察觉切换到游荡状态（目标无效）');
+        return;
+    }
+    
+    // 检查是否进入追击范围
+    if (playerDistance <= this.detectionRange) {
+        // 察觉→追击：进入追击范围
+        this.state = 'chasing';
+        console.log('[ZombieAI]', this.type, '从察觉切换到追击状态');
+        return;
+    }
+    
+    // 检查是否超出察觉范围
+    if (playerDistance > this.detectionRange * 0.8) {
+        // 察觉→游荡：超出察觉范围
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从察觉切换到游荡状态（超出察觉范围）');
+        return;
+    }
+    
+    // 察觉状态：缓慢转向玩家方向
+    var dx = this.target.x - this.x;
+    var dy = this.target.y - this.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+        var dirX = dx / distance;
+        var dirY = dy / distance;
+        
+        // 缓慢移动（0.3倍速度）
+        var slowSpeed = this.moveSpeed * 0.3;
+        var newX = this.x + dirX * slowSpeed;
+        var newY = this.y + dirY * slowSpeed;
+        
+        // 检查移动安全性
+        if (this.canZombieMoveTo(newX, newY, this.gameEngine)) {
+            this.x = newX;
+            this.y = newY;
+            this.isWalking = true;
+            this.direction = this.getDirectionFromDelta(dirX, dirY);
+        }
+    }
 };
 
 // 追击状态更新
@@ -416,6 +504,28 @@ BaseZombie.prototype.chaseTarget = function (target) {
     if (distance > 0) {
         var dirX = dx / distance;
         var dirY = dy / distance;
+        
+        // 群体追击策略：≥3只僵尸时形成包围
+        var nearbyZombies = this.getNearbyZombies(300);
+        if (nearbyZombies.length >= 3) {
+            var flankingAngle = this.calculateFlankingAngle(target, nearbyZombies);
+            if (flankingAngle !== null) {
+                // 计算侧翼位置
+                var flankX = target.x + Math.cos(flankingAngle) * 150;
+                var flankY = target.y + Math.sin(flankingAngle) * 150;
+                
+                // 向侧翼位置移动
+                var flankDx = flankX - this.x;
+                var flankDy = flankY - this.y;
+                var flankDistance = Math.sqrt(flankDx * flankDx + flankDy * flankDy);
+                
+                if (flankDistance > 0) {
+                    dirX = flankDx / flankDistance;
+                    dirY = flankDy / flankDistance;
+                }
+            }
+        }
+        
         var newX = this.x + dirX * this.moveSpeed;
         var newY = this.y + dirY * this.moveSpeed;
 
@@ -460,6 +570,52 @@ BaseZombie.prototype.chaseTarget = function (target) {
         this.isWalking = true;
         this.direction = this.getDirectionFromDelta(dirX, dirY);
     }
+};
+
+// 获取附近僵尸
+BaseZombie.prototype.getNearbyZombies = function(radius) {
+    var nearby = [];
+    if (!this.gameEngine || !this.gameEngine.zombieManager) return nearby;
+    
+    for (var i = 0; i < this.gameEngine.zombieManager.zombies.length; i++) {
+        var zombie = this.gameEngine.zombieManager.zombies[i];
+        if (zombie !== this && zombie.active) {
+            var distance = Math.sqrt(
+                Math.pow(this.x - zombie.x, 2) + 
+                Math.pow(this.y - zombie.y, 2)
+            );
+            if (distance <= radius) {
+                nearby.push(zombie);
+            }
+        }
+    }
+    return nearby;
+};
+
+// 计算侧翼角度
+BaseZombie.prototype.calculateFlankingAngle = function(target, nearbyZombies) {
+    if (nearbyZombies.length === 0) return null;
+    
+    // 计算僵尸群的平均位置
+    var avgX = 0, avgY = 0;
+    for (var i = 0; i < nearbyZombies.length; i++) {
+        avgX += nearbyZombies[i].x;
+        avgY += nearbyZombies[i].y;
+    }
+    avgX /= nearbyZombies.length;
+    avgY /= nearbyZombies.length;
+    
+    // 计算从目标到僵尸群的方向
+    var dx = avgX - target.x;
+    var dy = avgY - target.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+        // 返回相反方向（侧翼位置）
+        return Math.atan2(-dy, -dx);
+    }
+    
+    return null;
 };
 
 // A*寻路算法：寻找从当前位置到目标的最短路径
@@ -1026,6 +1182,9 @@ function ZombieManager() {
         medium: 300,  // 中距离僵尸更新频率
         far: 800      // 远距离僵尸更新频率
     };
+    
+    // 初始化对象池
+    this.initializePool();
 }
 
 ZombieManager.prototype.getZombieTypes = function () {
@@ -1113,6 +1272,92 @@ ZombieManager.prototype.updateAllZombieSpeeds = function (survivalDays) {
     var playerSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED;
     console.log('[ZombieManager] 速度对比 - 玩家:', playerSpeed, '瘦僵尸:', thinSpeed, '胖僵尸:', fatSpeed, 'Boss僵尸:', bossSpeed);
     console.log('[ZombieManager] 速度倍数 - 瘦僵尸:', (thinSpeed/playerSpeed).toFixed(1), '胖僵尸:', (fatSpeed/playerSpeed).toFixed(1), 'Boss僵尸:', (bossSpeed/playerSpeed).toFixed(1));
+};
+
+// 对象池管理
+ZombieManager.prototype.initializePool = function() {
+    try {
+        console.log('[ZombieManager] 初始化僵尸对象池，预创建', this.maxPoolSize, '个实例');
+        
+        for (var i = 0; i < this.maxPoolSize; i++) {
+            var zombie = this.createZombieInstance();
+            if (zombie) {
+                zombie.active = false;
+                this.zombiePool.push(zombie);
+            }
+        }
+        
+        console.log('[ZombieManager] 对象池初始化完成，实际创建', this.zombiePool.length, '个实例');
+    } catch (error) {
+        console.error('[ZombieManager] 初始化对象池时出错:', error);
+        // 出错时创建空对象池
+        this.zombiePool = [];
+    }
+};
+
+ZombieManager.prototype.createZombieInstance = function() {
+    try {
+        var zombieTypes = Object.keys(this.zombieTypes);
+        if (zombieTypes.length === 0) {
+            console.warn('[ZombieManager] 没有可用的僵尸类型');
+            return null;
+        }
+        
+        var randomType = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+        var config = this.zombieTypes[randomType];
+        
+        if (!config) {
+            console.warn('[ZombieManager] 僵尸配置无效:', randomType);
+            return null;
+        }
+        
+        return new BaseZombie({
+            type: randomType,
+            health: config.health,
+            attack: config.attack,
+            moveSpeed: config.moveSpeed,
+            size: config.size,
+            attackCooldown: config.attackCooldown,
+            detectionRange: config.detectionRange,
+            color: config.color,
+            gameEngine: this.gameEngine
+        });
+    } catch (error) {
+        console.error('[ZombieManager] 创建僵尸实例时出错:', error);
+        return null;
+    }
+};
+
+ZombieManager.prototype.getZombieFromPool = function(type, x, y) {
+    // 从对象池中获取僵尸
+    for (var i = 0; i < this.zombiePool.length; i++) {
+        if (!this.zombiePool[i].active) {
+            var zombie = this.zombiePool[i];
+            zombie.reset(type, x, y);
+            zombie.active = true;
+            return zombie;
+        }
+    }
+    
+    // 如果对象池满了，创建新实例
+    if (this.zombies.length < this.maxPoolSize) {
+        var newZombie = this.createZombieInstance();
+        newZombie.reset(type, x, y);
+        newZombie.active = true;
+        this.zombiePool.push(newZombie);
+        return newZombie;
+    }
+    
+    return null;
+};
+
+ZombieManager.prototype.returnZombieToPool = function(zombie) {
+    zombie.active = false;
+    zombie.health = zombie.maxHealth;
+    zombie.x = -1000;
+    zombie.y = -1000;
+    zombie.state = 'wandering';
+    zombie.target = null;
 };
 
 ZombieManager.prototype.createZombie = function (type, x, y) {
@@ -1349,6 +1594,10 @@ function GameEngine(canvas, ctx) {
     
     // 设置僵尸管理器的游戏引擎引用
     this.zombieManager.gameEngine = this;
+    
+    // 绘制优化设置
+    this.ctx.imageSmoothingEnabled = false; // 关闭图像平滑，保持像素风格
+    this.ctx.imageSmoothingQuality = 'low'; // 设置图像平滑质量
 
     // NPC系统
     this.npcs = [];
@@ -1472,6 +1721,18 @@ function GameEngine(canvas, ctx) {
     this.initializeNPCs();
     this.initializeZombies();
 
+    // 视距裁剪系统
+    try {
+        this.viewportCulling = new ViewportCullingManager();
+        this.viewportCulling.init(this.mapConfig.width, this.mapConfig.height);
+        this.fallbackToTraditionalRendering = false;
+        console.log('[GameEngine] 视距裁剪系统初始化成功');
+    } catch (error) {
+        console.error('[GameEngine] 视距裁剪系统初始化失败，回退到传统渲染:', error);
+        this.fallbackToTraditionalRendering = true;
+        this.viewportCulling = null;
+    }
+    
     // 子地图状态
     this.zombies = [];
     this.resources = [];
@@ -1697,7 +1958,12 @@ GameEngine.prototype.setupInput = function () {
         radius: 60,
         knobRadius: 20,
         visible: true,
-        maxDistance: 50
+        maxDistance: 50,
+        
+        // 抖音平台适配：松手后保持移动方向
+        lastDirection: {x: 0, y: 0},
+        directionHoldTime: 0,
+        directionHoldDuration: 300 // 300ms保持时间
     };
 
     // 性能优化：事件监听器引用，便于解绑
@@ -1705,7 +1971,10 @@ GameEngine.prototype.setupInput = function () {
         touchStart: null, touchMove: null, touchEnd: null, click: null
     };
 
+    // 抖音平台适配：默认位置在屏幕底部中央
+    this.joystick.centerX = this.canvas.width / 2;
     this.joystick.centerY = this.canvas.height - 80;
+    this.joystick.currentX = this.joystick.centerX;
     this.joystick.currentY = this.joystick.centerY;
 
     // 抖音小程序触摸事件处理 - 修复兼容性问题
@@ -2993,59 +3262,46 @@ GameEngine.prototype.calculateFollowerOffset = function (follower, personality) 
     var index = this.followers.indexOf(follower);
     var totalFollowers = this.followers.length;
     
-    // 基础跟随角度，减少随机偏移避免抽搐
-    var baseAngle = (index / totalFollowers) * Math.PI * 2;
-    var randomOffset = (personality.randomness - 0.5) * 0.2; // 减少随机偏移
-    var finalAngle = baseAngle + randomOffset;
+    // 几何队列布局：玩家为中心，形成菱形队列
+    var baseDistance = 25; // 基础距离
+    var coreDistance = 20; // 核心成员距离
     
-    // 根据个性调整跟随距离和位置，减少变化避免抽搐
-    var baseRadius = personality.followDistance;
-    var radiusVariation = personality.randomness * 5; // 减少距离变化
-    var finalRadius = baseRadius + radiusVariation;
-
-    switch (personality.personalityType) {
-        case 'leader':
-            // 领导者稍微超前，但不会太远
-            return {
-                x: Math.cos(finalAngle) * (finalRadius * 0.3),
-                y: Math.sin(finalAngle) * (finalRadius * 0.3)
-            };
-        case 'supporter':
-            // 支持者围绕玩家，提供支援
-            var supportAngle = finalAngle + (index * 0.4);
-            return {
-                x: Math.cos(supportAngle) * finalRadius * 0.7,
-                y: Math.sin(supportAngle) * finalRadius * 0.7
-            };
-        case 'scout':
-            // 侦察兵在前方和侧翼
-            var scoutAngle = finalAngle + (index * 0.6);
-            return {
-                x: Math.cos(scoutAngle) * finalRadius * 0.8,
-                y: Math.sin(scoutAngle) * finalRadius * 0.6
-            };
-        case 'guardian':
-            // 守护者形成保护圈
-            var guardAngle = finalAngle + (index * 0.3);
-            return {
-                x: Math.cos(guardAngle) * finalRadius * 0.9,
-                y: Math.sin(guardAngle) * finalRadius * 0.9
-            };
-        case 'independent':
-            // 独立者保持距离，随机性更强
-            var independentAngle = finalAngle + (index * 0.5) + (personality.randomness * 0.8);
-            return {
-                x: Math.cos(independentAngle) * (finalRadius + 15),
-                y: Math.sin(independentAngle) * (finalRadius + 15)
-            };
-        default:
-            // 默认跟随模式，自然分布
-            var naturalAngle = finalAngle + (index * 0.2) + (personality.randomness * 0.3);
-            return {
-                x: Math.cos(naturalAngle) * finalRadius,
-                y: Math.sin(naturalAngle) * finalRadius
-            };
+    // 根据跟随者类型调整距离
+    var distance = baseDistance;
+    if (personality && (personality.personalityType === 'leader' || personality.personalityType === 'guardian')) {
+        distance = coreDistance; // 核心成员距离更近
     }
+    
+    // 菱形队列布局：前-左-右-后
+    var positions = [
+        {x: 0, y: -distance},           // 前方
+        {x: -distance, y: 0},           // 左侧
+        {x: distance, y: 0},            // 右侧
+        {x: 0, y: distance}             // 后方
+    ];
+    
+    // 如果跟随者超过4个，使用圆形布局
+    if (index >= 4) {
+        var angleStep = (Math.PI * 2) / Math.max(1, totalFollowers);
+        var angle = angleStep * index;
+        var circleDistance = distance + (index - 3) * 10; // 每多一个跟随者，距离增加10像素
+        
+        return {
+            x: this.player.x + Math.cos(angle) * circleDistance,
+            y: this.player.y + Math.sin(angle) * circleDistance
+        };
+    }
+    
+    // 拥堵处理：当3名以上成员聚集时，自动调整间距
+    if (totalFollowers >= 3) {
+        distance += 5;
+    }
+    
+    var targetPos = positions[index % 4];
+    return {
+        x: this.player.x + targetPos.x,
+        y: this.player.y + targetPos.y
+    };
 };
 
 GameEngine.prototype.getPersonalityType = function (characterId) {
@@ -4115,6 +4371,42 @@ GameEngine.prototype.renderFooterInfo = function (centerX) {
 
 // 游戏主界面渲染
 GameEngine.prototype.renderGame = function () {
+    try {
+        this.ctx.save();
+
+        this.ctx.scale(this.camera.zoom, this.camera.zoom);
+        this.ctx.translate(-this.camera.x, -this.camera.y);
+
+        // 更新视距裁剪系统
+        this.updateViewportCulling();
+
+        // 分层渲染（按优先级）
+        this.renderMapBackground();
+        this.renderStreetGrid();
+        this.renderLayer('buildings');      // 建筑层
+        this.renderLayer('decorations');    // 装饰层
+        this.renderLayer('zombies');        // 僵尸层
+        this.renderLayer('followers');      // 跟随者层
+        this.renderLayer('players');        // 玩家层（最高优先级）
+
+        this.ctx.restore();
+
+        this.renderStatusBar();
+        this.renderTimeInfo();
+        this.renderMiniMap();
+
+        if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+            this.renderBuildingEntryPrompt();
+        }
+    } catch (error) {
+        console.error('[RenderGame] 游戏渲染出错:', error);
+        // 出错时回退到传统渲染
+        this.renderGameFallback();
+    }
+};
+
+// 传统游戏渲染回退方案
+GameEngine.prototype.renderGameFallback = function () {
     this.ctx.save();
 
     this.ctx.scale(this.camera.zoom, this.camera.zoom);
@@ -4206,6 +4498,195 @@ GameEngine.prototype.renderStreetLines = function () {
     }
 
     this.ctx.setLineDash([]);
+};
+
+// 分层渲染系统
+GameEngine.prototype.renderLayer = function (layerType) {
+    // 安全检查：如果视距裁剪系统出错，回退到传统渲染
+    if (this.fallbackToTraditionalRendering) {
+        this.renderLayerFallback(layerType);
+        return;
+    }
+    
+    try {
+        var entities = this.viewportCulling.visibleEntities[layerType] || [];
+        
+        for (var i = 0; i < entities.length; i++) {
+            var entity = entities[i];
+            
+            // 检查是否应该更新此实体
+            if (!this.viewportCulling.shouldUpdateEntity(entity, this.getEntityUpdateType(entity))) {
+                continue;
+            }
+            
+            switch (layerType) {
+                case 'players':
+                    this.renderPlayerEntity(entity);
+                    break;
+                case 'followers':
+                    this.renderFollowerEntity(entity);
+                    break;
+                case 'zombies':
+                    this.renderZombieEntity(entity);
+                    break;
+                case 'buildings':
+                    this.renderBuildingEntity(entity);
+                    break;
+                case 'decorations':
+                    this.renderDecorationEntity(entity);
+                    break;
+            }
+        }
+    } catch (error) {
+        console.error('[RenderLayer] 分层渲染出错:', error);
+        // 出错时回退到传统渲染
+        this.fallbackToTraditionalRendering = true;
+        this.renderLayerFallback(layerType);
+    }
+};
+
+// 传统渲染回退方案
+GameEngine.prototype.renderLayerFallback = function (layerType) {
+    switch (layerType) {
+        case 'players':
+            this.renderPlayer();
+            break;
+        case 'followers':
+            this.renderFollowers();
+            break;
+        case 'zombies':
+            this.zombieManager.render(this.ctx, this.camera);
+            break;
+        case 'buildings':
+            this.renderVisibleBuildings();
+            break;
+        case 'decorations':
+            // 装饰物渲染逻辑
+            break;
+    }
+};
+
+GameEngine.prototype.getEntityUpdateType = function (entity) {
+    if (entity === this.player) {
+        return 'core'; // 玩家每帧更新
+    }
+    
+    var distance = Math.sqrt(
+        Math.pow(entity.x - this.player.x, 2) +
+        Math.pow(entity.y - this.player.y, 2)
+    );
+    
+    if (distance < 500) {
+        return 'important'; // 近距离实体30fps
+    } else if (distance < 1000) {
+        return 'normal';    // 中距离实体15fps
+    } else {
+        return 'low';       // 远距离实体2fps
+    }
+};
+
+GameEngine.prototype.renderPlayerEntity = function (player) {
+    this.characterManager.renderCurrentCharacter(this.ctx, player.x, player.y, player);
+    this.renderCharacterHealthBar(player, player.x, player.y);
+};
+
+GameEngine.prototype.renderFollowerEntity = function (follower) {
+    this.renderSingleFollower(follower, 0);
+};
+
+GameEngine.prototype.renderZombieEntity = function (zombie) {
+    this.zombieManager.renderSingleZombie(this.ctx, zombie, this.camera);
+};
+
+GameEngine.prototype.renderBuildingEntity = function (building) {
+    this.renderVisibleBuildings();
+};
+
+GameEngine.prototype.renderDecorationEntity = function (decoration) {
+    // 装饰物渲染逻辑
+};
+
+// 更新视距裁剪系统
+GameEngine.prototype.updateViewportCulling = function () {
+    // 安全检查
+    if (!this.viewportCulling || !this.viewportCulling.quadTree) {
+        console.warn('[ViewportCulling] 视距裁剪系统未初始化，跳过更新');
+        return;
+    }
+    
+    try {
+        // 更新摄像机位置
+        this.viewportCulling.updateCamera(
+            this.camera.x,
+            this.camera.y,
+            this.canvas.width / this.camera.zoom,
+            this.canvas.height / this.camera.zoom
+        );
+        
+        // 清空四叉树
+        this.viewportCulling.quadTree = new QuadTreeNode({
+            x: 0,
+            y: 0,
+            width: this.mapConfig.width,
+            height: this.mapConfig.height
+        });
+        
+        // 插入所有实体到四叉树
+        this.insertEntitiesToQuadTree();
+        
+        // 更新可见实体列表
+        this.viewportCulling.updateVisibleEntities(this);
+    } catch (error) {
+        console.error('[ViewportCulling] 更新视距裁剪系统时出错:', error);
+        // 出错时回退到传统渲染
+        this.fallbackToTraditionalRendering = true;
+    }
+};
+
+// 将实体插入四叉树
+GameEngine.prototype.insertEntitiesToQuadTree = function () {
+    try {
+        // 插入玩家
+        if (this.player && typeof this.player.x === 'number' && typeof this.player.y === 'number') {
+            this.viewportCulling.quadTree.insert(this.player);
+        }
+        
+        // 插入跟随者
+        if (this.followers && Array.isArray(this.followers)) {
+            for (var i = 0; i < this.followers.length; i++) {
+                var follower = this.followers[i];
+                if (follower && typeof follower.x === 'number' && typeof follower.y === 'number') {
+                    follower.type = 'follower';
+                    this.viewportCulling.quadTree.insert(follower);
+                }
+            }
+        }
+        
+        // 插入僵尸
+        if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
+            for (var i = 0; i < this.zombieManager.zombies.length; i++) {
+                var zombie = this.zombieManager.zombies[i];
+                if (zombie && typeof zombie.x === 'number' && typeof zombie.y === 'number') {
+                    zombie.type = 'zombie_' + (zombie.zombieType || 'thin');
+                    this.viewportCulling.quadTree.insert(zombie);
+                }
+            }
+        }
+        
+        // 插入建筑
+        if (this.buildings && Array.isArray(this.buildings)) {
+            for (var i = 0; i < this.buildings.length; i++) {
+                var building = this.buildings[i];
+                if (building && typeof building.x === 'number' && typeof building.y === 'number') {
+                    building.type = 'building';
+                    this.viewportCulling.quadTree.insert(building);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[InsertEntities] 插入实体到四叉树时出错:', error);
+        throw error;
+    }
 };
 
 GameEngine.prototype.renderPlayer = function () {
@@ -4694,17 +5175,26 @@ GameEngine.prototype.renderMiniMap = function () {
 GameEngine.prototype.renderJoystick = function () {
     var joystickRadius = 60;
     var knobRadius = 25;
-    var joystickX = 100;
+    
+    // 抖音平台适配：默认位置在屏幕底部中央
+    var joystickX = this.canvas.width / 2;
     var joystickY = this.canvas.height - 100;
+    
+    // 触摸区域动态扩展：手指移动时范围+50%
+    var touchRadius = joystickRadius;
+    if (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0) {
+        touchRadius = joystickRadius * 1.5;
+    }
 
     this.ctx.save();
 
+    // 半透明背景（降低视觉干扰）
     this.ctx.beginPath();
-    this.ctx.arc(joystickX, joystickY, joystickRadius, 0, 2 * Math.PI);
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    this.ctx.arc(joystickX, joystickY, touchRadius, 0, 2 * Math.PI);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; // 更透明
     this.ctx.fill();
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; // 更透明
+    this.ctx.lineWidth = 2;
     this.ctx.stroke();
 
     this.ctx.beginPath();
@@ -5058,3 +5548,250 @@ try {
 } catch (error) {
     console.error('[Main] 游戏启动失败:', error);
 }
+
+// 视距裁剪系统配置
+var VIEWPORT_CONFIG = {
+    GRID_SIZE: 500,           // 网格区块大小
+    EXTRA_RENDER: 1,          // 额外渲染区块数
+    MAX_VIEW_DISTANCE: 1000,  // 最大视距
+    UPDATE_FREQUENCIES: {
+        CORE: 1,              // 60fps (每帧更新)
+        IMPORTANT: 2,         // 30fps (每2帧更新)
+        NORMAL: 4,            // 15fps (每4帧更新)
+        LOW: 30,              // 2fps (每30帧更新)
+        SLEEP: 0              // 停止更新
+    }
+};
+
+// 四叉树节点类
+function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
+    this.bounds = bounds;           // 边界 {x, y, width, height}
+    this.maxObjects = maxObjects || 10;
+    this.maxLevels = maxLevels || 5;
+    this.level = level || 0;
+    this.objects = [];
+    this.nodes = [];
+    this.isLeaf = true;
+}
+
+QuadTreeNode.prototype.insert = function(object) {
+    if (!this.bounds.contains(object.x, object.y)) {
+        return false;
+    }
+    
+    if (this.isLeaf && this.objects.length < this.maxObjects) {
+        this.objects.push(object);
+        return true;
+    }
+    
+    if (this.isLeaf && this.level < this.maxLevels) {
+        this.split();
+    }
+    
+    for (var i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].insert(object)) {
+            return true;
+        }
+    }
+    
+    return false;
+};
+
+QuadTreeNode.prototype.split = function() {
+    var subWidth = this.bounds.width / 2;
+    var subHeight = this.bounds.height / 2;
+    var x = this.bounds.x;
+    var y = this.bounds.y;
+    
+    this.nodes[0] = new QuadTreeNode({
+        x: x + subWidth,
+        y: y,
+        width: subWidth,
+        height: subHeight
+    }, this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[1] = new QuadTreeNode({
+        x: x,
+        y: y,
+        width: subWidth,
+        height: subHeight
+    }, this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[2] = new QuadTreeNode({
+        x: x,
+        y: y + subHeight,
+        width: subWidth,
+        height: subHeight
+    }, this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.nodes[3] = new QuadTreeNode({
+        x: x + subWidth,
+        y: y + subHeight,
+        width: subWidth,
+        height: subHeight
+    }, this.maxObjects, this.maxLevels, this.level + 1);
+    
+    this.isLeaf = false;
+    
+    // 重新分配现有对象
+    for (var i = 0; i < this.objects.length; i++) {
+        for (var j = 0; j < this.nodes.length; j++) {
+            if (this.nodes[j].insert(this.objects[i])) {
+                break;
+            }
+        }
+    }
+    this.objects = [];
+};
+
+QuadTreeNode.prototype.query = function(range) {
+    var result = [];
+    
+    if (!this.bounds.intersects(range)) {
+        return result;
+    }
+    
+    for (var i = 0; i < this.objects.length; i++) {
+        if (range.contains(this.objects[i].x, this.objects[i].y)) {
+            result.push(this.objects[i]);
+        }
+    }
+    
+    if (!this.isLeaf) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            result = result.concat(this.nodes[i].query(range));
+        }
+    }
+    
+    return result;
+};
+
+// 边界框类
+function Bounds(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+}
+
+Bounds.prototype.contains = function(x, y) {
+    return x >= this.x && x <= this.x + this.width &&
+           y >= this.y && y <= this.y + this.height;
+};
+
+Bounds.prototype.intersects = function(other) {
+    return !(this.x > other.x + other.width ||
+             this.x + this.width < other.x ||
+             this.y > other.y + other.height ||
+             this.y + this.height < other.y);
+};
+
+// 视距裁剪管理器
+function ViewportCullingManager() {
+    this.quadTree = null;
+    this.visibleEntities = {
+        players: [],
+        followers: [],
+        zombies: [],
+        buildings: [],
+        decorations: []
+    };
+    this.updateCounters = {
+        core: 0,
+        important: 0,
+        normal: 0,
+        low: 0
+    };
+    this.camera = {x: 0, y: 0, width: 800, height: 600};
+}
+
+ViewportCullingManager.prototype.init = function(mapWidth, mapHeight) {
+    this.quadTree = new QuadTreeNode({
+        x: 0,
+        y: 0,
+        width: mapWidth,
+        height: mapHeight
+    });
+};
+
+ViewportCullingManager.prototype.updateCamera = function(x, y, width, height) {
+    this.camera.x = x;
+    this.camera.y = y;
+    this.camera.width = width;
+    this.camera.height = height;
+};
+
+ViewportCullingManager.prototype.getVisibleRange = function() {
+    var extra = VIEWPORT_CONFIG.GRID_SIZE * VIEWPORT_CONFIG.EXTRA_RENDER;
+    return {
+        x: Math.max(0, this.camera.x - extra),
+        y: Math.max(0, this.camera.y - extra),
+        width: this.camera.width + extra * 2,
+        height: this.camera.height + extra * 2
+    };
+};
+
+ViewportCullingManager.prototype.updateVisibleEntities = function(gameEngine) {
+    var visibleRange = this.getVisibleRange();
+    var allEntities = this.quadTree.query(visibleRange);
+    
+    // 清空可见实体列表
+    for (var key in this.visibleEntities) {
+        this.visibleEntities[key] = [];
+    }
+    
+    // 按优先级分类实体
+    for (var i = 0; i < allEntities.length; i++) {
+        var entity = allEntities[i];
+        var distance = Math.sqrt(
+            Math.pow(entity.x - gameEngine.player.x, 2) +
+            Math.pow(entity.y - gameEngine.player.y, 2)
+        );
+        
+        // 超出最大视距的实体不渲染
+        if (distance > VIEWPORT_CONFIG.MAX_VIEW_DISTANCE) {
+            continue;
+        }
+        
+        // 按类型分类
+        if (entity === gameEngine.player) {
+            this.visibleEntities.players.push(entity);
+        } else if (entity.type === 'follower') {
+            this.visibleEntities.followers.push(entity);
+        } else if (entity.type && entity.type.includes('zombie')) {
+            this.visibleEntities.zombies.push(entity);
+        } else if (entity.type === 'building') {
+            this.visibleEntities.buildings.push(entity);
+        } else {
+            this.visibleEntities.decorations.push(entity);
+        }
+    }
+    
+    // 更新计数器
+    this.updateCounters.core++;
+    if (this.updateCounters.core % 2 === 0) this.updateCounters.important++;
+    if (this.updateCounters.core % 4 === 0) this.updateCounters.normal++;
+    if (this.updateCounters.core % 30 === 0) this.updateCounters.low++;
+};
+
+ViewportCullingManager.prototype.shouldUpdateEntity = function(entity, updateType) {
+    var distance = Math.sqrt(
+        Math.pow(entity.x - this.camera.x, 2) +
+        Math.pow(entity.y - this.camera.y, 2)
+    );
+    
+    switch (updateType) {
+        case 'core':
+            return true; // 每帧更新
+        case 'important':
+            return this.updateCounters.important % 2 === 0 && distance < 500;
+        case 'normal':
+            return this.updateCounters.normal % 4 === 0 && distance < 1000;
+        case 'low':
+            return this.updateCounters.low % 30 === 0;
+        case 'sleep':
+            return false;
+        default:
+            return true;
+    }
+};
