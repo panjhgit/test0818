@@ -1425,20 +1425,19 @@ GameEngine.prototype.setupInput = function () {
             }
         }
     } else {
-
-        // 标准浏览器事件
-        this.canvas.addEventListener('touchstart', function (e) {
+        // 抖音小游戏环境：使用Canvas事件属性
+        this.canvas.ontouchstart = function (e) {
             self.onTouchStart(e);
-        });
-        this.canvas.addEventListener('touchmove', function (e) {
+        };
+        this.canvas.ontouchmove = function (e) {
             self.onTouchMove(e);
-        });
-        this.canvas.addEventListener('touchend', function (e) {
+        };
+        this.canvas.ontouchend = function (e) {
             self.onTouchEnd(e);
-        });
-        this.canvas.addEventListener('click', function (e) {
+        };
+        this.canvas.onclick = function (e) {
             self.onClick(e);
-        });
+        };
     }
 
 };
@@ -1471,10 +1470,10 @@ GameEngine.prototype.onTouchStart = function (e) {
                 y = 0;
             }
         } else {
-            // 标准浏览器环境
+            // 抖音小游戏环境：直接使用事件坐标
             var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-            x = touch.x !== undefined ? touch.x : (touch.clientX || 0);
-            y = touch.y !== undefined ? touch.y : (touch.clientY || 0);
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
         }
 
         this.touchStartX = x;
@@ -1483,14 +1482,18 @@ GameEngine.prototype.onTouchStart = function (e) {
 
 
         if (this.gameState === 'playing' || this.gameState === 'submap') {
-            var joystickDistance = Math.sqrt(Math.pow(x - this.joystick.centerX, 2) + Math.pow(y - this.joystick.centerY, 2));
+            // 抖音小游戏环境：确保坐标是有效数值
+            if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
+                var joystickDistance = Math.sqrt(Math.pow(x - this.joystick.centerX, 2) + Math.pow(y - this.joystick.centerY, 2));
 
-
-            if (joystickDistance <= this.joystick.radius) {
-                this.joystick.active = true;
-                this.joystick.currentX = x;
-                this.joystick.currentY = y;
-                this.updateJoystickDirection();
+                if (joystickDistance <= this.joystick.radius) {
+                    this.joystick.active = true;
+                    this.joystick.currentX = x;
+                    this.joystick.currentY = y;
+                    this.updateJoystickDirection();
+                }
+            } else {
+                console.warn('[Touch] 无效的触摸坐标:', {x: x, y: y, event: e});
             }
         }
     } catch (error) {
@@ -1525,9 +1528,10 @@ GameEngine.prototype.onTouchMove = function (e) {
                 return;
             }
         } else {
+            // 抖音小游戏环境：直接使用事件坐标
             var touch = e.touches && e.touches[0] ? e.touches[0] : e;
-            x = touch.x !== undefined ? touch.x : (touch.clientX || 0);
-            y = touch.y !== undefined ? touch.y : (touch.clientY || 0);
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
         }
 
 
@@ -1645,14 +1649,14 @@ GameEngine.prototype.onClick = function (e) {
             console.warn('[Input] 无法获取抖音点击坐标，使用默认值');
         }
     } else {
-        // 标准浏览器环境
+        // 抖音小游戏环境：直接使用事件坐标
         if (e.touches && e.touches[0]) {
             var touch = e.touches[0];
-            x = touch.x || touch.clientX || 0;
-            y = touch.y || touch.clientY || 0;
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
         } else {
-            x = e.x !== undefined ? e.x : (e.clientX || 0);
-            y = e.y !== undefined ? e.y : (e.clientY || 0);
+            x = parseFloat(e.x) || parseFloat(e.clientX) || 0;
+            y = parseFloat(e.y) || parseFloat(e.clientY) || 0;
         }
     }
 
@@ -1891,9 +1895,16 @@ GameEngine.prototype.gameLoop = function () {
     this.update(deltaTime);
     this.render();
 
-    requestAnimationFrame(function () {
-        self.gameLoop();
-    });
+    // 抖音小游戏环境：使用tt.requestAnimationFrame
+    if (typeof tt !== 'undefined' && tt.requestAnimationFrame) {
+        tt.requestAnimationFrame(function () {
+            self.gameLoop();
+        });
+    } else {
+        requestAnimationFrame(function () {
+            self.gameLoop();
+        });
+    }
 };
 
 GameEngine.prototype.update = function (deltaTime) {
