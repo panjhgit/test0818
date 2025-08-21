@@ -2184,6 +2184,13 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
 
     var currentDistance = Math.sqrt(Math.pow(follower.x - targetX, 2) + Math.pow(follower.y - targetY, 2));
 
+    // 如果正在脱困，暂停正常移动逻辑
+    if (follower.isUnstucking) {
+        this.handleUnstuckMovement(follower);
+        follower.isWalking = true;
+        return; // 脱困状态下不执行其他移动逻辑
+    }
+    
     if (currentDistance > 15) {
         var directionX = targetX - follower.x;
         var directionY = targetY - follower.y;
@@ -2200,19 +2207,24 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
             var newY = follower.y + directionY * moveDistance;
 
             if (this.canMoveToPosition(newX, newY, 15)) {
+                // 没有障碍物，直接移动
                 follower.x = newX;
                 follower.y = newY;
             } else {
-                if (this.canMoveToPosition(newX, follower.y, 15)) {
-                    follower.x = newX;
-                } else if (this.canMoveToPosition(follower.x, newY, 15)) {
-                    follower.y = newY;
+                // 有障碍物，尝试智能绕行
+                var alternativePath = this.findAlternativePathForFollower(follower, targetX, targetY);
+                if (alternativePath.success) {
+                    // 找到替代路径，移动到安全位置
+                    follower.x = alternativePath.x;
+                    follower.y = alternativePath.y;
                 } else {
-                    var alternativePath = this.findAlternativePathForFollower(follower, targetX, targetY);
-                    if (alternativePath.success) {
-                        follower.x = alternativePath.x;
-                        follower.y = alternativePath.y;
+                    // 如果找不到替代路径，尝试单轴移动
+                    if (this.canMoveToPosition(newX, follower.y, 15)) {
+                        follower.x = newX;
+                    } else if (this.canMoveToPosition(follower.x, newY, 15)) {
+                        follower.y = newY;
                     }
+                    // 如果都不能移动，保持当前位置，等待下次尝试
                 }
             }
 
@@ -2225,8 +2237,14 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
 
     this.updateFollowerAnimation(follower, personality);
 
-    follower.x = Math.max(50, Math.min(this.mapConfig.width - 50, follower.x));
-    follower.y = Math.max(50, Math.min(this.mapConfig.height - 50, follower.y));
+    // 边界检查（脱困状态下跳过，避免冲突）
+    if (!follower.isUnstucking) {
+        follower.x = Math.max(50, Math.min(this.mapConfig.width - 50, follower.x));
+        follower.y = Math.max(50, Math.min(this.mapConfig.height - 50, follower.y));
+    }
+    
+    // 检测跟随者是否被卡住，如果被卡住则尝试脱困
+    this.checkFollowerStuck(follower);
 };
 
 GameEngine.prototype.getCharacterPersonality = function (character) {
@@ -2342,30 +2360,224 @@ GameEngine.prototype.canTeamMoveInSubmap = function (deltaX, deltaY) {
 };
 
 GameEngine.prototype.findAlternativePathForFollower = function (follower, targetX, targetY) {
-    var searchRadius = 40;
-    var stepSize = 8;
-    var directions = [{dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1}, {dx: 1, dy: 1}, {
-        dx: 1, dy: -1
-    }, {dx: -1, dy: 1}, {dx: -1, dy: -1}];
-
-    for (var radius = stepSize; radius <= searchRadius; radius += stepSize) {
-        for (var i = 0; i < directions.length; i++) {
+    // 改进的路径寻找算法，让伙伴更好地避开建筑物
+    var searchRadius = 80; // 增加搜索半径
+    var stepSize = 6; // 减小步长，提高精度
+    var maxAttempts = 20; // 最大尝试次数
+    
+    // 8个主要方向 + 16个中间方向，提供更多选择
+    var directions = [
+        // 主要方向
+        {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
+        {dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: 1}, {dx: -1, dy: -1},
+        // 中间方向
+        {dx: 0.7, dy: 0.7}, {dx: 0.7, dy: -0.7}, {dx: -0.7, dy: 0.7}, {dx: -0.7, dy: -0.7},
+        {dx: 0.7, dy: 0}, {dx: -0.7, dy: 0}, {dx: 0, dy: 0.7}, {dx: 0, dy: -0.7}
+    ];
+    
+    var attempts = 0;
+    
+    // 第一轮：寻找直接可到达的位置
+    for (var radius = stepSize; radius <= searchRadius && attempts < maxAttempts; radius += stepSize) {
+        for (var i = 0; i < directions.length && attempts < maxAttempts; i++) {
+            attempts++;
             var dir = directions[i];
             var testX = follower.x + dir.dx * radius;
             var testY = follower.y + dir.dy * radius;
-
+            
             if (this.canMoveToPosition(testX, testY, 15)) {
                 var currentDistance = Math.sqrt(Math.pow(follower.x - targetX, 2) + Math.pow(follower.y - targetY, 2));
                 var testDistance = Math.sqrt(Math.pow(testX - targetX, 2) + Math.pow(testY - targetY, 2));
-
+                
+                // 优先选择更接近目标的位置
                 if (testDistance < currentDistance) {
                     return {success: true, x: testX, y: testY};
                 }
             }
         }
     }
-
+    
+    // 第二轮：如果找不到更好的位置，寻找任何可到达的位置
+    attempts = 0;
+    for (var radius = stepSize; radius <= searchRadius && attempts < maxAttempts; radius += stepSize) {
+        for (var i = 0; i < directions.length && attempts < maxAttempts; i++) {
+            attempts++;
+            var dir = directions[i];
+            var testX = follower.x + dir.dx * radius;
+            var testY = follower.y + dir.dy * radius;
+            
+            if (this.canMoveToPosition(testX, testY, 15)) {
+                return {success: true, x: testX, y: testY};
+            }
+        }
+    }
+    
+    // 第三轮：如果仍然找不到路径，尝试在玩家周围寻找安全位置
+    var playerRadius = 60;
+    var angleStep = Math.PI / 8;
+    for (var angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        var testX = this.player.x + Math.cos(angle) * playerRadius;
+        var testY = this.player.y + Math.sin(angle) * playerRadius;
+        
+        if (this.canMoveToPosition(testX, testY, 15)) {
+            return {success: true, x: testX, y: testY};
+        }
+    }
+    
     return {success: false};
+};
+
+/**
+ * 检测跟随者是否被卡住，如果被卡住则尝试脱困
+ */
+GameEngine.prototype.checkFollowerStuck = function(follower) {
+    // 检查跟随者是否长时间没有移动
+    if (!follower.lastMoveTime) {
+        follower.lastMoveTime = Date.now();
+        follower.lastX = follower.x;
+        follower.lastY = follower.y;
+        return;
+    }
+    
+    var currentTime = Date.now();
+    var timeSinceLastMove = currentTime - follower.lastMoveTime;
+    
+    // 如果超过3秒没有移动，认为被卡住了（增加检测时间，减少误判）
+    if (timeSinceLastMove > 3000) {
+        var distanceMoved = Math.sqrt(
+            Math.pow(follower.x - follower.lastX, 2) + 
+            Math.pow(follower.y - follower.lastY, 2)
+        );
+        
+        // 如果移动距离很小且不在脱困状态，尝试脱困
+        if (distanceMoved < 3 && !follower.isUnstucking) {
+            this.helpFollowerUnstuck(follower);
+        }
+        
+        // 重置计时器
+        follower.lastMoveTime = currentTime;
+        follower.lastX = follower.x;
+        follower.lastY = follower.y;
+    }
+};
+
+/**
+ * 帮助被卡住的跟随者脱困
+ */
+GameEngine.prototype.helpFollowerUnstuck = function(follower) {
+    // 设置脱困状态，避免重复触发
+    if (follower.isUnstucking) return;
+    follower.isUnstucking = true;
+    
+    // 尝试在玩家周围寻找安全位置
+    var playerRadius = 80;
+    var angleStep = Math.PI / 12;
+    
+    for (var angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        var testX = this.player.x + Math.cos(angle) * playerRadius;
+        var testY = this.player.y + Math.sin(angle) * playerRadius;
+        
+        if (this.canMoveToPosition(testX, testY, 15)) {
+            // 找到安全位置，设置脱困目标
+            follower.unstuckTargetX = testX;
+            follower.unstuckTargetY = testY;
+            follower.unstuckStartTime = Date.now();
+            console.log('[Follower] 跟随者开始脱困，目标位置:', testX, testY);
+            return;
+        }
+    }
+    
+    // 如果找不到安全位置，尝试随机位置
+    var randomAngle = Math.random() * Math.PI * 2;
+    var randomRadius = 60 + Math.random() * 40;
+    var randomX = this.player.x + Math.cos(randomAngle) * randomRadius;
+    var randomY = this.player.y + Math.sin(randomAngle) * randomRadius;
+    
+    // 确保在边界内
+    randomX = Math.max(50, Math.min(this.mapConfig.width - 50, randomX));
+    randomY = Math.max(50, Math.min(this.mapConfig.width - 50, randomY));
+    
+    follower.unstuckTargetX = randomX;
+    follower.unstuckTargetY = randomY;
+    follower.unstuckStartTime = Date.now();
+    console.log('[Follower] 跟随者开始脱困，随机目标位置:', randomX, randomY);
+};
+
+/**
+ * 处理跟随者的脱困移动
+ */
+GameEngine.prototype.handleUnstuckMovement = function(follower) {
+    // 如果没有脱困目标，直接返回
+    if (!follower.unstuckTargetX || !follower.unstuckTargetY || !follower.isUnstucking) {
+        return;
+    }
+    
+    var currentTime = Date.now();
+    var timeSinceStart = currentTime - follower.unstuckStartTime;
+    
+    // 脱困移动持续时间（毫秒）
+    var unstuckDuration = 2000; // 增加持续时间，让移动更平滑
+    
+    if (timeSinceStart >= unstuckDuration) {
+        // 脱困完成，直接设置到目标位置并重置状态
+        follower.x = follower.unstuckTargetX;
+        follower.y = follower.unstuckTargetY;
+        follower.isUnstucking = false;
+        follower.unstuckTargetX = null;
+        follower.unstuckTargetY = null;
+        follower.unstuckStartTime = null;
+        console.log('[Follower] 跟随者脱困完成');
+        return;
+    }
+    
+    // 计算脱困进度（0到1之间）
+    var progress = timeSinceStart / unstuckDuration;
+    
+    // 使用更平滑的缓动函数
+    var easedProgress = this.easeInOutCubic(progress);
+    
+    // 计算当前位置到目标位置的插值
+    var startX = follower.x;
+    var startY = follower.y;
+    var targetX = follower.unstuckTargetX;
+    var targetY = follower.unstuckTargetY;
+    
+    // 平滑插值移动，避免抽搐
+    var newX = startX + (targetX - startX) * easedProgress;
+    var newY = startY + (targetY - startY) * easedProgress;
+    
+    // 确保移动距离不会过大，避免抽搐
+    var maxMoveDistance = 3; // 每帧最大移动距离
+    var dx = newX - follower.x;
+    var dy = newY - follower.y;
+    var moveDistance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (moveDistance > maxMoveDistance) {
+        var scale = maxMoveDistance / moveDistance;
+        newX = follower.x + dx * scale;
+        newY = follower.y + dy * scale;
+    }
+    
+    follower.x = newX;
+    follower.y = newY;
+    
+    // 标记为脱困移动状态
+    follower.isWalking = true;
+    follower.direction = this.getDirectionFromDelta(targetX - startX, targetY - startY);
+};
+
+/**
+ * 缓动函数：让移动更自然
+ */
+GameEngine.prototype.easeOutCubic = function(t) {
+    return 1 - Math.pow(1 - t, 3);
+};
+
+/**
+ * 更平滑的缓动函数：避免抽搐
+ */
+GameEngine.prototype.easeInOutCubic = function(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
 
 GameEngine.prototype.updateNPCIdleBehavior = function (npc, deltaTime) {
