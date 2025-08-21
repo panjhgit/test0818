@@ -768,6 +768,21 @@ ZombieBoss1.prototype.attackTarget = function (target) {
 function ZombieManager() {
     this.zombies = [];
     this.zombieTypes = this.getZombieTypes();
+    
+    // 性能优化：空间分区系统
+    this.spatialGrid = {};
+    this.gridSize = 200;
+    
+    // 性能优化：对象池
+    this.zombiePool = [];
+    this.maxPoolSize = 100;
+    
+    // 性能优化：更新频率控制
+    this.updateIntervals = {
+        near: 100,    // 近距离僵尸更新频率
+        medium: 300,  // 中距离僵尸更新频率
+        far: 800      // 远距离僵尸更新频率
+    };
 }
 
 ZombieManager.prototype.getZombieTypes = function () {
@@ -796,32 +811,47 @@ ZombieManager.prototype.createZombie = function (type, x, y) {
         return null;
     }
 
-    var config = {
-        type: type,
-        x: x,
-        y: y,
-        health: zombieType.health,
-        maxHealth: zombieType.health,
-        attack: zombieType.attack,
-        moveSpeed: zombieType.moveSpeed,
-        size: zombieType.size,
-        attackCooldown: zombieType.attackCooldown,
-        detectionRange: zombieType.detectionRange || 150
-    };
+    // 性能优化：从对象池获取僵尸
+    var zombie = this.getZombieFromPool(type);
+    
+    if (!zombie) {
+        var config = {
+            type: type,
+            x: x,
+            y: y,
+            health: zombieType.health,
+            maxHealth: zombieType.health,
+            attack: zombieType.attack,
+            moveSpeed: zombieType.moveSpeed,
+            size: zombieType.size,
+            attackCooldown: zombieType.attackCooldown,
+            detectionRange: zombieType.detectionRange || 150
+        };
 
-    var zombie;
-    switch (type) {
-        case 'thin':
-            zombie = new ThinZombie(config);
-            break;
-        case 'fat':
-            zombie = new FatZombie(config);
-            break;
-        case 'boss1':
-            zombie = new ZombieBoss1(config);
-            break;
-        default:
-            zombie = new BaseZombie(config);
+        switch (type) {
+            case 'thin':
+                zombie = new ThinZombie(config);
+                break;
+            case 'fat':
+                zombie = new FatZombie(config);
+                break;
+            case 'boss1':
+                zombie = new ZombieBoss1(config);
+                break;
+            default:
+                zombie = new BaseZombie(config);
+        }
+    } else {
+        // 重置僵尸状态
+        zombie.x = x;
+        zombie.y = y;
+        zombie.health = zombieType.health;
+        zombie.maxHealth = zombieType.health;
+        zombie.state = 'wandering';
+        zombie.target = null;
+        zombie.lastAttackTime = 0;
+        zombie.isWalking = false;
+        zombie.walkAnimationFrame = 0;
     }
 
     this.zombies.push(zombie);
@@ -836,6 +866,9 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
     var viewTop = gameEngine.camera.y - 200;
     var viewBottom = gameEngine.camera.y + viewHeight + 200;
 
+    // 性能优化：批量处理僵尸死亡
+    var deadZombies = [];
+    
     for (var i = this.zombies.length - 1; i >= 0; i--) {
         var zombie = this.zombies[i];
 
@@ -843,13 +876,36 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
         var isChasing = zombie.state === 'chasing' || zombie.state === 'attacking';
 
         if (inView || isChasing) {
-            zombie.update(deltaTime, gameEngine);
+            // 性能优化：动态更新频率
+            var distanceToPlayer = Math.sqrt(Math.pow(zombie.x - gameEngine.player.x, 2) + Math.pow(zombie.y - gameEngine.player.y, 2));
+            var updateInterval = distanceToPlayer < 300 ? this.updateIntervals.near : 
+                               distanceToPlayer < 800 ? this.updateIntervals.medium : 
+                               this.updateIntervals.far;
+            
+            if (!zombie.lastUpdateTime) zombie.lastUpdateTime = 0;
+            if (Date.now() - zombie.lastUpdateTime >= updateInterval) {
+                zombie.update(deltaTime, gameEngine);
+                zombie.lastUpdateTime = Date.now();
+            }
         }
 
         if (zombie.health <= 0) {
-            this.zombies.splice(i, 1);
+            deadZombies.push(i);
             gameEngine.gameData.zombieKills++;
         }
+    }
+    
+    // 性能优化：批量删除死亡僵尸
+    for (var j = deadZombies.length - 1; j >= 0; j--) {
+        var zombieIndex = deadZombies[j];
+        var zombie = this.zombies[zombieIndex];
+        
+        // 回收到对象池
+        if (this.zombiePool.length < this.maxPoolSize) {
+            this.recycleZombie(zombie);
+        }
+        
+        this.zombies.splice(zombieIndex, 1);
     }
 };
 
@@ -874,6 +930,22 @@ ZombieManager.prototype.getZombiesInRange = function (x, y, range) {
     return zombiesInRange;
 };
 
+// 性能优化：对象池管理方法
+ZombieManager.prototype.getZombieFromPool = function (type) {
+    for (var i = 0; i < this.zombiePool.length; i++) {
+        if (this.zombiePool[i].type === type) {
+            return this.zombiePool.splice(i, 1)[0];
+        }
+    }
+    return null;
+};
+
+ZombieManager.prototype.recycleZombie = function (zombie) {
+    if (this.zombiePool.length < this.maxPoolSize) {
+        this.zombiePool.push(zombie);
+    }
+};
+
 // ========================================
 // 输入系统 (Input System)
 // ========================================
@@ -885,6 +957,54 @@ ZombieManager.prototype.getZombiesInRange = function (x, y, range) {
 // ========================================
 
 // 碰撞检测相关函数会在GameEngine中定义
+
+// ========================================
+// 游戏配置常量 (Game Configuration Constants)
+// ========================================
+
+// 游戏平衡配置
+var GAME_CONFIG = {
+    // 僵尸生成配置
+    ZOMBIE_SPAWN: {
+        BASE_COUNT: 10,
+        PER_DAY_INCREASE: 3,
+        MAX_ZOMBIES: 50,
+        SPAWN_RADIUS: 2000,
+        MIN_DISTANCE: 300,
+        MAX_ATTEMPTS_MULTIPLIER: 10
+    },
+    
+    // 玩家配置
+    PLAYER: {
+        BASE_HEALTH: 50,
+        BASE_ATTACK: 15,
+        ATTACK_RANGE: 35,
+        ATTACK_COOLDOWN: 800,
+        MOVE_SPEED: 4,
+        CHARACTER_RADIUS: 18
+    },
+    
+    // 团队配置
+    TEAM: {
+        MAX_SIZE: 20,
+        FOLLOW_DISTANCE: 35,
+        COLLISION_THRESHOLD: 900
+    },
+    
+    // 时间配置
+    TIME: {
+        DAY_DURATION: 300000,    // 5分钟
+        NIGHT_DURATION: 60000,   // 1分钟
+        FOOD_COST_PER_DAY: 1
+    },
+    
+    // 建筑配置
+    BUILDING: {
+        INTERACTION_DISTANCE: 60,
+        TRIGGER_DISTANCE: 50,
+        EXIT_COOLDOWN: 2000
+    }
+};
 
 // ========================================
 // 游戏引擎 (Game Engine)
@@ -917,7 +1037,7 @@ function GameEngine(canvas, ctx) {
         zombieKills: 0,
         totalFood: 5,
         isDay: true,
-        timeRemaining: 300000,
+        timeRemaining: GAME_CONFIG.TIME.DAY_DURATION,
         gameStartTime: Date.now()
     };
 
@@ -936,13 +1056,13 @@ function GameEngine(canvas, ctx) {
     this.player = {
         x: this.mapConfig.width / 2,
         y: this.mapConfig.height / 2,
-        health: 50,
-        maxHealth: 50,
+        health: GAME_CONFIG.PLAYER.BASE_HEALTH,
+        maxHealth: GAME_CONFIG.PLAYER.BASE_HEALTH,
         level: 1,
-        attack: 15,
-        attackRange: 35,
+        attack: GAME_CONFIG.PLAYER.BASE_ATTACK,
+        attackRange: GAME_CONFIG.PLAYER.ATTACK_RANGE,
         lastAttackTime: 0,
-        attackCooldown: 800,
+        attackCooldown: GAME_CONFIG.PLAYER.ATTACK_COOLDOWN,
         isDead: false,
         isZombie: false,
         isWalking: false,
@@ -1229,7 +1349,7 @@ GameEngine.prototype.exitBuilding = function () {
     this.gameState = 'playing';
     this.currentBuilding = null;
     this.subMapType = null;
-    this.buildingExitCooldown = Date.now() + 2000;
+    this.buildingExitCooldown = Date.now() + GAME_CONFIG.BUILDING.EXIT_COOLDOWN;
     this.zombies = [];
     this.resources = [];
 };
@@ -1253,6 +1373,14 @@ GameEngine.prototype.setupInput = function () {
         visible: true,
         maxDistance: 50
     };
+    
+    // 性能优化：事件监听器引用，便于解绑
+    this.eventHandlers = {
+        touchStart: null,
+        touchMove: null,
+        touchEnd: null,
+        click: null
+    };
 
     this.joystick.centerY = this.canvas.height - 80;
     this.joystick.currentY = this.joystick.centerY;
@@ -1262,17 +1390,19 @@ GameEngine.prototype.setupInput = function () {
 
         // 使用抖音小程序的触摸事件API
         try {
-            tt.onTouchStart(function (res) {
+            this.eventHandlers.touchStart = function (res) {
                 self.onTouchStart(res);
-            });
-
-            tt.onTouchMove(function (res) {
+            };
+            this.eventHandlers.touchMove = function (res) {
                 self.onTouchMove(res);
-            });
-
-            tt.onTouchEnd(function (res) {
+            };
+            this.eventHandlers.touchEnd = function (res) {
                 self.onTouchEnd(res);
-            });
+            };
+            
+            tt.onTouchStart(this.eventHandlers.touchStart);
+            tt.onTouchMove(this.eventHandlers.touchMove);
+            tt.onTouchEnd(this.eventHandlers.touchEnd);
 
         } catch (ttError) {
 
@@ -1454,6 +1584,25 @@ GameEngine.prototype.resetJoystick = function () {
     this.joystick.direction.y = 0;
 };
 
+// 性能优化：事件解绑方法
+GameEngine.prototype.cleanupInput = function () {
+    try {
+        if (typeof tt !== 'undefined' && this.eventHandlers) {
+            if (this.eventHandlers.touchStart) {
+                tt.offTouchStart(this.eventHandlers.touchStart);
+            }
+            if (this.eventHandlers.touchMove) {
+                tt.offTouchMove(this.eventHandlers.touchMove);
+            }
+            if (this.eventHandlers.touchEnd) {
+                tt.offTouchEnd(this.eventHandlers.touchEnd);
+            }
+        }
+    } catch (error) {
+        console.warn('[Input] 事件解绑失败:', error);
+    }
+};
+
 GameEngine.prototype.updateJoystickDirection = function () {
     try {
         var dx = this.joystick.currentX - this.joystick.centerX;
@@ -1592,7 +1741,7 @@ GameEngine.prototype.handleEndGameClick = function (x, y) {
 // ========================================
 
 GameEngine.prototype.checkCollisionWithBuildings = function (x, y, characterRadius) {
-    characterRadius = characterRadius || 18;
+    characterRadius = characterRadius || GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
     var bufferDistance = 2;
     var effectiveRadius = characterRadius + bufferDistance;
 
@@ -1620,7 +1769,7 @@ GameEngine.prototype.checkCollisionWithBuildings = function (x, y, characterRadi
 };
 
 GameEngine.prototype.canMoveToPosition = function (x, y, characterRadius) {
-    var margin = characterRadius || 18;
+    var margin = characterRadius || GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
     if (x < margin || x > this.mapConfig.width - margin || y < margin || y > this.mapConfig.height - margin) {
         return false;
     }
@@ -1664,9 +1813,9 @@ GameEngine.prototype.calculateDoorInfo = function (building) {
 };
 
 GameEngine.prototype.checkNearDoor = function () {
-    var playerRadius = 18;
-    var interactionDistance = 60;
-    var triggerDistance = 50;
+    var playerRadius = GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+    var interactionDistance = GAME_CONFIG.BUILDING.INTERACTION_DISTANCE;
+    var triggerDistance = GAME_CONFIG.BUILDING.TRIGGER_DISTANCE;
 
     if (this.buildingExitCooldown > Date.now()) {
         if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
@@ -1778,7 +1927,10 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
 
         this.updateWalkAnimation(deltaTime);
 
-        var moveSpeed = 4;
+        // 性能优化：动态移动速度，根据摇杆推拉程度调整
+        var joystickIntensity = Math.sqrt(this.joystick.direction.x * this.joystick.direction.x + this.joystick.direction.y * this.joystick.direction.y);
+        var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED * Math.max(0.3, Math.min(1.5, joystickIntensity));
+        
         var newX = this.player.x + this.joystick.direction.x * moveSpeed;
         var newY = this.player.y + this.joystick.direction.y * moveSpeed;
 
@@ -1874,15 +2026,15 @@ GameEngine.prototype.updateTime = function (deltaTime) {
     if (this.gameData.timeRemaining <= 0) {
         if (this.gameData.isDay) {
             this.gameData.isDay = false;
-            this.gameData.timeRemaining = 60000;
+            this.gameData.timeRemaining = GAME_CONFIG.TIME.NIGHT_DURATION;
         } else {
             this.gameData.isDay = true;
-            this.gameData.timeRemaining = 300000;
+            this.gameData.timeRemaining = GAME_CONFIG.TIME.DAY_DURATION;
             this.gameData.survivalDays++;
 
-            var foodCost = this.gameData.teamSize;
+            // 游戏平衡优化：根据团队规模计算食物消耗
+            var foodCost = this.gameData.teamSize * GAME_CONFIG.TIME.FOOD_COST_PER_DAY;
             this.gameData.food -= foodCost;
-
 
             if (this.gameData.food < 0) {
                 this.gameOver('starvation');
@@ -1896,12 +2048,19 @@ GameEngine.prototype.updateTime = function (deltaTime) {
 
             this.spawnNewDayZombies();
 
+            // 优化：批量处理厨师产粮
+            var chefCount = 0;
             this.companions.forEach(function (companion) {
                 if (companion.type === 'chef') {
-                    self.gameData.food += 5;
-                    self.gameData.totalFood += 5;
+                    chefCount++;
                 }
             });
+            
+            if (chefCount > 0) {
+                var foodProduction = chefCount * 5;
+                this.gameData.food += foodProduction;
+                this.gameData.totalFood += foodProduction;
+            }
         }
     }
 };
@@ -1941,10 +2100,16 @@ GameEngine.prototype.restartGame = function () {
 GameEngine.prototype.gameOver = function (cause) {
     this.gameState = 'gameover';
     this.gameData.cause = cause;
+    
+    // 性能优化：清理资源
+    this.cleanupInput();
 };
 
 GameEngine.prototype.gameWin = function () {
     this.gameState = 'victory';
+    
+    // 性能优化：清理资源
+    this.cleanupInput();
 };
 
 // ========================================
@@ -2034,7 +2199,7 @@ GameEngine.prototype.updateNPCs = function (deltaTime) {
 GameEngine.prototype.updateSingleNPC = function (npc, deltaTime) {
     if (npc.isFollowing) return;
 
-    var collisionThresholdSquared = 900;
+    var collisionThresholdSquared = GAME_CONFIG.TEAM.COLLISION_THRESHOLD;
     var distanceSquaredToPlayer = Math.pow(npc.x - this.player.x, 2) + Math.pow(npc.y - this.player.y, 2);
 
     var shouldJoinTeam = distanceSquaredToPlayer < collisionThresholdSquared;
@@ -2086,6 +2251,12 @@ GameEngine.prototype.addNewFollowerToTeam = function (newFollower) {
     var targetOffset = this.calculateFollowerOffset(newFollower, personality);
     newFollower.x = this.player.x + targetOffset.x;
     newFollower.y = this.player.y + targetOffset.y;
+    
+    // 游戏平衡优化：限制最大团队规模
+    if (this.gameData.teamSize >= GAME_CONFIG.TEAM.MAX_SIZE) {
+        console.log('[Team] 团队已达到最大规模限制');
+        return;
+    }
 
     newFollower.isWalking = false;
     newFollower.direction = 'down';
@@ -2514,19 +2685,23 @@ GameEngine.prototype.initializeZombies = function () {
 
 GameEngine.prototype.spawnZombiesByDay = function () {
     var currentDay = this.gameData.survivalDays;
-    var baseCount = 10;
-    var perDayIncrease = 3;
-    var maxZombies = 50;
-    var zombieCount = Math.min(maxZombies, baseCount + (currentDay - 1) * perDayIncrease);
-
+    
+    // 游戏平衡优化：动态难度系统
+    var baseCount = GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
+    var perDayIncrease = GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE;
+    var maxZombies = GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES;
+    
+    // 根据团队规模调整僵尸数量
+    var teamSizeMultiplier = Math.max(0.5, Math.min(2.0, this.gameData.teamSize / 5));
+    var zombieCount = Math.min(maxZombies, Math.floor((baseCount + (currentDay - 1) * perDayIncrease) * teamSizeMultiplier));
 
     var playerX = this.player.x;
     var playerY = this.player.y;
-    var spawnRadius = 2000;
-    var minDistance = 300;
+    var spawnRadius = GAME_CONFIG.ZOMBIE_SPAWN.SPAWN_RADIUS;
+    var minDistance = GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE;
 
     var created = 0;
-    var maxAttempts = zombieCount * 10;
+    var maxAttempts = zombieCount * GAME_CONFIG.ZOMBIE_SPAWN.MAX_ATTEMPTS_MULTIPLIER;
     var attempts = 0;
 
     while (created < zombieCount && attempts < maxAttempts) {
@@ -3877,6 +4052,11 @@ GameEngine.prototype.getCharacterList = function () {
 // 游戏初始化和启动 (Game Initialization)
 // ========================================
 
+// ========================================
+// 游戏启动 (Game Launch)
+// ========================================
+
+// 将函数定义移到调用之前
 function initGame() {
     try {
         // 检查抖音小程序环境
@@ -3953,10 +4133,6 @@ function initGame() {
         throw error;
     }
 }
-
-// ========================================
-// 游戏启动 (Game Launch)
-// ========================================
 
 try {
     initGame();
