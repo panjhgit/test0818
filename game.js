@@ -355,6 +355,11 @@ BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
         return;
     }
     
+    // 额外检查：如果僵尸本身无效，则不更新
+    if (!this || this.health <= 0 || this.isDead) {
+        return;
+    }
+    
     if (!this.aiUpdateTimer) this.aiUpdateTimer = 0;
     this.aiUpdateTimer += deltaTime;
 
@@ -534,9 +539,16 @@ BaseZombie.prototype.updateAttackingState = function (playerDistance, gameEngine
     if (currentTime - this.lastAttackTime >= this.attackCooldown) {
         // 再次检查目标是否有效，防止在攻击过程中目标被清空
         if (this.target && this.target.health > 0 && !this.target.isDead) {
+            // 在攻击前保存目标的血量，防止攻击后目标变为null导致报错
+            var targetHealthBeforeAttack = this.target.health;
+            var targetId = this.target.id || 'unknown';
+            
+            // 执行攻击
             this.attackTarget(this.target);
             this.lastAttackTime = currentTime;
-            console.log('[ZombieAI]', this.type, '执行攻击，目标血量:', this.target.health);
+            
+            // 使用保存的血量值，避免访问可能已变为null的目标
+            console.log('[ZombieAI]', this.type, '执行攻击，目标ID:', targetId, '目标血量:', targetHealthBeforeAttack);
         } else {
             // 目标无效，切换到游荡状态
             this.state = 'wandering';
@@ -934,30 +946,64 @@ BaseZombie.prototype.wander = function (deltaTime) {
 };
 
 BaseZombie.prototype.attackTarget = function (target) {
-    if (!target || target.health <= 0) return;
-
-    target.health -= this.attack;
-    
-    // 确保血量不会变成负数
-    if (target.health < 0) {
-        target.health = 0;
+    // 强化目标有效性检查
+    if (!target || typeof target !== 'object' || target.health === undefined || target.health <= 0) {
+        console.warn('[ZombieAI]', this.type, '攻击目标无效:', target);
+        this.state = 'wandering';
+        this.target = null;
+        return;
     }
 
-    if (target.health <= 0) {
-        this.onTargetDeath(target);
+    try {
+        // 保存攻击前的血量，用于安全检查
+        var originalHealth = target.health;
         
-        // 如果目标是玩家，立即触发游戏结束
-        if (target === this.gameEngine.player) {
-            this.gameEngine.gameOver('death');
+        // 执行攻击
+        target.health -= this.attack;
+        
+        // 确保血量不会变成负数
+        if (target.health < 0) {
+            target.health = 0;
         }
+
+        console.log('[ZombieAI]', this.type, '攻击成功，目标血量:', originalHealth, '->', target.health);
+
+        if (target.health <= 0) {
+            this.onTargetDeath(target);
+            
+            // 如果目标是玩家，立即触发游戏结束
+            if (target === this.gameEngine.player) {
+                console.log('[ZombieAI]', this.type, '玩家被击杀，触发游戏结束');
+                this.gameEngine.gameOver('death');
+            }
+        }
+    } catch (error) {
+        console.error('[ZombieAI]', this.type, '攻击过程中出错:', error);
+        // 攻击出错时，僵尸应该回到游荡状态
+        this.state = 'wandering';
+        this.target = null;
     }
 };
 
 BaseZombie.prototype.onTargetDeath = function (target) {
-    target.health = 0;
-    target.isDead = true;
-    this.state = 'wandering';
-    this.target = null;
+    try {
+        // 安全检查目标对象
+        if (target && typeof target === 'object') {
+            target.health = 0;
+            target.isDead = true;
+        }
+        
+        // 僵尸状态重置
+        this.state = 'wandering';
+        this.target = null;
+        
+        console.log('[ZombieAI]', this.type, '目标死亡，切换到游荡状态');
+    } catch (error) {
+        console.error('[ZombieAI]', this.type, '处理目标死亡时出错:', error);
+        // 出错时确保僵尸状态正确
+        this.state = 'wandering';
+        this.target = null;
+    }
 };
 
 BaseZombie.prototype.takeDamage = function (damage) {
@@ -1610,14 +1656,38 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
         var isChasing = zombie.state === 'chasing' || zombie.state === 'attacking';
 
         if (inView || isChasing) {
+            // 强化僵尸有效性检查
+            if (!zombie || typeof zombie !== 'object' || zombie.health <= 0 || zombie.isDead) {
+                deadZombies.push(i);
+                continue;
+            }
+            
+            // 额外检查：如果游戏已经结束，僵尸应该停止所有活动
+            if (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory') {
+                // 强制僵尸回到游荡状态
+                if (zombie.state !== 'wandering') {
+                    zombie.state = 'wandering';
+                    zombie.target = null;
+                }
+                continue;
+            }
+            
             // 性能优化：动态更新频率
             var distanceToPlayer = Math.sqrt(Math.pow(zombie.x - gameEngine.player.x, 2) + Math.pow(zombie.y - gameEngine.player.y, 2));
             var updateInterval = distanceToPlayer < 300 ? this.updateIntervals.near : distanceToPlayer < 800 ? this.updateIntervals.medium : this.updateIntervals.far;
 
             if (!zombie.lastUpdateTime) zombie.lastUpdateTime = 0;
             if (Date.now() - zombie.lastUpdateTime >= updateInterval) {
-                zombie.update(deltaTime, gameEngine);
-                zombie.lastUpdateTime = Date.now();
+                try {
+                    zombie.update(deltaTime, gameEngine);
+                    zombie.lastUpdateTime = Date.now();
+                } catch (error) {
+                    console.error('[ZombieManager] 僵尸更新出错:', error, '僵尸:', zombie);
+                    // 如果僵尸更新出错，将其标记为死亡
+                    zombie.health = 0;
+                    zombie.isDead = true;
+                    deadZombies.push(i);
+                }
             }
         }
 
@@ -3158,8 +3228,56 @@ GameEngine.prototype.handleSubMapClick = function (x, y) {
 };
 
 GameEngine.prototype.handleEndGameClick = function (x, y) {
-    if (x >= 175 && x <= 325 && y >= 320 && y <= 360) {
+    var centerX = this.canvas.width / 2;
+    
+    // 重新开始按钮 (160x50, 居中)
+    var restartButtonX = centerX - 80;
+    var restartButtonY = 320;
+    var restartButtonWidth = 160;
+    var restartButtonHeight = 50;
+    
+    // 返回菜单按钮 (160x50, 居中)
+    var menuButtonX = centerX - 80;
+    var menuButtonY = 380;
+    var menuButtonWidth = 160;
+    var menuButtonHeight = 50;
+    
+    console.log('[EndGame] 点击坐标:', x, y);
+    console.log('[EndGame] 重新开始按钮区域:', restartButtonX, restartButtonY, restartButtonWidth, restartButtonHeight);
+    console.log('[EndGame] 返回菜单按钮区域:', menuButtonX, menuButtonY, menuButtonWidth, menuButtonHeight);
+    
+    // 检查重新开始按钮点击
+    if (x >= restartButtonX && x <= restartButtonX + restartButtonWidth && 
+        y >= restartButtonY && y <= restartButtonY + restartButtonHeight) {
+        console.log('[EndGame] 重新开始按钮被点击');
         this.restartGame();
+        return;
+    }
+    
+    // 检查返回菜单按钮点击
+    if (x >= menuButtonX && x <= menuButtonX + menuButtonWidth && 
+        y >= menuButtonY && y <= menuButtonY + menuButtonHeight) {
+        console.log('[EndGame] 返回菜单按钮被点击');
+        this.returnToMenu();
+        return;
+    }
+};
+
+// 返回菜单函数
+GameEngine.prototype.returnToMenu = function () {
+    console.log('[GameEngine] 返回菜单');
+    
+    // 重置游戏状态
+    this.gameState = 'menu';
+    this.isGameEnded = false;
+    
+    // 清理游戏对象
+    this.cleanupGameObjects();
+    
+    // 重新绑定触摸事件
+    if (!this.eventsBound) {
+        this.setupInput();
+        console.log('[Input] 返回菜单时重新绑定触摸事件');
     }
 };
 
@@ -3926,6 +4044,13 @@ GameEngine.prototype.gameLoop = function () {
     var self = this;
 
     if (!this.running) return;
+    
+    // 额外检查：如果游戏已经结束，立即停止游戏循环
+    if (this.isGameEnded || this.gameState === 'gameover' || this.gameState === 'victory') {
+        console.log('[GameLoop] 游戏已结束，停止游戏循环');
+        this.running = false;
+        return;
+    }
 
     var currentTime = Date.now();
     var deltaTime = currentTime - this.lastTime;
@@ -4195,9 +4320,12 @@ GameEngine.prototype.startGame = function () {
 };
 
 GameEngine.prototype.restartGame = function () {
+    console.log('[GameEngine] 重新开始游戏');
+    
     // 重置游戏结束标志位
     this.isGameEnded = false;
     
+    // 重置游戏数据
     this.gameData = {
         survivalDays: 1,
         food: 20, // 重新开始游戏时也是20个食物
@@ -4210,25 +4338,57 @@ GameEngine.prototype.restartGame = function () {
         gameStartTime: Date.now()
     };
 
+    // 重置玩家状态
     this.player = {
-        x: this.mapConfig.width / 2, y: this.mapConfig.height / 2, health: 20, maxHealth: 20, level: 1
+        x: this.mapConfig.width / 2, 
+        y: this.mapConfig.height / 2, 
+        health: 20, 
+        maxHealth: 20, 
+        level: 1,
+        isDead: false
     };
+    
+    // 重置游戏状态
+    this.gameState = 'playing';
+    
+    // 清理游戏对象
+    this.cleanupGameObjects();
+    
+    // 重置建筑状态
+    if (this.buildings && Array.isArray(this.buildings)) {
+        for (var i = 0; i < this.buildings.length; i++) {
+            this.buildings[i].explored = false;
+        }
+    }
+    
+    // 重置其他游戏状态
     this.companions = [];
     this.exploredBuildings = [];
     this.nearBuilding = null;
-
-    // 使用for循环重置建筑状态，避免函数调用开销
-    for (var i = 0; i < this.buildings.length; i++) {
-        this.buildings[i].explored = false;
+    this.buildingEntryPrompt = null;
+    
+    // 清理僵尸管理器
+    if (this.zombieManager) {
+        this.zombieManager.zombies = [];
     }
-
-    this.gameState = 'playing';
+    
+    // 清理房间内僵尸
+    if (this.zombies) {
+        this.zombies = [];
+    }
+    
+    // 清理跟随者
+    if (this.followers) {
+        this.followers = [];
+    }
     
     // 重新绑定触摸事件
     if (!this.eventsBound) {
         this.setupInput();
         console.log('[Input] 游戏重新开始时重新绑定触摸事件');
     }
+    
+    console.log('[GameEngine] 游戏重新开始完成');
 };
 
 GameEngine.prototype.gameOver = function (cause) {
@@ -5738,8 +5898,18 @@ GameEngine.prototype.updateZombies = function (deltaTime) {
     for (var i = 0; i < this.zombies.length; i++) {
         var zombie = this.zombies[i];
         
-        // 检查僵尸是否死亡
-        if (zombie.health <= 0) {
+        // 强化僵尸有效性检查
+        if (!zombie || typeof zombie !== 'object' || zombie.health <= 0 || zombie.isDead) {
+            continue;
+        }
+        
+        // 额外检查：如果游戏已经结束，僵尸应该停止所有活动
+        if (this.isGameEnded || this.gameState === 'gameover' || this.gameState === 'victory') {
+            // 强制僵尸回到游荡状态
+            if (zombie.state !== 'wandering') {
+                zombie.state = 'wandering';
+                zombie.target = null;
+            }
             continue;
         }
         
@@ -5752,6 +5922,7 @@ GameEngine.prototype.updateZombies = function (deltaTime) {
             console.error('[GameEngine] 僵尸更新出错:', error, '僵尸:', zombie);
             // 如果僵尸更新出错，将其标记为死亡以避免继续出错
             zombie.health = 0;
+            zombie.isDead = true;
         }
     }
 
