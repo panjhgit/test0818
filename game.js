@@ -3927,6 +3927,8 @@ GameEngine.prototype.update = function (deltaTime) {
 
         if (this.gameState === 'submap') {
             this.updateZombies(deltaTime);
+            this.updateCombat(deltaTime);
+            this.updateTeamHealth(deltaTime);
         }
     }
 };
@@ -5096,7 +5098,16 @@ GameEngine.prototype.updateCombat = function (deltaTime) {
 
     if (!this.player.isDead && !this.player.isZombie && currentTime - this.player.lastAttackTime >= this.player.attackCooldown) {
 
-        var nearbyZombies = this.zombieManager.getZombiesInRange(this.player.x, this.player.y, this.player.attackRange);
+        var nearbyZombies = [];
+        
+        // 根据游戏状态选择僵尸源
+        if (this.gameState === 'submap') {
+            // 房间内：检查房间的僵尸数组
+            nearbyZombies = this.getZombiesInRangeFromArray(this.zombies, this.player.x, this.player.y, this.player.attackRange);
+        } else {
+            // 主地图：使用ZombieManager
+            nearbyZombies = this.zombieManager.getZombiesInRange(this.player.x, this.player.y, this.player.attackRange);
+        }
 
         if (nearbyZombies.length > 0) {
             var targetZombie = nearbyZombies[0].zombie;
@@ -5133,7 +5144,16 @@ GameEngine.prototype.updateTeamCombat = function (currentTime) {
 
         if (!follower.isDead && !follower.isZombie && currentTime - follower.lastAttackTime >= follower.attackCooldown) {
 
-            var nearbyZombies = this.zombieManager.getZombiesInRange(follower.x, follower.y, follower.attackRange);
+            var nearbyZombies = [];
+            
+            // 根据游戏状态选择僵尸源
+            if (this.gameState === 'submap') {
+                // 房间内：检查房间的僵尸数组
+                nearbyZombies = this.getZombiesInRangeFromArray(this.zombies, follower.x, follower.y, follower.attackRange);
+            } else {
+                // 主地图：使用ZombieManager
+                nearbyZombies = this.zombieManager.getZombiesInRange(follower.x, follower.y, follower.attackRange);
+            }
 
             if (nearbyZombies.length > 0) {
                 var targetZombie = nearbyZombies[0].zombie;
@@ -5147,8 +5167,36 @@ GameEngine.prototype.updateTeamCombat = function (currentTime) {
 GameEngine.prototype.attackZombie = function (attacker, zombie) {
     var damage = attacker.attack + Math.floor(Math.random() * 5);
     var isDead = zombie.takeDamage(damage);
+};
 
-
+// 从指定数组中获取范围内的僵尸（用于房间内战斗）
+GameEngine.prototype.getZombiesInRangeFromArray = function (zombieArray, x, y, range) {
+    if (!zombieArray || !Array.isArray(zombieArray)) {
+        return [];
+    }
+    
+    var zombiesInRange = [];
+    
+    for (var i = 0; i < zombieArray.length; i++) {
+        var zombie = zombieArray[i];
+        
+        if (!zombie || zombie.health <= 0) {
+            continue;
+        }
+        
+        var distance = Math.sqrt(Math.pow(zombie.x - x, 2) + Math.pow(zombie.y - y, 2));
+        
+        if (distance <= range) {
+            zombiesInRange.push({zombie: zombie, distance: distance});
+        }
+    }
+    
+    // 按距离排序，最近的在前
+    zombiesInRange.sort(function(a, b) {
+        return a.distance - b.distance;
+    });
+    
+    return zombiesInRange;
 };
 
 GameEngine.prototype.updateTeamHealth = function (deltaTime) {
@@ -5349,42 +5397,48 @@ GameEngine.prototype.generateSubMapContent = function () {
 
 GameEngine.prototype.generateZombies = function () {
     var buildingType = this.currentBuilding ? this.currentBuilding.type : 'house';
-    var count = 0;
+    var count = 5; // 每个房间最少5只僵尸
 
+    // 根据建筑类型增加额外僵尸数量
     switch (buildingType) {
         case 'police_station':
         case 'hospital':
-            count = 1;
+            count += 2; // 警察局和医院额外2只
             break;
         case 'mall':
         case 'factory':
-            count = 2;
+            count += 3; // 商场和工厂额外3只
+            break;
+        case 'school':
+            count += 1; // 学校额外1只
             break;
         default:
-            if (Math.random() < 0.3) {
-                count = 1;
-            } else {
-                count = 0;
-            }
+            // 民房和别墅保持基础数量5只
             break;
     }
 
-
+    // 使用主地图的僵尸系统生成僵尸
     for (var i = 0; i < count; i++) {
-        var zombie = {
-            id: Math.random().toString(36).substr(2, 9),
-            x: 80 + Math.random() * 240,
-            y: 120 + Math.random() * 160,
-            health: 15,
-            maxHealth: 15,
-            attack: this.gameData.isDay ? 5 : 10,
-            moveSpeed: this.gameData.isDay ? 2 : 4,
-            state: 'patrol',
-            target: null,
-            lastAttackTime: 0
-        };
-
-        this.zombies.push(zombie);
+        // 随机选择僵尸类型
+        var zombieTypes = ['thin', 'fat', 'boss1'];
+        var randomType = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+        
+        // 随机位置
+        var x = 80 + Math.random() * 240;
+        var y = 120 + Math.random() * 160;
+        
+        // 使用ZombieManager创建僵尸实例
+        var zombie = this.zombieManager.createZombie(randomType, x, y);
+        
+        if (zombie) {
+            // 设置房间内僵尸的初始状态
+            zombie.state = 'wandering';
+            zombie.target = null;
+            zombie.lastAttackTime = 0;
+            
+            // 将僵尸添加到房间的僵尸数组
+            this.zombies.push(zombie);
+        }
     }
 };
 
@@ -5568,61 +5622,28 @@ GameEngine.prototype.collectResource = function (resource) {
 GameEngine.prototype.updateZombies = function (deltaTime) {
     var self = this;
 
-    // 使用for循环更新僵尸，避免函数调用开销
+    // 使用主地图僵尸的完整AI系统更新房间内僵尸
     for (var i = 0; i < this.zombies.length; i++) {
         var zombie = this.zombies[i];
         
-        // 检查僵尸是否卡在建筑中
-        if (zombie.isUnstucking) {
-            this.handleZombieUnstuck(zombie);
-            continue; // 脱困中的僵尸跳过正常移动
+        // 检查僵尸是否死亡
+        if (zombie.health <= 0) {
+            continue;
         }
         
-        var dx = this.player.x - zombie.x;
-        var dy = this.player.y - zombie.y;
-        var distanceSquared = dx * dx + dy * dy;
-        var minDistanceSquared = 30 * 30; // 900
-        var maxDistanceSquared = 1200 * 1200; // 1440000
-
-        if (distanceSquared < maxDistanceSquared && distanceSquared > minDistanceSquared) { // 大幅增加追击距离，从100提升到1200
-            // 僵尸匀速移动，不受deltaTime影响，但需要碰撞检测
-            var moveDistance = zombie.moveSpeed;
-            var distance = Math.sqrt(distanceSquared);
-            var newX = zombie.x + (dx / distance) * moveDistance;
-            var newY = zombie.y + (dy / distance) * moveDistance;
-            
-            // 检查移动是否安全，防止穿墙
-            if (this.canMoveToPosition(newX, newY, 25)) {
-                zombie.x = newX;
-                zombie.y = newY;
-            } else {
-                // 如果直接移动不安全，尝试单轴移动
-                var canMoveX = this.canMoveToPosition(newX, zombie.y, 25);
-                var canMoveY = this.canMoveToPosition(zombie.x, newY, 25);
-                
-                if (canMoveX) {
-                    zombie.x = newX;
-                } else if (canMoveY) {
-                    zombie.y = newY;
-                } else {
-                    // 如果都不能移动，检查是否卡在建筑中
-                    this.checkZombieStuckInBuilding(zombie);
-                }
+        // 使用僵尸的完整AI系统进行更新，添加错误处理
+        try {
+            if (zombie.update && typeof zombie.update === 'function') {
+                zombie.update(deltaTime, this);
             }
-        } else if (distance <= 30) {
-            var currentTime = Date.now();
-            if (currentTime - zombie.lastAttackTime >= 1000) {
-                this.player.health -= zombie.attack;
-                zombie.lastAttackTime = currentTime;
-
-                if (this.player.health <= 0) {
-                    this.gameOver('death');
-                }
-            }
+        } catch (error) {
+            console.error('[GameEngine] 僵尸更新出错:', error, '僵尸:', zombie);
+            // 如果僵尸更新出错，将其标记为死亡以避免继续出错
+            zombie.health = 0;
         }
     }
 
-    // 使用就地操作清理死亡僵尸，避免内存分配
+    // 清理死亡僵尸
     for (var i = this.zombies.length - 1; i >= 0; i--) {
         if (this.zombies[i].health <= 0) {
             this.zombies.splice(i, 1);
@@ -7631,12 +7652,18 @@ GameEngine.prototype.renderSubMap = function () {
     this.ctx.textAlign = 'center';
     this.ctx.fillText(this.currentBuilding ? this.currentBuilding.name : '建筑内部', this.canvas.width / 2, 50);
 
+    // 渲染房间内的僵尸，使用主地图僵尸的渲染系统
     for (var i = 0; i < this.zombies.length; i++) {
         var zombie = this.zombies[i];
-        this.ctx.fillStyle = '#e74c3c';
-        this.ctx.fillRect(zombie.x - 8, zombie.y - 8, 16, 16);
-        this.ctx.fillStyle = '#c0392b';
-        this.ctx.fillRect(zombie.x - 6, zombie.y - 6, 12, 12);
+        if (zombie.render && typeof zombie.render === 'function') {
+            // 创建房间内的相机对象，用于僵尸渲染
+            var roomCamera = {
+                x: 0,
+                y: 0,
+                zoom: 1
+            };
+            zombie.render(this.ctx, roomCamera);
+        }
     }
 
     for (var i = 0; i < this.resources.length; i++) {
