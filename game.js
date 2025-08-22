@@ -1900,6 +1900,72 @@ ZombieManager.prototype.recycleZombie = function (zombie) {
     }
 };
 
+// 为主地图生成僵尸
+ZombieManager.prototype.generateZombiesForMap = function () {
+    console.log('[ZombieManager] 开始为主地图生成僵尸');
+    
+    // 清空现有僵尸
+    this.zombies = [];
+    
+    // 获取当前生存天数
+    var survivalDays = this.gameEngine ? this.gameEngine.gameData.survivalDays : 1;
+    
+    // 计算僵尸数量（基于生存天数）
+    var baseCount = GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
+    var additionalCount = Math.floor((survivalDays - 1) * GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE);
+    var totalCount = Math.min(baseCount + additionalCount, GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES);
+    
+    console.log('[ZombieManager] 生存天数:', survivalDays, '基础数量:', baseCount, '额外数量:', additionalCount, '总数量:', totalCount);
+    
+    // 生成僵尸
+    for (var i = 0; i < totalCount; i++) {
+        var zombie = this.generateZombieAtRandomLocation();
+        if (zombie) {
+            this.zombies.push(zombie);
+        }
+    }
+    
+    console.log('[ZombieManager] 主地图僵尸生成完成，数量:', this.zombies.length);
+};
+
+// 在随机位置生成僵尸
+ZombieManager.prototype.generateZombieAtRandomLocation = function () {
+    if (!this.gameEngine) {
+        console.warn('[ZombieManager] 游戏引擎引用无效，无法生成僵尸');
+        return null;
+    }
+    
+    var maxAttempts = GAME_CONFIG.ZOMBIE_SPAWN.MAX_ATTEMPTS_MULTIPLIER * 10;
+    var attempt = 0;
+    
+    while (attempt < maxAttempts) {
+        attempt++;
+        
+        // 随机选择僵尸类型
+        var zombieTypes = ['thin', 'fat', 'boss1'];
+        var randomType = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+        
+        // 随机位置（在玩家周围一定范围内）
+        var angle = Math.random() * Math.PI * 2;
+        var distance = GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE + Math.random() * (GAME_CONFIG.ZOMBIE_SPAWN.SPAWN_RADIUS - GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE);
+        var x = this.gameEngine.player.x + Math.cos(angle) * distance;
+        var y = this.gameEngine.player.y + Math.sin(angle) * distance;
+        
+        // 确保位置在地图范围内
+        x = Math.max(100, Math.min(this.gameEngine.mapConfig.width - 100, x));
+        y = Math.max(100, Math.min(this.gameEngine.mapConfig.height - 100, y));
+        
+        // 创建僵尸
+        var zombie = this.createZombie(randomType, x, y);
+        if (zombie) {
+            return zombie;
+        }
+    }
+    
+    console.warn('[ZombieManager] 达到最大尝试次数，僵尸生成失败');
+    return null;
+};
+
 // ========================================
 // 输入系统 (Input System)
 // ========================================
@@ -2713,21 +2779,24 @@ GameEngine.prototype.exitBuilding = function () {
 
 GameEngine.prototype.setupInput = function () {
     var self = this;
+    
+    console.log('[Input] 开始设置触摸事件，画布尺寸:', this.canvas.width, 'x', this.canvas.height);
 
-    this.joystick = {
-        active: false,
-        centerX: 80,
-        centerY: 0,
-        currentX: 80,
-        currentY: 0,
-        direction: {x: 0, y: 0},
-        radius: 60,
-        knobRadius: 20,
-        visible: true,
-        maxDistance: 50,
-        
-        // 摇杆配置
-    };
+    // 初始化摇杆对象
+    if (!this.joystick) {
+        this.joystick = {
+            active: false,
+            centerX: 80,
+            centerY: 0,
+            currentX: 80,
+            currentY: 0,
+            direction: {x: 0, y: 0},
+            radius: 60,
+            knobRadius: 20,
+            visible: true,
+            maxDistance: 50
+        };
+    }
 
     // 性能优化：事件监听器引用，便于解绑
     this.eventHandlers = {
@@ -2742,9 +2811,33 @@ GameEngine.prototype.setupInput = function () {
     this.joystick.centerY = this.canvas.height - 80;
     this.joystick.currentX = this.joystick.centerX;
     this.joystick.currentY = this.joystick.centerY;
+    
+    console.log('[Input] 摇杆位置设置完成:', this.joystick.centerX, this.joystick.centerY);
 
     // 抖音小程序触摸事件处理 - 修复兼容性问题
-    if (typeof tt !== 'undefined' && !this.eventsBound) {
+    if (typeof tt !== 'undefined') {
+        // 先解绑之前的事件（如果存在）
+        if (this.eventHandlers.touchStart) {
+            try {
+                tt.offTouchStart(this.eventHandlers.touchStart);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸开始事件失败:', e);
+            }
+        }
+        if (this.eventHandlers.touchMove) {
+            try {
+                tt.offTouchMove(this.eventHandlers.touchMove);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸移动事件失败:', e);
+            }
+        }
+        if (this.eventHandlers.touchEnd) {
+            try {
+                tt.offTouchEnd(this.eventHandlers.touchEnd);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸结束事件失败:', e);
+            }
+        }
 
         // 使用抖音小程序的触摸事件API
         try {
@@ -2769,7 +2862,7 @@ GameEngine.prototype.setupInput = function () {
             console.warn('[Input] 抖音触摸事件绑定失败，使用Canvas事件:', ttError);
             this.bindCanvasEvents();
         }
-    } else if (!this.eventsBound) {
+    } else {
         // 抖音小游戏环境：使用Canvas事件属性
         this.bindCanvasEvents();
     }
@@ -2781,6 +2874,13 @@ GameEngine.prototype.bindCanvasEvents = function () {
     var self = this;
     
     try {
+        // 先清理之前的事件绑定
+        this.canvas.ontouchstart = null;
+        this.canvas.ontouchmove = null;
+        this.canvas.ontouchend = null;
+        this.canvas.onclick = null;
+        
+        // 重新绑定事件
         this.canvas.ontouchstart = function (e) {
             self.onTouchStart(e);
         };
@@ -2834,10 +2934,21 @@ GameEngine.prototype.onTouchStart = function (e) {
             x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
             y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
         }
+        
+        // 转换为画布坐标
+        try {
+            var rect = this.canvas.getBoundingClientRect();
+            x = x - rect.left;
+            y = y - rect.top;
+        } catch (error) {
+            console.warn('[Touch] 画布坐标转换失败，使用原始坐标:', error);
+        }
 
         this.touchStartX = x;
         this.touchStartY = y;
         this.touchStartTime = Date.now();
+        
+        console.log('[Touch] 触摸开始，坐标:', x, y, '游戏状态:', this.gameState);
 
 
         if (this.gameState === 'playing' || this.gameState === 'submap') {
@@ -2848,6 +2959,8 @@ GameEngine.prototype.onTouchStart = function (e) {
                 var dy = y - this.joystick.centerY;
                 var joystickDistanceSquared = dx * dx + dy * dy;
                 var joystickRadiusSquared = this.joystick.radius * this.joystick.radius;
+                
+                console.log('[Touch] 触摸坐标:', x, y, '摇杆中心:', this.joystick.centerX, this.joystick.centerY, '距离:', Math.sqrt(joystickDistanceSquared).toFixed(1), '摇杆半径:', this.joystick.radius);
 
                 if (joystickDistanceSquared <= joystickRadiusSquared) {
                     // 激活摇杆
@@ -2856,10 +2969,14 @@ GameEngine.prototype.onTouchStart = function (e) {
                     this.joystick.currentY = y;
                     this.updateJoystickDirection();
                     console.log('[Joystick] 摇杆已激活，开始控制移动');
+                } else {
+                    console.log('[Touch] 触摸位置超出摇杆范围，不激活摇杆');
                 }
             } else {
                 console.warn('[Touch] 无效的触摸坐标:', {x: x, y: y, event: e});
             }
+        } else {
+            console.log('[Touch] 当前游戏状态不支持摇杆控制:', this.gameState);
         }
     } catch (error) {
         console.error('[Input] 触摸开始处理错误:', error);
@@ -2871,6 +2988,7 @@ GameEngine.prototype.onTouchMove = function (e) {
     try {
 
         if (!this.joystick.active) {
+            console.log('[Touch] 摇杆未激活，忽略触摸移动');
             return;
         }
 
@@ -2897,6 +3015,15 @@ GameEngine.prototype.onTouchMove = function (e) {
             var touch = e.touches && e.touches[0] ? e.touches[0] : e;
             x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
             y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
+            
+            // 转换为画布坐标
+            try {
+                var rect = this.canvas.getBoundingClientRect();
+                x = x - rect.left;
+                y = y - rect.top;
+            } catch (error) {
+                console.warn('[Touch] 触摸移动画布坐标转换失败，使用原始坐标:', error);
+            }
         }
 
 
@@ -2931,6 +3058,7 @@ GameEngine.prototype.onTouchEnd = function (e) {
 
         if (touchDuration < 300 && !this.joystick.active) {
             // 模拟点击事件
+            console.log('[Touch] 检测到点击，坐标:', this.touchStartX, this.touchStartY, '游戏状态:', this.gameState);
             this.onClick({
                 x: this.touchStartX || 0, y: this.touchStartY || 0
             });
@@ -3229,20 +3357,23 @@ GameEngine.prototype.handleSubMapClick = function (x, y) {
 
 GameEngine.prototype.handleEndGameClick = function (x, y) {
     var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
     
-    // 重新开始按钮 (160x50, 居中)
+    // 重新开始按钮 (160x50, 居中) - 与渲染代码保持一致
     var restartButtonX = centerX - 80;
-    var restartButtonY = 320;
+    var restartButtonY = centerY + 80;
     var restartButtonWidth = 160;
     var restartButtonHeight = 50;
     
-    // 返回菜单按钮 (160x50, 居中)
+    // 返回菜单按钮 (160x50, 居中) - 与渲染代码保持一致
     var menuButtonX = centerX - 80;
-    var menuButtonY = 380;
+    var menuButtonY = centerY + 150;
     var menuButtonWidth = 160;
     var menuButtonHeight = 50;
     
     console.log('[EndGame] 点击坐标:', x, y);
+    console.log('[EndGame] 画布尺寸:', this.canvas.width, 'x', this.canvas.height);
+    console.log('[EndGame] 画布中心:', centerX, centerY);
     console.log('[EndGame] 重新开始按钮区域:', restartButtonX, restartButtonY, restartButtonWidth, restartButtonHeight);
     console.log('[EndGame] 返回菜单按钮区域:', menuButtonX, menuButtonY, menuButtonWidth, menuButtonHeight);
     
@@ -3261,6 +3392,8 @@ GameEngine.prototype.handleEndGameClick = function (x, y) {
         this.returnToMenu();
         return;
     }
+    
+    console.log('[EndGame] 点击未命中任何按钮');
 };
 
 // 返回菜单函数
@@ -3274,11 +3407,17 @@ GameEngine.prototype.returnToMenu = function () {
     // 清理游戏对象
     this.cleanupGameObjects();
     
-    // 重新绑定触摸事件
-    if (!this.eventsBound) {
-        this.setupInput();
-        console.log('[Input] 返回菜单时重新绑定触摸事件');
-    }
+    // 强制重新绑定触摸事件
+    this.eventsBound = false;
+    this.setupInput();
+    console.log('[Input] 返回菜单时重新绑定触摸事件');
+    
+    // 重置摇杆状态
+    this.resetJoystick();
+    
+    // 重新开始游戏循环以显示菜单
+    this.running = true;
+    this.lastTime = Date.now();
 };
 
 // ========================================
@@ -4045,10 +4184,21 @@ GameEngine.prototype.gameLoop = function () {
 
     if (!this.running) return;
     
-    // 额外检查：如果游戏已经结束，立即停止游戏循环
+    // 如果游戏已经结束，只进行渲染，不进行游戏逻辑更新
     if (this.isGameEnded || this.gameState === 'gameover' || this.gameState === 'victory') {
-        console.log('[GameLoop] 游戏已结束，停止游戏循环');
-        this.running = false;
+        // 游戏结束时仍然需要渲染界面和接收触摸事件
+        this.render();
+        
+        // 继续游戏循环以保持界面响应
+        if (typeof tt !== 'undefined' && tt.requestAnimationFrame) {
+            tt.requestAnimationFrame(function () {
+                self.gameLoop();
+            });
+        } else {
+            requestAnimationFrame(function () {
+                self.gameLoop();
+            });
+        }
         return;
     }
 
@@ -4120,9 +4270,28 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
     
     // 只有在摇杆激活且方向不为零时才移动
     var isMoving = this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0);
+    
+    // 调试信息：每帧检查摇杆状态
+    if (this.debugCounter === undefined) this.debugCounter = 0;
+    this.debugCounter++;
+    if (this.debugCounter >= 60) { // 每60帧（约1秒）输出一次调试信息
+        console.log('[Player] 摇杆状态:', {
+            active: this.joystick.active,
+            directionX: this.joystick.direction.x,
+            directionY: this.joystick.direction.y,
+            centerX: this.joystick.centerX,
+            centerY: this.joystick.centerY,
+            isMoving: isMoving
+        });
+        this.debugCounter = 0;
+    }
 
     if (isMoving) {
         this.player.isWalking = true;
+
+        // 获取摇杆方向
+        var directionX = this.joystick.direction.x;
+        var directionY = this.joystick.direction.y;
 
         // 使用标准化后的方向向量判断移动方向
         if (Math.abs(directionX) > Math.abs(directionY)) {
@@ -4137,8 +4306,6 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
         var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED;
         
         // 标准化方向向量，确保对角线移动速度一致
-        var directionX = this.joystick.direction.x;
-        var directionY = this.joystick.direction.y;
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
         
         if (directionLength > 0) {
@@ -4382,11 +4549,42 @@ GameEngine.prototype.restartGame = function () {
         this.followers = [];
     }
     
-    // 重新绑定触摸事件
-    if (!this.eventsBound) {
-        this.setupInput();
-        console.log('[Input] 游戏重新开始时重新绑定触摸事件');
+    // 重新初始化重要组件
+    this.initializeFollowerPool();
+    this.initializeResourcePool();
+    
+    // 重置摄像机位置
+    this.camera = {
+        x: 0, 
+        y: 0, 
+        followTarget: null, 
+        smoothing: 0.1, 
+        zoom: 0.8
+    };
+    
+    // 重新初始化四叉树
+    if (this.viewportCulling) {
+        this.viewportCulling.resetQuadTree();
+        console.log('[ViewportCulling] 重新开始游戏时重新初始化四叉树');
     }
+    
+    // 重新生成僵尸（主地图）
+    if (this.zombieManager) {
+        this.zombieManager.generateZombiesForMap();
+        console.log('[ZombieManager] 重新开始游戏时重新生成主地图僵尸');
+    }
+    
+    // 强制重新绑定触摸事件
+    this.eventsBound = false;
+    this.setupInput();
+    console.log('[Input] 游戏重新开始时重新绑定触摸事件');
+    
+    // 重置摇杆状态
+    this.resetJoystick();
+    
+    // 重新开始游戏循环
+    this.running = true;
+    this.lastTime = Date.now();
     
     console.log('[GameEngine] 游戏重新开始完成');
 };
@@ -4401,8 +4599,14 @@ GameEngine.prototype.gameOver = function (cause) {
     // 清理游戏对象引用
     this.cleanupGameObjects();
 
-    // 性能优化：清理资源
-    this.cleanupInput();
+    // 不要清理触摸事件，游戏结束界面仍需要接收点击
+    // this.cleanupInput();
+    
+    // 重新绑定触摸事件，确保游戏结束界面可以接收点击
+    if (!this.eventsBound) {
+        this.setupInput();
+        console.log('[Input] 游戏结束时重新绑定触摸事件');
+    }
 };
 
 GameEngine.prototype.gameWin = function () {
@@ -4414,8 +4618,14 @@ GameEngine.prototype.gameWin = function () {
     // 清理游戏对象引用
     this.cleanupGameObjects();
 
-    // 性能优化：清理资源
-    this.cleanupInput();
+    // 不要清理触摸事件，胜利界面仍需要接收点击
+    // this.cleanupInput();
+    
+    // 重新绑定触摸事件，确保胜利界面可以接收点击
+    if (!this.eventsBound) {
+        this.setupInput();
+        console.log('[Input] 游戏胜利时重新绑定触摸事件');
+    }
 };
 
 // 清理游戏对象引用，防止在游戏结束后继续访问已销毁的对象
