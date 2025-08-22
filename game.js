@@ -4468,55 +4468,56 @@ GameEngine.prototype.updateTime = function (deltaTime) {
 };
 
 GameEngine.prototype.startGame = function () {
-    this.gameState = 'playing';
-    
-    // 游戏开始时确保四叉树正确初始化
-    if (this.viewportCulling && !this.viewportCulling.quadTreeInitialized) {
-        console.log('[ViewportCulling] 游戏开始时重新初始化四叉树');
-        this.viewportCulling.resetQuadTree();
-    }
-    
-    // 重新绑定触摸事件
-    if (!this.eventsBound) {
-        this.setupInput();
-        console.log('[Input] 游戏开始时重新绑定触摸事件');
-    }
-    
-    // 检查事件绑定状态
-    this.checkEventBindingStatus();
+    console.log('[GameEngine] 开始新游戏');
+    this.initializeGame();
 };
 
-GameEngine.prototype.restartGame = function () {
-    console.log('[GameEngine] 重新开始游戏');
+// 统一的游戏初始化方法 - 包含所有必要的资源加载和初始化逻辑
+GameEngine.prototype.initializeGame = function () {
+    console.log('[GameEngine] 开始初始化游戏...');
     
     // 重置游戏结束标志位
     this.isGameEnded = false;
     
+    // 重置游戏状态
+    this.gameState = 'playing';
+    
     // 重置游戏数据
     this.gameData = {
         survivalDays: 1,
-        food: 20, // 重新开始游戏时也是20个食物
+        food: 20, // 开局设置20个食物
         teamSize: 1,
         maxTeamSize: 1,
         zombieKills: 0,
         totalFood: 20, // 总食物也设置为20
         isDay: true,
-        timeRemaining: 300000,
+        timeRemaining: GAME_CONFIG.TIME.DAY_DURATION,
         gameStartTime: Date.now()
     };
 
     // 重置玩家状态
     this.player = {
-        x: this.mapConfig.width / 2, 
-        y: this.mapConfig.height / 2, 
-        health: 20, 
-        maxHealth: 20, 
+        x: 1000, // 左下角附近
+        y: this.mapConfig.height - 1000,
+        health: GAME_CONFIG.PLAYER.BASE_HEALTH,
+        maxHealth: GAME_CONFIG.PLAYER.BASE_HEALTH,
         level: 1,
+        attack: GAME_CONFIG.PLAYER.BASE_ATTACK,
+        attackRange: GAME_CONFIG.PLAYER.ATTACK_RANGE,
         isDead: false
     };
     
-    // 重置游戏状态
-    this.gameState = 'playing';
+    // 重置摄像机位置 - 应该跟随玩家
+    this.camera = {
+        x: this.player.x, 
+        y: this.player.y, 
+        followTarget: this.player, 
+        smoothing: 0.1, 
+        zoom: 0.8
+    };
+    
+    console.log('[GameEngine] 玩家位置已设置:', this.player.x, this.player.y);
+    console.log('[GameEngine] 摄像机位置已设置:', this.camera.x, this.camera.y);
     
     // 清理游戏对象
     this.cleanupGameObjects();
@@ -4526,6 +4527,7 @@ GameEngine.prototype.restartGame = function () {
         for (var i = 0; i < this.buildings.length; i++) {
             this.buildings[i].explored = false;
         }
+        console.log('[GameEngine] 建筑状态已重置，总数:', this.buildings.length);
     }
     
     // 重置其他游戏状态
@@ -4537,56 +4539,84 @@ GameEngine.prototype.restartGame = function () {
     // 清理僵尸管理器
     if (this.zombieManager) {
         this.zombieManager.zombies = [];
+        console.log('[GameEngine] 僵尸管理器已清理');
     }
     
     // 清理房间内僵尸
     if (this.zombies) {
         this.zombies = [];
+        console.log('[GameEngine] 房间内僵尸已清理');
     }
     
     // 清理跟随者
     if (this.followers) {
         this.followers = [];
+        console.log('[GameEngine] 跟随者已清理');
     }
     
     // 重新初始化重要组件
     this.initializeFollowerPool();
     this.initializeResourcePool();
-    
-    // 重置摄像机位置
-    this.camera = {
-        x: 0, 
-        y: 0, 
-        followTarget: null, 
-        smoothing: 0.1, 
-        zoom: 0.8
-    };
+    console.log('[GameEngine] 对象池已重新初始化');
     
     // 重新初始化四叉树
     if (this.viewportCulling) {
         this.viewportCulling.resetQuadTree();
-        console.log('[ViewportCulling] 重新开始游戏时重新初始化四叉树');
+        console.log('[ViewportCulling] 四叉树已重新初始化');
     }
     
     // 重新生成僵尸（主地图）
     if (this.zombieManager) {
         this.zombieManager.generateZombiesForMap();
-        console.log('[ZombieManager] 重新开始游戏时重新生成主地图僵尸');
+        console.log('[ZombieManager] 主地图僵尸已重新生成');
+    }
+    
+    // 确保玩家实体被插入到四叉树中
+    if (this.viewportCulling && this.viewportCulling.quadTree && this.player) {
+        this.player.type = 'player';
+        this.player.quadTreeInserted = true;
+        this.player.lastQuadTreeX = this.player.x;
+        this.player.lastQuadTreeY = this.player.y;
+        this.viewportCulling.quadTree.insert(this.player);
+        console.log('[GameEngine] 玩家实体已插入四叉树，位置:', this.player.x, this.player.y);
+    } else {
+        console.warn('[GameEngine] 无法插入玩家实体到四叉树:', {
+            viewportCulling: !!this.viewportCulling,
+            quadTree: !!this.viewportCulling?.quadTree,
+            player: !!this.player,
+            playerPosition: this.player ? {x: this.player.x, y: this.player.y} : null
+        });
     }
     
     // 强制重新绑定触摸事件
     this.eventsBound = false;
     this.setupInput();
-    console.log('[Input] 游戏重新开始时重新绑定触摸事件');
+    console.log('[Input] 触摸事件已重新绑定');
     
     // 重置摇杆状态
     this.resetJoystick();
+    console.log('[GameEngine] 摇杆状态已重置');
     
     // 重新开始游戏循环
     this.running = true;
     this.lastTime = Date.now();
     
-    console.log('[GameEngine] 游戏重新开始完成');
+    // 检查事件绑定状态
+    this.checkEventBindingStatus();
+    
+    // 强制更新视距裁剪系统，确保玩家可见
+    if (this.viewportCulling) {
+        this.viewportCulling.quadTreeInitialized = false; // 强制重新初始化
+        this.updateViewportCulling();
+        console.log('[GameEngine] 视距裁剪系统已强制更新');
+    }
+    
+    console.log('[GameEngine] 游戏初始化完成！');
+};
+
+GameEngine.prototype.restartGame = function () {
+    console.log('[GameEngine] 重新开始游戏');
+    this.initializeGame();
 };
 
 GameEngine.prototype.gameOver = function (cause) {
