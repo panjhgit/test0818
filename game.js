@@ -3036,13 +3036,20 @@ GameEngine.prototype.handleMenuClick = function (x, y) {
 };
 
 GameEngine.prototype.handleGameClick = function (x, y) {
+    console.log('[Click] 游戏点击事件，坐标:', x, y, '弹出提示状态:', {
+        exists: !!this.buildingEntryPrompt,
+        active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false
+    });
+    
     if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        console.log('[Click] 调用建筑进入提示点击处理');
         this.handleBuildingEntryPromptClick(x, y);
         return;
     }
 };
 
 GameEngine.prototype.handleBuildingEntryPromptClick = function (x, y) {
+    console.log('[Click] 处理建筑进入提示点击，坐标:', x, y);
     var prompt = this.buildingEntryPrompt;
     var centerX = this.canvas.width / 2;
     var centerY = this.canvas.height / 2;
@@ -3053,9 +3060,19 @@ GameEngine.prototype.handleBuildingEntryPromptClick = function (x, y) {
     var buttonY = boxY + 90;
 
     var enterButtonX = centerX - buttonWidth - 20;
+    console.log('[Click] 进入按钮区域:', enterButtonX, buttonY, buttonWidth, buttonHeight);
+    console.log('[Click] 点击位置是否在进入按钮内:', x >= enterButtonX && x <= enterButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight);
+    
     if (x >= enterButtonX && x <= enterButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('[Click] 进入按钮被点击');
         if (this.nearBuilding && this.nearBuilding.id === prompt.building.id && this.nearBuilding.name === prompt.building.name) {
+            console.log('[Click] 开始进入建筑:', prompt.building.name);
             this.exploreBuilding(prompt.building);
+        } else {
+            console.log('[Click] 进入建筑失败，nearBuilding不匹配:', {
+                nearBuilding: this.nearBuilding,
+                promptBuilding: prompt.building
+            });
         }
         this.buildingEntryPrompt = null;
         return;
@@ -3816,21 +3833,26 @@ GameEngine.prototype.checkNearDoor = function () {
             var doorCenterY = doorInfo.y + doorInfo.height / 2;
 
             var playerDistance = Math.sqrt(Math.pow(this.player.x - doorCenterX, 2) + Math.pow(this.player.y - doorCenterY, 2));
+            
+            // 调试信息：显示距离
+            if (playerDistance <= 100) { // 只显示100像素内的距离
+                console.log('[Debug] 建筑物:', building.name, '距离:', playerDistance.toFixed(1), '交互距离:', interactionDistance, '触发距离:', triggerDistance);
+            }
 
             if (playerDistance <= interactionDistance) {
                 this.nearBuilding = building;
+                console.log('[Door] 设置nearBuilding:', building.name, 'ID:', building.id, 'Name:', building.name);
 
-                if (playerDistance <= triggerDistance) {
-                    if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active || this.buildingEntryPrompt.buildingId !== (building.id || building.name)) {
-
-                        this.buildingEntryPrompt = {
-                            building: building,
-                            buildingId: building.id || building.name,
-                            active: true,
-                            message: '是否进入 ' + building.name + '？',
-                            options: ['进入', '取消']
-                        };
-                    }
+                // 当门变色时，就创建弹出提示（复用门变色逻辑）
+                if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active || this.buildingEntryPrompt.buildingId !== (building.id || building.name)) {
+                    this.buildingEntryPrompt = {
+                        building: building,
+                        buildingId: building.id || building.name,
+                        active: true,
+                        message: '是否进入 ' + building.name + '？',
+                        options: ['进入', '取消']
+                    };
+                    console.log('[Door] 弹出提示已创建（复用门变色逻辑）:', building.name, '距离:', playerDistance);
                 }
                 break;
             }
@@ -3838,6 +3860,7 @@ GameEngine.prototype.checkNearDoor = function () {
     }
 
     if (!this.nearBuilding && this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        console.log('[Door] 清除弹出提示，原因：玩家离开建筑物');
         this.buildingEntryPrompt = null;
     }
 };
@@ -4001,6 +4024,16 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
         this.updateCamera(deltaTime);
         this.updateNPCs(deltaTime);
         this.checkNearDoor();
+        
+        // 调试：每帧检查弹出提示状态
+        if (this.buildingEntryPrompt) {
+            console.log('[Debug] 每帧检查 - 弹出提示状态:', {
+                exists: !!this.buildingEntryPrompt,
+                active: this.buildingEntryPrompt.active,
+                buildingId: this.buildingEntryPrompt.buildingId,
+                message: this.buildingEntryPrompt.message
+            });
+        }
     }
 };
 
@@ -5554,6 +5587,7 @@ GameEngine.prototype.updateZombies = function (deltaTime) {
         if (distanceSquared < maxDistanceSquared && distanceSquared > minDistanceSquared) { // 大幅增加追击距离，从100提升到1200
             // 僵尸匀速移动，不受deltaTime影响，但需要碰撞检测
             var moveDistance = zombie.moveSpeed;
+            var distance = Math.sqrt(distanceSquared);
             var newX = zombie.x + (dx / distance) * moveDistance;
             var newY = zombie.y + (dy / distance) * moveDistance;
             
@@ -5892,6 +5926,13 @@ GameEngine.prototype.renderGame = function () {
         this.renderTimeInfo();
         this.renderMiniMap();
 
+        console.log('[Render] 检查弹出提示状态:', {
+            exists: !!this.buildingEntryPrompt,
+            active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false,
+            buildingId: this.buildingEntryPrompt ? this.buildingEntryPrompt.buildingId : null,
+            message: this.buildingEntryPrompt ? this.buildingEntryPrompt.message : null
+        });
+        
         if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
             this.renderBuildingEntryPrompt();
         }
@@ -5923,6 +5964,13 @@ GameEngine.prototype.renderGameFallback = function () {
     this.renderTimeInfo();
     this.renderMiniMap();
 
+    console.log('[RenderFallback] 检查弹出提示状态:', {
+        exists: !!this.buildingEntryPrompt,
+        active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false,
+        buildingId: this.buildingEntryPrompt ? this.buildingEntryPrompt.buildingId : null,
+        message: this.buildingEntryPrompt ? this.buildingEntryPrompt.message : null
+    });
+    
     if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
         this.renderBuildingEntryPrompt();
     }
@@ -7276,7 +7324,7 @@ GameEngine.prototype.renderVisibleBuildings = function () {
             this.ctx.fillStyle = building.explored ? 'rgba(139, 69, 19, 0.9)' : 'rgba(139, 69, 19, 0.6)';
             this.ctx.fillRect(doorX, doorY, doorWidth, doorHeight);
 
-            if (this.nearBuilding && this.nearBuilding.id === building.id) {
+            if (this.nearBuilding && (this.nearBuilding.id === building.id || this.nearBuilding.name === building.name)) {
                 this.ctx.save();
                 this.ctx.shadowColor = '#3498db';
                 this.ctx.shadowBlur = 15;
@@ -7284,6 +7332,8 @@ GameEngine.prototype.renderVisibleBuildings = function () {
                 this.ctx.lineWidth = 4;
                 this.ctx.strokeRect(doorX - 2, doorY - 2, doorWidth + 4, doorHeight + 4);
                 this.ctx.restore();
+                
+                // 弹出提示在checkNearDoor函数中处理，这里只负责门变色
             }
 
             this.ctx.strokeStyle = '#2c3e50';
@@ -7495,7 +7545,12 @@ GameEngine.prototype.renderJoystick = function () {
 };
 
 GameEngine.prototype.renderBuildingEntryPrompt = function () {
-    if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active) return;
+    console.log('[Render] 尝试渲染弹出提示:', this.buildingEntryPrompt);
+    if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active) {
+        console.log('[Render] 弹出提示无效或未激活');
+        return;
+    }
+    console.log('[Render] 开始渲染弹出提示:', this.buildingEntryPrompt.message);
 
     var prompt = this.buildingEntryPrompt;
     var centerX = this.canvas.width / 2;
