@@ -338,6 +338,11 @@ BaseZombie.prototype.reset = function(type, x, y) {
 };
 
 BaseZombie.prototype.update = function (deltaTime, gameEngine) {
+    // 检查游戏是否已结束，如果是则不进行任何更新
+    if (gameEngine && (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory')) {
+        return;
+    }
+    
     this.gameEngine = gameEngine;
     this.updateAI(deltaTime, gameEngine);
     this.updateAnimation(deltaTime);
@@ -345,11 +350,27 @@ BaseZombie.prototype.update = function (deltaTime, gameEngine) {
 };
 
 BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
+    // 检查游戏是否已结束，如果是则不进行AI更新
+    if (!gameEngine || gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory') {
+        return;
+    }
+    
     if (!this.aiUpdateTimer) this.aiUpdateTimer = 0;
     this.aiUpdateTimer += deltaTime;
 
     if (this.aiUpdateTimer < 100) return; // 提高AI更新频率
     this.aiUpdateTimer = 0;
+
+    // 检查游戏引擎和玩家对象是否有效
+    if (!gameEngine.player || gameEngine.player.health <= 0 || gameEngine.player.isDead) {
+        // 如果玩家无效，僵尸应该回到游荡状态
+        if (this.state !== 'wandering') {
+            this.state = 'wandering';
+            this.target = null;
+            console.log('[ZombieAI]', this.type, '玩家无效，切换到游荡状态');
+        }
+        return;
+    }
 
     var currentTime = Date.now();
     var playerDistance = Math.sqrt(Math.pow(this.x - gameEngine.player.x, 2) + Math.pow(this.y - gameEngine.player.y, 2));
@@ -376,6 +397,11 @@ BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
 
 // 游荡状态更新
 BaseZombie.prototype.updateWanderingState = function (playerDistance, gameEngine, currentTime) {
+    // 再次检查玩家对象是否有效
+    if (!gameEngine || !gameEngine.player || gameEngine.player.health <= 0 || gameEngine.player.isDead) {
+        return;
+    }
+    
     // 检测是否有人类进入察觉范围（70%检测范围）
     var awareRange = this.detectionRange * 0.7;
     if (playerDistance <= awareRange && gameEngine.player.health > 0 && !gameEngine.player.isDead) {
@@ -506,14 +532,27 @@ BaseZombie.prototype.updateAttackingState = function (playerDistance, gameEngine
     
     // 执行攻击
     if (currentTime - this.lastAttackTime >= this.attackCooldown) {
-        this.attackTarget(this.target);
-        this.lastAttackTime = currentTime;
-        console.log('[ZombieAI]', this.type, '执行攻击，目标血量:', this.target.health);
+        // 再次检查目标是否有效，防止在攻击过程中目标被清空
+        if (this.target && this.target.health > 0 && !this.target.isDead) {
+            this.attackTarget(this.target);
+            this.lastAttackTime = currentTime;
+            console.log('[ZombieAI]', this.type, '执行攻击，目标血量:', this.target.health);
+        } else {
+            // 目标无效，切换到游荡状态
+            this.state = 'wandering';
+            this.target = null;
+            console.log('[ZombieAI]', this.type, '攻击时发现目标无效，切换到游荡状态');
+        }
     }
 };
 
 BaseZombie.prototype.chaseTarget = function (target) {
-    if (!target) return;
+    if (!target || target.health <= 0 || target.isDead) {
+        // 目标无效，停止追击
+        this.state = 'wandering';
+        this.target = null;
+        return;
+    }
 
     var dx = target.x - this.x;
     var dy = target.y - this.y;
@@ -612,7 +651,7 @@ BaseZombie.prototype.getNearbyZombies = function(radius) {
 
 // 计算侧翼角度
 BaseZombie.prototype.calculateFlankingAngle = function(target, nearbyZombies) {
-    if (nearbyZombies.length === 0) return null;
+    if (!target || nearbyZombies.length === 0) return null;
     
     // 计算僵尸群的平均位置
     var avgX = 0, avgY = 0;
@@ -638,7 +677,7 @@ BaseZombie.prototype.calculateFlankingAngle = function(target, nearbyZombies) {
 
 // A*寻路算法：寻找从当前位置到目标的最短路径
 BaseZombie.prototype.findPathToTarget = function (target) {
-    if (!this.gameEngine) return null;
+    if (!this.gameEngine || !target) return null;
     
     var startX = Math.floor(this.x / 50) * 50; // 网格化坐标
     var startY = Math.floor(this.y / 50) * 50;
@@ -1542,6 +1581,11 @@ ZombieManager.prototype.createZombie = function (type, x, y) {
 };
 
 ZombieManager.prototype.update = function (deltaTime, gameEngine) {
+    // 检查游戏是否已经结束
+    if (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'menu' || gameEngine.gameState === 'victory') {
+        return;
+    }
+    
     // 检查玩家是否已经死亡
     if (gameEngine.player.health <= 0 && !gameEngine.player.isDead) {
         gameEngine.player.isDead = true;
@@ -2197,6 +2241,9 @@ function GameEngine(canvas, ctx) {
     this.running = false;
     this.gameState = 'menu'; // menu, playing, submap, gameover, victory
     this.lastTime = 0;
+    
+    // 游戏结束标志位，防止在游戏结束后继续更新游戏对象
+    this.isGameEnded = false;
 
     // 初始化管理器
     this.characterManager = new CharacterManager();
@@ -3900,6 +3947,11 @@ GameEngine.prototype.gameLoop = function () {
 };
 
 GameEngine.prototype.update = function (deltaTime) {
+    // 检查游戏是否已结束，如果是则不进行任何更新
+    if (this.isGameEnded || this.gameState === 'gameover' || this.gameState === 'victory') {
+        return;
+    }
+    
     if (this.gameState === 'playing' || this.gameState === 'submap') {
         // 定期验证followers数组状态（每100帧检查一次）
         if (!this.followerValidationCounter) this.followerValidationCounter = 0;
@@ -4143,6 +4195,9 @@ GameEngine.prototype.startGame = function () {
 };
 
 GameEngine.prototype.restartGame = function () {
+    // 重置游戏结束标志位
+    this.isGameEnded = false;
+    
     this.gameData = {
         survivalDays: 1,
         food: 20, // 重新开始游戏时也是20个食物
@@ -4179,6 +4234,12 @@ GameEngine.prototype.restartGame = function () {
 GameEngine.prototype.gameOver = function (cause) {
     this.gameState = 'gameover';
     this.gameData.cause = cause;
+    
+    // 设置游戏结束标志位
+    this.isGameEnded = true;
+    
+    // 清理游戏对象引用
+    this.cleanupGameObjects();
 
     // 性能优化：清理资源
     this.cleanupInput();
@@ -4186,9 +4247,55 @@ GameEngine.prototype.gameOver = function (cause) {
 
 GameEngine.prototype.gameWin = function () {
     this.gameState = 'victory';
+    
+    // 设置游戏结束标志位
+    this.isGameEnded = true;
+    
+    // 清理游戏对象引用
+    this.cleanupGameObjects();
 
     // 性能优化：清理资源
     this.cleanupInput();
+};
+
+// 清理游戏对象引用，防止在游戏结束后继续访问已销毁的对象
+GameEngine.prototype.cleanupGameObjects = function () {
+    console.log('[GameEngine] 开始清理游戏对象...');
+    
+    try {
+        // 清理所有僵尸的目标引用
+        if (this.zombieManager && this.zombieManager.zombies) {
+            this.zombieManager.zombies.forEach(function(zombie) {
+                if (zombie) {
+                    zombie.target = null;
+                    zombie.state = 'wandering';
+                }
+            });
+        }
+        
+        // 清理房间内僵尸的目标引用
+        if (this.zombies && Array.isArray(this.zombies)) {
+            this.zombies.forEach(function(zombie) {
+                if (zombie) {
+                    zombie.target = null;
+                    zombie.state = 'wandering';
+                }
+            });
+        }
+        
+        // 清理跟随者的目标引用
+        if (this.followers && Array.isArray(this.followers)) {
+            this.followers.forEach(function(follower) {
+                if (follower) {
+                    follower.target = null;
+                }
+            });
+        }
+        
+        console.log('[GameEngine] 游戏对象清理完成');
+    } catch (error) {
+        console.error('[GameEngine] 清理游戏对象时出错:', error);
+    }
 };
 
 // ========================================
@@ -5621,6 +5728,11 @@ GameEngine.prototype.collectResource = function (resource) {
 
 GameEngine.prototype.updateZombies = function (deltaTime) {
     var self = this;
+
+    // 检查游戏是否已经结束
+    if (this.isGameEnded || this.gameState === 'gameover' || this.gameState === 'menu' || this.gameState === 'victory') {
+        return;
+    }
 
     // 使用主地图僵尸的完整AI系统更新房间内僵尸
     for (var i = 0; i < this.zombies.length; i++) {
@@ -7653,16 +7765,18 @@ GameEngine.prototype.renderSubMap = function () {
     this.ctx.fillText(this.currentBuilding ? this.currentBuilding.name : '建筑内部', this.canvas.width / 2, 50);
 
     // 渲染房间内的僵尸，使用主地图僵尸的渲染系统
-    for (var i = 0; i < this.zombies.length; i++) {
-        var zombie = this.zombies[i];
-        if (zombie.render && typeof zombie.render === 'function') {
-            // 创建房间内的相机对象，用于僵尸渲染
-            var roomCamera = {
-                x: 0,
-                y: 0,
-                zoom: 1
-            };
-            zombie.render(this.ctx, roomCamera);
+    if (this.gameState !== 'gameover' && this.gameState !== 'menu') {
+        for (var i = 0; i < this.zombies.length; i++) {
+            var zombie = this.zombies[i];
+            if (zombie.render && typeof zombie.render === 'function') {
+                // 创建房间内的相机对象，用于僵尸渲染
+                var roomCamera = {
+                    x: 0,
+                    y: 0,
+                    zoom: 1
+                };
+                zombie.render(this.ctx, roomCamera);
+            }
         }
     }
 
