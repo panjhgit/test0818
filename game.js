@@ -2346,6 +2346,20 @@ function GameEngine(canvas, ctx) {
         this.viewportCulling.init(this.mapConfig.width, this.mapConfig.height);
         this.fallbackToTraditionalRendering = false;
         console.log('[GameEngine] 视距裁剪系统初始化成功');
+        
+        // 延迟初始化四叉树，确保建筑物已经创建
+        setTimeout(function() {
+            if (this.viewportCulling && this.buildings && this.buildings.length > 0) {
+                console.log('[GameEngine] 延迟初始化四叉树，建筑物数量:', this.buildings.length);
+                this.markStaticEntities();
+                this.insertEntitiesToQuadTree();
+                this.viewportCulling.quadTreeInitialized = true;
+                this.viewportCulling.lastMapWidth = this.mapConfig.width;
+                this.viewportCulling.lastMapHeight = this.mapConfig.height;
+                console.log('[GameEngine] 四叉树延迟初始化完成');
+            }
+        }.bind(this), 100);
+        
     } catch (error) {
         console.error('[GameEngine] 视距裁剪系统初始化失败，回退到传统渲染:', error);
         this.fallbackToTraditionalRendering = true;
@@ -3283,6 +3297,38 @@ var SafeArrayOperations = {
     // 验证索引是否有效
     isValidIndex: function(array, index) {
         return array && Array.isArray(array) && index >= 0 && index < array.length;
+    },
+    
+    // 安全删除死亡实体
+    safeRemoveDeadEntities: function(array, isDeadCheck, cleanupCallback) {
+        if (!Array.isArray(array)) {
+            console.warn('[SafeArrayOperations] 数组参数类型错误');
+            return 0;
+        }
+        
+        var deadIndices = [];
+        
+        // 先收集所有死亡实体的索引
+        for (var i = 0; i < array.length; i++) {
+            if (array[i] && isDeadCheck(array[i])) {
+                deadIndices.push(i);
+            }
+        }
+        
+        // 从后往前删除
+        var removedCount = 0;
+        for (var j = deadIndices.length - 1; j >= 0; j--) {
+            var indexToRemove = deadIndices[j];
+            if (indexToRemove >= 0 && indexToRemove < array.length) {
+                if (cleanupCallback) {
+                    cleanupCallback(array[indexToRemove]);
+                }
+                array.splice(indexToRemove, 1);
+                removedCount++;
+            }
+        }
+        
+        return removedCount;
     }
 };
 
@@ -3311,10 +3357,19 @@ GameEngine.prototype.validateFollowersArray = function () {
     
     if (invalidCount > 0) {
         console.warn('[validateFollowersArray] 发现', invalidCount, '个无效跟随者');
-        // 清理无效元素 - 使用就地操作避免内存分配
-        for (var j = this.followers.length - 1; j >= 0; j--) {
+        // 清理无效元素 - 使用安全的批量删除避免索引错乱
+        var invalidIndices = [];
+        for (var j = 0; j < this.followers.length; j++) {
             if (!this.followers[j] || typeof this.followers[j] !== 'object') {
-                this.followers.splice(j, 1);
+                invalidIndices.push(j);
+            }
+        }
+        
+        // 从后往前删除，避免索引错乱
+        for (var k = invalidIndices.length - 1; k >= 0; k--) {
+            var indexToRemove = invalidIndices[k];
+            if (indexToRemove >= 0 && indexToRemove < this.followers.length) {
+                this.followers.splice(indexToRemove, 1);
             }
         }
         console.log('[validateFollowersArray] 清理后跟随者数量:', this.followers.length);
@@ -3423,6 +3478,11 @@ GameEngine.prototype.recycleFollowerToPool = function (follower) {
         follower.smoothForceY = 0;
         follower.quadTreeInserted = false;
         
+        // 确保从四叉树中移除
+        if (this.viewportCulling && this.viewportCulling.quadTree) {
+            this.viewportCulling.quadTree.remove(follower);
+        };
+        
         // 添加到对象池
         this.followerPool.push(follower);
         console.log('[FollowerPool] 跟随者回收成功，当前池大小:', this.followerPool.length);
@@ -3503,6 +3563,11 @@ GameEngine.prototype.recycleResourceToPool = function (resource) {
         resource.companionData = null;
         resource.amount = 0;
         resource.weaponData = null;
+        
+        // 确保从四叉树中移除（如果存在）
+        if (this.viewportCulling && this.viewportCulling.quadTree) {
+            this.viewportCulling.quadTree.remove(resource);
+        }
         
         // 添加到对象池
         this.resourcePool.push(resource);
@@ -5792,6 +5857,12 @@ GameEngine.prototype.renderGame = function () {
             !this.viewportCulling.visibleEntities.buildings || 
             this.viewportCulling.visibleEntities.buildings.length === 0) {
             console.warn('[Render] 视距裁剪系统异常，强制回退到传统渲染');
+            console.log('[Render] 视距裁剪系统状态:', {
+                exists: !!this.viewportCulling,
+                visibleEntities: !!this.viewportCulling?.visibleEntities,
+                buildings: this.viewportCulling?.visibleEntities?.buildings?.length || 0,
+                totalBuildings: this.buildings?.length || 0
+            });
             this.fallbackToTraditionalRendering = true;
         }
 
@@ -6197,11 +6268,31 @@ GameEngine.prototype.updateViewportCulling = function () {
             
             console.log('[ViewportCulling] 四叉树重新初始化完成，地图尺寸:', this.mapConfig.width, 'x', this.mapConfig.height);
             console.log('[ViewportCulling] 建筑物数量:', this.buildings.length);
-            console.log('[ViewportCulling] 四叉树中的建筑物数量:', this.viewportCulling.quadTree.objects.filter(function(obj) { return obj.type === 'building'; }).length);
+            
+            // 安全检查：确保建筑物被正确插入
+            if (this.viewportCulling.quadTree && this.viewportCulling.quadTree.objects) {
+                var buildingCount = this.viewportCulling.quadTree.objects.filter(function(obj) { 
+                    return obj && obj.type === 'building'; 
+                }).length;
+                console.log('[ViewportCulling] 四叉树中的建筑物数量:', buildingCount);
+                
+                // 如果建筑物数量不匹配，强制重新插入
+                if (buildingCount !== this.buildings.length) {
+                    console.warn('[ViewportCulling] 建筑物数量不匹配，强制重新插入');
+                    this.insertEntitiesToQuadTree();
+                }
+            }
         }
         
         // 更新可见实体列表
         this.viewportCulling.updateVisibleEntities(this);
+        
+        // 建筑物可见性安全检查
+        if (this.viewportCulling.visibleEntities.buildings.length === 0 && this.buildings && this.buildings.length > 0) {
+            console.warn('[ViewportCulling] 建筑物不可见，强制重新初始化');
+            this.viewportCulling.quadTreeInitialized = false;
+            this.fallbackToTraditionalRendering = true;
+        }
         
         // 性能监控：只在必要时输出日志
         if (this.viewportCulling.lastQueryTime && Date.now() - this.viewportCulling.lastQueryTime < 100) {
@@ -6247,35 +6338,35 @@ GameEngine.prototype.cleanupDeadEntities = function() {
     try {
         var cleanedCount = 0;
         
-        // 清理死亡的僵尸
+        // 清理死亡的僵尸 - 使用安全的数组操作
         if (this.zombieManager && this.zombieManager.zombies) {
-            for (var i = this.zombieManager.zombies.length - 1; i >= 0; i--) {
-                var zombie = this.zombieManager.zombies[i];
-                if (zombie && zombie.isDead) {
+            var zombieCleanupCount = SafeArrayOperations.safeRemoveDeadEntities(
+                this.zombieManager.zombies,
+                function(zombie) { return zombie && zombie.isDead; },
+                function(zombie) {
                     // 从视距裁剪系统中移除
                     if (this.viewportCulling && this.viewportCulling.quadTree) {
                         this.viewportCulling.quadTree.remove(zombie);
+                        zombie.quadTreeInserted = false; // 重置标记
                     }
-                    // 从僵尸数组中移除
-                    this.zombieManager.zombies.splice(i, 1);
-                    cleanedCount++;
-                }
-            }
+                }.bind(this)
+            );
+            cleanedCount += zombieCleanupCount;
         }
         
-        // 清理死亡的跟随者
-        for (var i = this.followers.length - 1; i >= 0; i--) {
-            var follower = this.followers[i];
-            if (follower && follower.isDead) {
+        // 清理死亡的跟随者 - 使用安全的数组操作
+        var followerCleanupCount = SafeArrayOperations.safeRemoveDeadEntities(
+            this.followers,
+            function(follower) { return follower && follower.isDead; },
+            function(follower) {
                 // 从视距裁剪系统中移除
                 if (this.viewportCulling && this.viewportCulling.quadTree) {
                     this.viewportCulling.quadTree.remove(follower);
+                    follower.quadTreeInserted = false; // 重置标记
                 }
-                // 从跟随者数组中移除
-                this.followers.splice(i, 1);
-                cleanedCount++;
-            }
-        }
+            }.bind(this)
+        );
+        cleanedCount += followerCleanupCount;
         
         if (cleanedCount > 0) {
             console.log('[Cleanup] 清理了', cleanedCount, '个死亡实体');
@@ -6283,6 +6374,139 @@ GameEngine.prototype.cleanupDeadEntities = function() {
         
     } catch (error) {
         console.error('[Cleanup] 清理死亡实体时出错:', error);
+    }
+};
+
+// 内存泄漏检测和预防
+GameEngine.prototype.startMemoryLeakDetection = function() {
+    var self = this;
+    
+    // 定期检查内存状态
+    setInterval(function() {
+        self.checkMemoryHealth();
+    }, 30000); // 每30秒检查一次
+    
+    // 立即执行一次检查，帮助调试
+    setTimeout(function() {
+        console.log('[MemoryLeak] 执行首次内存健康检查...');
+        self.checkMemoryHealth();
+    }, 2000);
+    
+    console.log('[MemoryLeak] 内存泄漏检测已启动');
+};
+
+GameEngine.prototype.checkMemoryHealth = function() {
+    try {
+        var issues = [];
+        
+        // 检查僵尸数组
+        try {
+            if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
+                var zombieCount = this.zombieManager.zombies.length;
+                var deadZombieCount = 0;
+                var quadTreeZombieCount = 0;
+                
+                for (var i = 0; i < zombieCount; i++) {
+                    var zombie = this.zombieManager.zombies[i];
+                    if (zombie && typeof zombie === 'object') {
+                        if (zombie.isDead === true) deadZombieCount++;
+                        if (zombie.quadTreeInserted === true) quadTreeZombieCount++;
+                    }
+                }
+                
+                if (deadZombieCount > 0) {
+                    issues.push('发现 ' + deadZombieCount + ' 个死亡僵尸未清理');
+                }
+                
+                if (quadTreeZombieCount !== zombieCount) {
+                    issues.push('僵尸四叉树状态不一致: ' + quadTreeZombieCount + '/' + zombieCount);
+                }
+            }
+        } catch (zombieError) {
+            console.error('[MemoryLeak] 检查僵尸数组时出错:', zombieError);
+            issues.push('僵尸数组检查失败: ' + zombieError.message);
+        }
+        
+        // 检查跟随者数组
+        try {
+            if (this.followers && Array.isArray(this.followers)) {
+                var followerCount = this.followers.length;
+                var deadFollowerCount = 0;
+                var quadTreeFollowerCount = 0;
+                
+                for (var i = 0; i < followerCount; i++) {
+                    var follower = this.followers[i];
+                    if (follower && typeof follower === 'object') {
+                        if (follower.isDead === true) deadFollowerCount++;
+                        if (follower.quadTreeInserted === true) quadTreeFollowerCount++;
+                    }
+                }
+                
+                if (deadFollowerCount > 0) {
+                    issues.push('发现 ' + deadFollowerCount + ' 个死亡跟随者未清理');
+                }
+                
+                if (quadTreeFollowerCount !== followerCount) {
+                    issues.push('跟随者四叉树状态不一致: ' + quadTreeFollowerCount + '/' + followerCount);
+                }
+            }
+        } catch (followerError) {
+            console.error('[MemoryLeak] 检查跟随者数组时出错:', followerError);
+            issues.push('跟随者数组检查失败: ' + followerError.message);
+        }
+        
+        // 检查对象池状态
+        try {
+            if (this.followerPool && Array.isArray(this.followerPool) && this.followerPool.length > this.maxFollowerPoolSize) {
+                issues.push('跟随者对象池超出限制: ' + this.followerPool.length + '/' + this.maxFollowerPoolSize);
+            }
+            
+            if (this.resourcePool && Array.isArray(this.resourcePool) && this.resourcePool.length > this.maxResourcePoolSize) {
+                issues.push('资源对象池超出限制: ' + this.resourcePool.length + '/' + this.maxResourcePoolSize);
+            }
+        } catch (poolError) {
+            console.error('[MemoryLeak] 检查对象池时出错:', poolError);
+            issues.push('对象池检查失败: ' + poolError.message);
+        }
+        
+        // 报告问题
+        if (issues.length > 0) {
+            console.warn('[MemoryLeak] 发现内存健康问题:');
+            for (var j = 0; j < issues.length; j++) {
+                console.warn('[MemoryLeak] - ' + issues[j]);
+            }
+            
+            // 显示详细信息
+            console.log('[MemoryLeak] 详细信息:');
+            try {
+                if (this.zombieManager && this.zombieManager.zombies) {
+                    console.log('[MemoryLeak] 僵尸总数:', this.zombieManager.zombies.length);
+                }
+                if (this.followers) {
+                    console.log('[MemoryLeak] 跟随者总数:', this.followers.length);
+                }
+                if (this.followerPool) {
+                    console.log('[MemoryLeak] 跟随者对象池大小:', this.followerPool.length);
+                }
+                if (this.resourcePool) {
+                    console.log('[MemoryLeak] 资源对象池大小:', this.resourcePool.length);
+                }
+            } catch (detailError) {
+                console.error('[MemoryLeak] 显示详细信息时出错:', detailError);
+            }
+            
+            // 自动清理
+            try {
+                this.cleanupDeadEntities();
+            } catch (cleanupError) {
+                console.error('[MemoryLeak] 自动清理时出错:', cleanupError);
+            }
+        } else {
+            console.log('[MemoryLeak] 内存状态健康');
+        }
+        
+    } catch (error) {
+        console.error('[MemoryLeak] 内存健康检查出错:', error);
     }
 };
 
@@ -7576,16 +7800,19 @@ function initGame() {
         var gameEngine = new GameEngine(canvas, ctx);
         gameEngine.start();
         
-        // 延迟检查建筑物状态
-        setTimeout(function() {
-            if (gameEngine.buildings && gameEngine.buildings.length > 0) {
-                console.log('[Main] 建筑物状态检查 - 总数:', gameEngine.buildings.length);
-                console.log('[Main] 视距裁剪系统状态:', !!gameEngine.viewportCulling);
-                if (gameEngine.viewportCulling) {
-                    console.log('[Main] 可见建筑物数量:', gameEngine.viewportCulling.visibleEntities.buildings.length);
-                }
+            // 延迟检查建筑物状态
+    setTimeout(function() {
+        if (gameEngine.buildings && gameEngine.buildings.length > 0) {
+            console.log('[Main] 建筑物状态检查 - 总数:', gameEngine.buildings.length);
+            console.log('[Main] 视距裁剪系统状态:', !!gameEngine.viewportCulling);
+            if (gameEngine.viewportCulling) {
+                console.log('[Main] 可见建筑物数量:', gameEngine.viewportCulling.visibleEntities.buildings.length);
             }
-        }, 1000);
+        }
+        
+        // 内存泄漏检测
+        gameEngine.startMemoryLeakDetection();
+    }, 1000);
 
     } catch (error) {
         console.error('[Main] 游戏初始化失败:', error);
