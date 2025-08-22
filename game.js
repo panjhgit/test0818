@@ -2287,6 +2287,15 @@ ViewportCullingManager.prototype.performVisibleQuery = function(range, gameEngin
     
     var allEntities = this.quadTree.query(range);
     
+    // 调试信息：检查四叉树查询结果
+    console.log('[ViewportCulling] 四叉树查询结果:', {
+        totalEntities: allEntities.length,
+        entityTypes: allEntities.map(function(e) { return e ? e.type : 'null'; }),
+        firstFewEntities: allEntities.slice(0, 5).map(function(e) { 
+            return e ? {type: e.type, x: e.x, y: e.y} : 'null'; 
+        })
+    });
+    
     // 清空并重新分类（只在查询时做一次）
     for (var key in this.visibleEntities) {
         this.visibleEntities[key] = [];
@@ -2298,18 +2307,30 @@ ViewportCullingManager.prototype.performVisibleQuery = function(range, gameEngin
         // 快速类型分类（避免复杂计算）
         if (entity.type === 'player') {
             this.visibleEntities.players.push(entity);
+            console.log('[ViewportCulling] 分类玩家:', entity.id || 'unknown');
         } else if (entity.type === 'building') {
             this.visibleEntities.buildings.push(entity);
         } else if (entity.type === 'follower' || (entity.isFollowing && entity.type === 'npc')) {
             this.visibleEntities.followers.push(entity);
+            console.log('[ViewportCulling] 分类跟随者:', entity.id || 'unknown', 'type:', entity.type, 'isFollowing:', entity.isFollowing);
         } else if (entity.type === 'thin' || entity.type === 'fat' || entity.type === 'boss1') {
             this.visibleEntities.zombies.push(entity);
         } else if (entity.type === 'npc') {
             this.visibleEntities.decorations.push(entity);
         } else {
             this.visibleEntities.decorations.push(entity);
+            console.log('[ViewportCulling] 分类到装饰物:', entity.id || 'unknown', 'type:', entity.type);
         }
     }
+    
+    // 调试信息：检查分类结果
+    console.log('[ViewportCulling] 实体分类结果:', {
+        players: this.visibleEntities.players.length,
+        buildings: this.visibleEntities.buildings.length,
+        followers: this.visibleEntities.followers.length,
+        zombies: this.visibleEntities.zombies.length,
+        decorations: this.visibleEntities.decorations.length
+    });
 };
 
 // 只更新移动实体（轻量级操作，每帧可调用）
@@ -2387,6 +2408,15 @@ function GameEngine(canvas, ctx) {
     
     // 设置僵尸管理器的游戏引擎引用
     this.zombieManager.gameEngine = this;
+    
+    // 确保视距裁剪系统正确初始化
+    try {
+        this.viewportCulling = new ViewportCullingManager();
+        console.log('[GameEngine] 视距裁剪管理器创建成功');
+    } catch (error) {
+        console.error('[GameEngine] 视距裁剪管理器创建失败:', error);
+        this.viewportCulling = null;
+    }
     
     // 绘制优化设置
     this.ctx.imageSmoothingEnabled = false; // 关闭图像平滑，保持像素风格
@@ -4324,6 +4354,7 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
                 this.player.x = newX;
                 this.player.y = newY;
                 this.moveTeam(deltaX, deltaY);
+                
             } else {
                 var canMoveX = this.canMoveAlongPath(this.player.x, this.player.y, newX, this.player.y, 18);
                 var canMoveY = this.canMoveAlongPath(this.player.x, this.player.y, this.player.x, newY, 18);
@@ -4559,11 +4590,8 @@ GameEngine.prototype.initializeGame = function () {
     this.initializeResourcePool();
     console.log('[GameEngine] 对象池已重新初始化');
     
-    // 重新初始化四叉树
-    if (this.viewportCulling) {
-        this.viewportCulling.resetQuadTree();
-        console.log('[ViewportCulling] 四叉树已重新初始化');
-    }
+    // 修复视距裁剪系统
+    this.fixViewportCullingSystem();
     
     // 重新生成僵尸（主地图）
     if (this.zombieManager) {
@@ -4607,9 +4635,42 @@ GameEngine.prototype.initializeGame = function () {
     // 强制更新视距裁剪系统，确保玩家可见
     if (this.viewportCulling) {
         this.viewportCulling.quadTreeInitialized = false; // 强制重新初始化
+        
+        // 确保四叉树正确初始化
+        if (this.viewportCulling.quadTree) {
+            console.log('[GameEngine] 四叉树状态检查:', {
+                exists: !!this.viewportCulling.quadTree,
+                bounds: this.viewportCulling.quadTree.bounds,
+                maxObjects: this.viewportCulling.quadTree.maxObjects,
+                maxLevels: this.viewportCulling.quadTree.maxLevels
+            });
+        }
+        
         this.updateViewportCulling();
         console.log('[GameEngine] 视距裁剪系统已强制更新');
+        
+        // 调试信息：检查四叉树状态
+        if (this.viewportCulling.quadTree) {
+            this.checkQuadTreeStatus();
+        }
     }
+    
+    // ========================================
+    // 🧪 测试代码 - 在玩家周围生成6个伙伴 - 后续删除
+    // ========================================
+    // 立即生成测试伙伴，不依赖视距裁剪系统
+    console.log('[GameEngine] 准备生成测试伙伴...');
+    console.log('[GameEngine] 当前状态检查:', {
+        player: !!this.player,
+        playerX: this.player ? this.player.x : 'N/A',
+        playerY: this.player ? this.player.y : 'N/A',
+        followers: !!this.followers,
+        followersLength: this.followers ? this.followers.length : 'N/A',
+        viewportCulling: !!this.viewportCulling,
+        quadTree: !!this.viewportCulling?.quadTree
+    });
+    
+    this.spawnTestPartnersDirectly();
     
     console.log('[GameEngine] 游戏初始化完成！');
 };
@@ -4691,6 +4752,9 @@ GameEngine.prototype.cleanupGameObjects = function () {
                 }
             });
         }
+        
+        // 🧪 测试代码 - 清理测试伙伴 - 后续删除
+        this.cleanupTestPartnersDirectly();
         
         console.log('[GameEngine] 游戏对象清理完成');
     } catch (error) {
@@ -6421,44 +6485,65 @@ GameEngine.prototype.renderFooterInfo = function (centerX) {
 
 // 游戏主界面渲染
 GameEngine.prototype.renderGame = function () {
+    // 检查弹出提示状态
+    console.log('[Render] 检查弹出提示状态:', {
+        exists: !!this.buildingEntryPrompt,
+        active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false,
+        buildingId: this.buildingEntryPrompt ? this.buildingEntryPrompt.buildingId : null,
+        message: this.buildingEntryPrompt ? this.buildingEntryPrompt.message : null
+    });
+    
+    // 尝试修复视距裁剪系统
+    if (!this.viewportCulling || !this.viewportCulling.quadTree) {
+        console.log('[Render] 检测到视距裁剪系统问题，尝试修复...');
+        this.fixViewportCullingSystem();
+    }
+    
+    // 检查是否需要强制回退到传统渲染
+    if (this.fallbackToTraditionalRendering) {
+        console.log('[Render] 使用传统渲染模式（已回退）');
+        this.renderGameTraditional();
+        return;
+    }
+    
+    try {
+        // 检查视距裁剪系统是否可用
+        if (this.viewportCulling && this.viewportCulling.quadTree && this.viewportCulling.quadTreeInitialized) {
+            // 更新视距裁剪系统
+            this.updateViewportCulling();
+            
+            // 检查更新是否成功
+            if (this.viewportCulling.visibleEntities) {
+                // 正常使用视距裁剪渲染
+                this.renderWithViewportCulling();
+                return;
+            } else {
+                console.warn('[Render] 视距裁剪系统更新后仍不可用');
+            }
+        } else {
+            console.log('[Render] 视距裁剪系统未就绪，使用传统建筑物渲染');
+        }
+    } catch (error) {
+        console.error('[Render] 视距裁剪渲染出错:', error);
+    }
+    
+    // 如果视距裁剪系统有问题，回退到传统渲染
+    console.log('[Render] 视距裁剪系统异常，强制回退到传统渲染');
+    this.fallbackToTraditionalRendering = true;
+    this.renderGameTraditional();
+};
+
+// 使用视距裁剪系统的渲染方法
+GameEngine.prototype.renderWithViewportCulling = function () {
     try {
         this.ctx.save();
-
         this.ctx.scale(this.camera.zoom, this.camera.zoom);
         this.ctx.translate(-this.camera.x, -this.camera.y);
-
-        // 更新视距裁剪系统
-        this.updateViewportCulling();
-        
-        // 安全检查：确保建筑物始终可见
-        if (!this.viewportCulling || !this.viewportCulling.visibleEntities || 
-            !this.viewportCulling.visibleEntities.buildings || 
-            this.viewportCulling.visibleEntities.buildings.length === 0) {
-            console.warn('[Render] 视距裁剪系统异常，强制回退到传统渲染');
-            console.log('[Render] 视距裁剪系统状态:', {
-                exists: !!this.viewportCulling,
-                visibleEntities: !!this.viewportCulling?.visibleEntities,
-                buildings: this.viewportCulling?.visibleEntities?.buildings?.length || 0,
-                totalBuildings: this.buildings?.length || 0
-            });
-            this.fallbackToTraditionalRendering = true;
-        }
 
         // 分层渲染（按优先级）
         this.renderMapBackground();
         this.renderStreetGrid();
-        
-        // 强制渲染建筑物（确保门可见）
-        if (this.fallbackToTraditionalRendering || 
-            !this.viewportCulling || 
-            !this.viewportCulling.visibleEntities || 
-            this.viewportCulling.visibleEntities.buildings.length === 0) {
-            console.log('[Render] 使用传统建筑物渲染');
-            this.renderVisibleBuildings();
-        } else {
-            this.renderLayer('buildings');      // 建筑层
-        }
-        
+        this.renderLayer('buildings');      // 建筑层
         this.renderLayer('decorations');    // 装饰层
         this.renderLayer('zombies');        // 僵尸层
         this.renderLayer('followers');      // 跟随者层
@@ -6470,25 +6555,17 @@ GameEngine.prototype.renderGame = function () {
         this.renderTimeInfo();
         this.renderMiniMap();
 
-        console.log('[Render] 检查弹出提示状态:', {
-            exists: !!this.buildingEntryPrompt,
-            active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false,
-            buildingId: this.buildingEntryPrompt ? this.buildingEntryPrompt.buildingId : null,
-            message: this.buildingEntryPrompt ? this.buildingEntryPrompt.message : null
-        });
-        
         if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
             this.renderBuildingEntryPrompt();
         }
     } catch (error) {
-        console.error('[RenderGame] 游戏渲染出错:', error);
-        // 出错时回退到传统渲染
-        this.renderGameFallback();
+        console.error('[RenderWithViewportCulling] 视距裁剪渲染出错:', error);
+        throw error;
     }
 };
 
 // 传统游戏渲染回退方案
-GameEngine.prototype.renderGameFallback = function () {
+GameEngine.prototype.renderGameTraditional = function () {
     this.ctx.save();
 
     this.ctx.scale(this.camera.zoom, this.camera.zoom);
@@ -6622,6 +6699,19 @@ GameEngine.prototype.renderLayer = function (layerType) {
                     this.renderFollowerEntity(follower);
                 }
             }
+            
+            // 调试信息：如果没有跟随者，检查是否有测试伙伴
+            if (entities.length === 0 && this.followers && this.followers.length > 0) {
+                console.log('[RenderLayer] followers层为空，但跟随者列表中有', this.followers.length, '个跟随者');
+                // 强制渲染测试伙伴
+                for (var j = 0; j < this.followers.length; j++) {
+                    var follower = this.followers[j];
+                    if (follower && follower.isTestPartner) {
+                        console.log('[RenderLayer] 强制渲染真正测试伙伴:', follower.id);
+                        this.renderFollowerEntity(follower);
+                    }
+                }
+            }
             break;
         case 'zombies':
             for (var i = 0; i < entities.length; i++) {
@@ -6660,6 +6750,8 @@ GameEngine.prototype.renderLayerFallback = function (layerType) {
             break;
         case 'followers':
             this.renderFollowers();
+            // 强制渲染测试伙伴（即使视距裁剪系统有问题）
+            this.renderTestPartnersDirectly();
             break;
         case 'zombies':
             this.zombieManager.render(this.ctx, this.camera);
@@ -6821,10 +6913,37 @@ GameEngine.prototype.renderDecorationEntity = function (decoration) {
 
 // 更新视距裁剪系统
 GameEngine.prototype.updateViewportCulling = function () {
+    console.log('[ViewportCulling] 开始更新视距裁剪系统...');
+    
     // 安全检查
-    if (!this.viewportCulling || !this.viewportCulling.quadTree) {
-        console.warn('[ViewportCulling] 视距裁剪系统未初始化，跳过更新');
-        return;
+    if (!this.viewportCulling) {
+        console.warn('[ViewportCulling] 视距裁剪管理器不存在，尝试重新创建...');
+        try {
+            this.viewportCulling = new ViewportCullingManager();
+            console.log('[ViewportCulling] 重新创建视距裁剪管理器成功');
+        } catch (error) {
+            console.error('[ViewportCulling] 重新创建视距裁剪管理器失败:', error);
+            return;
+        }
+    }
+    
+    // 如果四叉树不存在，尝试初始化
+    if (!this.viewportCulling.quadTree) {
+        console.log('[ViewportCulling] 四叉树不存在，尝试初始化...');
+        try {
+            this.viewportCulling.init(this.mapConfig.width, this.mapConfig.height);
+            
+            // 如果初始化后仍然不存在，则跳过
+            if (!this.viewportCulling.quadTree) {
+                console.warn('[ViewportCulling] 四叉树初始化失败，跳过更新');
+                return;
+            } else {
+                console.log('[ViewportCulling] 四叉树初始化成功');
+            }
+        } catch (error) {
+            console.error('[ViewportCulling] 四叉树初始化异常:', error);
+            return;
+        }
     }
     
     try {
@@ -6836,92 +6955,54 @@ GameEngine.prototype.updateViewportCulling = function () {
             this.canvas.height / this.camera.zoom
         );
         
-        // 检查是否需要重新初始化四叉树（地图变化或首次初始化）
-        var needsReinit = !this.viewportCulling.quadTreeInitialized || 
-                         this.viewportCulling.lastMapWidth !== this.mapConfig.width ||
-                         this.viewportCulling.lastMapHeight !== this.mapConfig.height;
-        
-        if (needsReinit) {
-            // 清理旧的四叉树
-            if (this.viewportCulling.quadTree) {
-                this.viewportCulling.quadTree = null;
-            }
-            
-            // 创建新的四叉树
-            this.viewportCulling.quadTree = new QuadTreeNode(new Bounds(0, 0, this.mapConfig.width, this.mapConfig.height));
-            this.markStaticEntities(); // 标记静态实体
-            this.initializePartnerSystem(); // 初始化高性能伙伴系统
-            this.insertEntitiesToQuadTree();
-            
-            // 更新初始化状态和地图尺寸记录
-            this.viewportCulling.quadTreeInitialized = true;
-            this.viewportCulling.lastMapWidth = this.mapConfig.width;
-            this.viewportCulling.lastMapHeight = this.mapConfig.height;
-            
-            console.log('[ViewportCulling] 四叉树重新初始化完成，地图尺寸:', this.mapConfig.width, 'x', this.mapConfig.height);
-            console.log('[ViewportCulling] 建筑物数量:', this.buildings.length);
-            
-            // 安全检查：确保建筑物被正确插入
-            if (this.viewportCulling.quadTree && this.viewportCulling.quadTree.objects) {
-                var buildingCount = this.viewportCulling.quadTree.objects.filter(function(obj) { 
-                    return obj && obj.type === 'building'; 
-                }).length;
-                console.log('[ViewportCulling] 四叉树中的建筑物数量:', buildingCount);
-                
-                // 如果建筑物数量不匹配，强制重新插入
-                if (buildingCount !== this.buildings.length) {
-                    console.warn('[ViewportCulling] 建筑物数量不匹配，强制重新插入');
-                    this.insertEntitiesToQuadTree();
-                }
-            }
-        }
-        
-        // 更新可见实体列表
+        // 更新可见实体
         this.viewportCulling.updateVisibleEntities(this);
         
-        // 建筑物可见性安全检查
-        if (this.viewportCulling.visibleEntities.buildings.length === 0 && this.buildings && this.buildings.length > 0) {
-            console.warn('[ViewportCulling] 建筑物不可见，强制重新初始化');
-            this.viewportCulling.quadTreeInitialized = false;
-            this.fallbackToTraditionalRendering = true;
-        }
+        console.log('[ViewportCulling] 视距裁剪系统更新完成');
         
-        // 性能监控：只在必要时输出日志
-        if (this.viewportCulling.lastQueryTime && Date.now() - this.viewportCulling.lastQueryTime < 100) {
-            console.log('[HighPerf] 视口查询执行，建筑:', this.viewportCulling.visibleEntities.buildings.length, 
-                       '僵尸:', this.viewportCulling.visibleEntities.zombies.length,
-                       '玩家:', this.viewportCulling.visibleEntities.players.length);
-        }
-        
-        // 玩家可见性安全检查
-        if (this.player && this.viewportCulling.visibleEntities.players.length === 0) {
-            console.warn('[PlayerSafety] 玩家不在可见列表中，强制添加！');
-            this.viewportCulling.visibleEntities.players.push(this.player);
-        }
-        
-        // 定期清理死亡实体（每5秒清理一次）
-        if (!this.lastDeathCleanupTime || Date.now() - this.lastDeathCleanupTime > 5000) {
-            this.cleanupDeadEntities();
-            this.lastDeathCleanupTime = Date.now();
-        }
-        
-        // 检查地图尺寸是否发生变化
-        if (this.viewportCulling && 
-            (this.viewportCulling.lastMapWidth !== this.mapConfig.width || 
-             this.viewportCulling.lastMapHeight !== this.mapConfig.height)) {
-            console.log('[ViewportCulling] 检测到地图尺寸变化，准备重新初始化四叉树');
-            this.viewportCulling.resetQuadTree();
-        }
-        
-        // 高性能伙伴管理（每200ms检查一次）
-        if (!this.lastPartnerCheckTime || Date.now() - this.lastPartnerCheckTime > 200) {
-            this.updatePartnerSystem();
-            this.lastPartnerCheckTime = Date.now();
-        }
     } catch (error) {
-        console.error('[ViewportCulling] 更新视距裁剪系统时出错:', error);
-        // 出错时回退到传统渲染
-        this.fallbackToTraditionalRendering = true;
+        console.error('[ViewportCulling] 更新时出错:', error);
+        // 不要立即设置 fallbackToTraditionalRendering，先尝试修复
+    }
+};
+
+// 修复视距裁剪系统
+GameEngine.prototype.fixViewportCullingSystem = function() {
+    try {
+        // 如果没有视距裁剪管理器，创建一个新的
+        if (!this.viewportCulling) {
+            console.log('[ViewportCulling] 创建新的视距裁剪管理器');
+            this.viewportCulling = new ViewportCullingManager();
+        }
+        
+        // 如果四叉树未初始化，初始化它
+        if (this.viewportCulling && !this.viewportCulling.quadTree) {
+            console.log('[ViewportCulling] 初始化四叉树');
+            this.viewportCulling.init(this.mapConfig.width, this.mapConfig.height);
+        }
+        
+        // 如果四叉树已初始化但未标记为已初始化，修复标记
+        if (this.viewportCulling && this.viewportCulling.quadTree && !this.viewportCulling.quadTreeInitialized) {
+            console.log('[ViewportCulling] 修复初始化标记');
+            this.viewportCulling.quadTreeInitialized = true;
+        }
+        
+        // 确保可见实体对象存在
+        if (this.viewportCulling && !this.viewportCulling.visibleEntities) {
+            this.viewportCulling.visibleEntities = {
+                players: [],
+                followers: [],
+                zombies: [],
+                buildings: [],
+                decorations: []
+            };
+        }
+        
+        console.log('[ViewportCulling] 修复完成');
+        return true;
+    } catch (error) {
+        console.error('[ViewportCulling] 修复失败:', error);
+        return false;
     }
 };
 
@@ -7241,20 +7322,83 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
         // 插入建筑（只插入一次，避免重复）
         if (this.buildings && Array.isArray(this.buildings)) {
             var buildingsInserted = 0;
+            var buildingsFailed = 0;
             for (var i = 0; i < this.buildings.length; i++) {
                 var building = this.buildings[i];
                 if (building && typeof building.x === 'number' && typeof building.y === 'number') {
-                    building.type = 'building';
-                    building.quadTreeInserted = true; // 标记已插入
-                    this.viewportCulling.quadTree.insert(building);
-                    buildingsInserted++;
+                    try {
+                        building.type = 'building';
+                        building.quadTreeInserted = true; // 标记已插入
+                        this.viewportCulling.quadTree.insert(building);
+                        buildingsInserted++;
+                        
+                        // 调试信息：检查前几个建筑物
+                        if (buildingsInserted <= 3) {
+                            console.log('[InsertEntities] 建筑物', i, '插入成功:', {
+                                type: building.type,
+                                x: building.x,
+                                y: building.y,
+                                quadTreeInserted: building.quadTreeInserted
+                            });
+                        }
+                    } catch (error) {
+                        buildingsFailed++;
+                        console.error('[InsertEntities] 建筑物', i, '插入失败:', error);
+                    }
+                } else {
+                    buildingsFailed++;
+                    console.warn('[InsertEntities] 建筑物', i, '数据无效:', building);
                 }
             }
-            console.log('[InsertEntities] 成功插入建筑物到四叉树:', buildingsInserted, '/', this.buildings.length);
+            console.log('[InsertEntities] 建筑物插入结果:', buildingsInserted, '成功,', buildingsFailed, '失败, 总数:', this.buildings.length);
         }
         
-        // NPC由伙伴系统动态管理，不需要在这里插入
-        // 伙伴系统会根据玩家位置按需加载/卸载
+        // 插入NPC（包括测试伙伴）
+        if (this.npcs && Array.isArray(this.npcs)) {
+            var npcsInserted = 0;
+            for (var i = 0; i < this.npcs.length; i++) {
+                var npc = this.npcs[i];
+                if (npc && typeof npc.x === 'number' && typeof npc.y === 'number') {
+                    // 确保NPC有正确的类型
+                    if (!npc.type) {
+                        npc.type = 'follower'; // 默认设置为follower类型
+                    }
+                    this.viewportCulling.quadTree.insert(npc);
+                    npc.quadTreeInserted = true;
+                    npcsInserted++;
+                }
+            }
+            console.log('[InsertEntities] 成功插入NPC到四叉树:', npcsInserted, '/', this.npcs.length);
+        }
+        
+        // 插入跟随者（包括测试伙伴）
+        if (this.followers && Array.isArray(this.followers)) {
+            var followersInserted = 0;
+            for (var i = 0; i < this.followers.length; i++) {
+                var follower = this.followers[i];
+                if (follower && typeof follower.x === 'number' && typeof follower.y === 'number') {
+                    // 确保跟随者有正确的类型
+                    if (!follower.type) {
+                        follower.type = 'follower';
+                    }
+                    this.viewportCulling.quadTree.insert(follower);
+                    follower.quadTreeInserted = true;
+                    followersInserted++;
+                    
+                    // 调试信息：检查前几个跟随者
+                    if (followersInserted <= 3) {
+                        console.log('[InsertEntities] 跟随者', i, '插入成功:', {
+                            type: follower.type,
+                            x: follower.x,
+                            y: follower.y,
+                            quadTreeInserted: follower.quadTreeInserted,
+                            isTestPartner: follower.isTestPartner
+                        });
+                    }
+                }
+            }
+            console.log('[InsertEntities] 成功插入跟随者到四叉树:', followersInserted, '/', this.followers.length);
+        }
     } catch (error) {
         console.error('[InsertEntities] 插入实体到四叉树时出错:', error);
         throw error;
@@ -7286,6 +7430,22 @@ GameEngine.prototype.updateMovingEntitiesInQuadTree = function () {
                         this.viewportCulling.quadTree.insert(follower);
                         follower.lastQuadTreeX = follower.x;
                         follower.lastQuadTreeY = follower.y;
+                    }
+                }
+            }
+        }
+        
+        // 更新NPC位置（如果移动了）
+        if (this.npcs && Array.isArray(this.npcs)) {
+            for (var i = 0; i < this.npcs.length; i++) {
+                var npc = this.npcs[i];
+                if (npc && typeof npc.x === 'number' && typeof npc.y === 'number') {
+                    if (npc.lastQuadTreeX !== npc.x || npc.lastQuadTreeY !== npc.y) {
+                        // NPC移动了，更新四叉树
+                        this.viewportCulling.quadTree.remove(npc);
+                        this.viewportCulling.quadTree.insert(npc);
+                        npc.lastQuadTreeX = npc.x;
+                        npc.lastQuadTreeY = npc.y;
                     }
                 }
             }
@@ -7413,6 +7573,416 @@ GameEngine.prototype.shouldUpdateViewportCulling = function(timeSinceLastUpdate)
     
     return true;
 };
+
+// ========================================
+// 🧪 测试代码 - 在玩家周围生成测试伙伴 - 后续删除
+// ========================================
+
+// 简化的测试伙伴生成方法（不依赖视距裁剪系统）
+GameEngine.prototype.spawnTestPartnersDirectly = function() {
+    console.log('[TestMode] 🧪 开始直接生成测试伙伴，玩家位置:', this.player.x, this.player.y);
+    
+    // 检查跟随者系统是否初始化
+    if (!this.followers) {
+        console.warn('[TestMode] 🧪 跟随者系统未初始化，正在初始化...');
+        this.followers = [];
+    }
+    
+    console.log('[TestMode] 🧪 跟随者系统状态:', {
+        followersExists: !!this.followers,
+        followersLength: this.followers ? this.followers.length : 'N/A',
+        followersIsArray: Array.isArray(this.followers)
+    });
+    
+    // 清理现有的测试伙伴
+    this.cleanupTestPartnersDirectly();
+    
+    // 在玩家周围生成6个伙伴，形成一个圆圈
+    var partnerCount = 6; // 测试伙伴数量
+    var radius = 100; // 距离玩家的半径（像素）
+    var angleStep = (2 * Math.PI) / partnerCount;
+    
+    for (var i = 0; i < partnerCount; i++) {
+        var angle = i * angleStep;
+        var x = this.player.x + Math.cos(angle) * radius;
+        var y = this.player.y + Math.sin(angle) * radius;
+        
+        console.log('[TestMode] 🧪 准备创建测试伙伴', i + 1, '位置:', x, y);
+        
+        // 创建简化的测试伙伴
+        var testPartner = this.createSimpleTestPartner(i + 1, x, y);
+        
+        if (testPartner) {
+            console.log('[TestMode] 🧪 测试伙伴创建成功:', testPartner.id);
+            
+            // 直接添加到跟随者列表，使用您现有的跟随者系统
+            this.followers.push(testPartner);
+            console.log('[TestMode] 🧪 测试伙伴已添加到跟随者列表');
+            
+            // 使用您现有的团队管理方法
+            this.addNewFollowerToTeam(testPartner);
+            console.log('[TestMode] 🧪 测试伙伴已添加到团队');
+            
+            console.log('[TestMode] 🧪 直接生成测试伙伴', i + 1, '位置:', x, y, '已添加到跟随者系统');
+        } else {
+            console.error('[TestMode] 🧪 测试伙伴创建失败:', i + 1);
+        }
+    }
+    
+    console.log('[TestMode] 🧪 测试伙伴直接生成完成，跟随者总数:', this.followers.length);
+    
+    // 验证测试伙伴创建
+    this.validateTestPartners();
+};
+
+// 验证测试伙伴是否正确创建
+GameEngine.prototype.validateTestPartners = function() {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        console.warn('[TestMode] 🧪 跟随者列表不存在或不是数组');
+        return;
+    }
+    
+    var testPartners = [];
+    var otherFollowers = [];
+    
+    for (var i = 0; i < this.followers.length; i++) {
+        var follower = this.followers[i];
+        if (follower && follower.isTestPartner) {
+            testPartners.push({
+                id: follower.id,
+                characterId: follower.characterId,
+                x: follower.x,
+                y: follower.y,
+                type: follower.type,
+                hasCharacter: !!follower.character,
+                hasPersonality: !!follower.personality,
+                isFollowing: follower.isFollowing
+            });
+        } else if (follower) {
+            otherFollowers.push(follower.id || 'unknown');
+        }
+    }
+    
+    console.log('[TestMode] 🧪 测试伙伴验证结果:', {
+        testPartnersCount: testPartners.length,
+        testPartners: testPartners,
+        otherFollowersCount: otherFollowers.length,
+        otherFollowers: otherFollowers.slice(0, 5), // 只显示前5个
+        totalFollowers: this.followers.length
+    });
+};
+
+// 创建真正的测试伙伴（完整的游戏伙伴）
+GameEngine.prototype.createSimpleTestPartner = function(index, x, y) {
+    try {
+        var characterId = (index % 19) + 2;
+        
+        // 获取角色数据
+        var character = this.characterManager.characters[characterId];
+        var personality = this.getCharacterPersonality(character);
+        
+        var testPartner = {
+            id: 'test_partner_' + index,
+            characterId: characterId,
+            name: '🧪测试伙伴' + index,
+            x: x,
+            y: y,
+            type: 'follower', // 改为follower类型，确保能被正确渲染
+            isFollowing: false,
+            isDead: false,
+            isTestPartner: true,
+            health: 100,
+            maxHealth: 100,
+            // 添加伙伴系统需要的属性
+            character: character,
+            personality: personality,
+            lastX: x,
+            lastY: y,
+            isWalking: false,
+            walkAnimationFrame: 0,
+            lastAnimationTime: 0,
+            direction: 'down',
+            followStartTime: 0,
+            lastFollowUpdate: 0,
+            behaviorTimer: Math.random() * 1000,
+            currentBehavior: 'idle'
+        };
+        
+        console.log('[TestMode] 🧪 创建真正测试伙伴:', testPartner.id, '角色ID:', characterId, '位置:', x, y);
+        return testPartner;
+        
+    } catch (error) {
+        console.error('[TestMode] 创建真正测试伙伴失败:', error);
+        return null;
+    }
+};
+
+// 清理测试伙伴（简化版）
+GameEngine.prototype.cleanupTestPartnersDirectly = function() {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        return;
+    }
+    
+    var removedCount = 0;
+    
+    for (var i = this.followers.length - 1; i >= 0; i--) {
+        var follower = this.followers[i];
+        if (follower && follower.isTestPartner) {
+            this.followers.splice(i, 1);
+            removedCount++;
+        }
+    }
+    
+    if (removedCount > 0) {
+        console.log('[TestMode] 🧪 直接清理测试伙伴完成，移除数量:', removedCount);
+    }
+};
+
+// 在玩家初始位置周围500px范围内生成6个测试伙伴
+GameEngine.prototype.spawnTestPartnersAroundPlayer = function() {
+    // 多重安全检查
+    if (!this.player) {
+        console.warn('[TestMode] 无法生成测试伙伴：玩家未初始化');
+        return;
+    }
+    
+    if (!this.viewportCulling) {
+        console.warn('[TestMode] 无法生成测试伙伴：视距裁剪系统未初始化');
+        return;
+    }
+    
+    if (!this.viewportCulling.quadTree) {
+        console.warn('[TestMode] 无法生成测试伙伴：四叉树未初始化');
+        return;
+    }
+    
+    if (!this.viewportCulling.quadTreeInitialized) {
+        console.warn('[TestMode] 无法生成测试伙伴：四叉树未完成初始化');
+        return;
+    }
+    
+    console.log('[TestMode] 🧪 开始生成测试伙伴，玩家位置:', this.player.x, this.player.y);
+    console.log('[TestMode] 🧪 视距裁剪系统状态:', {
+        quadTreeInitialized: this.viewportCulling.quadTreeInitialized,
+        quadTreeExists: !!this.viewportCulling.quadTree,
+        visibleEntities: !!this.viewportCulling.visibleEntities
+    });
+    
+    // 清理现有的测试伙伴
+    this.cleanupTestPartners();
+    
+    // 在玩家周围生成6个伙伴，形成一个圆圈
+    var partnerCount = 6; // 测试伙伴数量
+    var radius = 100; // 距离玩家的半径（像素）
+    var angleStep = (2 * Math.PI) / partnerCount;
+    
+    for (var i = 0; i < partnerCount; i++) {
+        var angle = i * angleStep;
+        var x = this.player.x + Math.cos(angle) * radius;
+        var y = this.player.y + Math.sin(angle) * radius;
+        
+        // 创建测试伙伴
+        var testPartner = this.createTestPartner(i + 1, x, y);
+        
+        if (testPartner) {
+            // 插入到视距裁剪系统
+            this.viewportCulling.quadTree.insert(testPartner);
+            testPartner.quadTreeInserted = true;
+            
+            // 添加到NPC列表
+            this.npcs.push(testPartner);
+            
+            console.log('[TestMode] 🧪 生成测试伙伴', i + 1, '位置:', x, y, '距离玩家:', Math.round(radius), 'px');
+        }
+    }
+    
+    console.log('[TestMode] 🧪 测试伙伴生成完成，总数:', this.npcs.length);
+    
+    // 调试信息：检查伙伴是否正确插入到四叉树和NPC列表
+    console.log('[TestMode] 🧪 调试信息:', {
+        npcsLength: this.npcs.length,
+        viewportCulling: !!this.viewportCulling,
+        quadTree: !!this.viewportCulling?.quadTree,
+        lastTestPartner: this.npcs[this.npcs.length - 1]
+    });
+    
+    // 强制更新视距裁剪系统，确保测试伙伴被正确分类
+    if (this.viewportCulling) {
+        this.viewportCulling.updateVisibleEntities(this);
+        console.log('[TestMode] 🧪 强制更新视距裁剪系统完成');
+    }
+};
+
+// 强制渲染测试伙伴（传统渲染回退方案）
+GameEngine.prototype.renderTestPartnersDirectly = function() {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        return;
+    }
+    
+    var testPartnersCount = 0;
+    
+    for (var i = 0; i < this.followers.length; i++) {
+        var follower = this.followers[i];
+        if (follower && follower.isTestPartner) {
+            testPartnersCount++;
+            // 使用您现有的跟随者渲染方法
+            this.renderSingleFollower(follower, i);
+        }
+    }
+    
+    if (testPartnersCount > 0) {
+        console.log('[TestMode] 🧪 传统渲染系统渲染了', testPartnersCount, '个真正测试伙伴');
+    }
+};
+
+
+
+
+
+
+
+
+
+// 渲染单个测试伙伴
+GameEngine.prototype.renderSingleTestPartner = function(npc, index) {
+    try {
+        this.ctx.save();
+        
+        // 设置测试伙伴的特殊样式
+        this.ctx.fillStyle = '#ff6b6b'; // 红色，表示测试
+        this.ctx.fillRect(npc.x - 12, npc.y - 12, 24, 24);
+        
+        // 添加测试标识
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(npc.x - 12, npc.y - 12, 24, 24);
+        
+        // 显示测试伙伴ID
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('🧪', npc.x, npc.y + 4);
+        
+        // 显示伙伴编号
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 10px Arial';
+        this.ctx.fillText(npc.characterId, npc.x, npc.y + 18);
+        
+        this.ctx.restore();
+        
+    } catch (error) {
+        console.error('[TestMode] 渲染测试伙伴失败:', error);
+    }
+};
+
+// 检查四叉树状态（调试用）
+GameEngine.prototype.checkQuadTreeStatus = function() {
+    if (!this.viewportCulling || !this.viewportCulling.quadTree) {
+        console.log('[QuadTree] 四叉树未初始化');
+        return;
+    }
+    
+    try {
+        // 获取四叉树中的所有对象
+        var allObjects = this.viewportCulling.quadTree.getAllObjects();
+        var objectTypes = {};
+        
+        // 统计各类型对象的数量
+        for (var i = 0; i < allObjects.length; i++) {
+            var obj = allObjects[i];
+            if (obj && obj.type) {
+                objectTypes[obj.type] = (objectTypes[obj.type] || 0) + 1;
+            } else {
+                objectTypes['unknown'] = (objectTypes['unknown'] || 1) + 1;
+            }
+        }
+        
+        console.log('[QuadTree] 四叉树状态检查:', {
+            totalObjects: allObjects.length,
+            objectTypes: objectTypes,
+            quadTreeInitialized: this.viewportCulling.quadTreeInitialized
+        });
+        
+    } catch (error) {
+        console.error('[QuadTree] 检查四叉树状态时出错:', error);
+    }
+};
+
+// 创建测试伙伴实体
+GameEngine.prototype.createTestPartner = function(index, x, y) {
+    try {
+        // 使用不同的角色ID，确保多样性（2-20的角色ID）
+        var characterId = (index % 19) + 2;
+        
+        var testPartner = {
+            id: 'test_partner_' + index,
+            characterId: characterId,
+            name: '🧪测试伙伴' + index, // 添加测试标识
+            x: x,
+            y: y,
+            type: 'follower', // 改为follower类型，确保能被正确渲染
+            isFollowing: false,
+            isDead: false,
+            quadTreeInserted: false,
+            isTestPartner: true, // 标记为测试伙伴，便于后续清理
+            character: this.characterManager.characters[characterId],
+            personality: this.getCharacterPersonality(this.characterManager.characters[characterId])
+        };
+        
+        // 调试信息：确认测试伙伴属性
+        console.log('[TestMode] 🧪 创建测试伙伴:', {
+            id: testPartner.id,
+            type: testPartner.type,
+            x: testPartner.x,
+            y: testPartner.y,
+            isTestPartner: testPartner.isTestPartner
+        });
+        
+        return testPartner;
+        
+    } catch (error) {
+        console.error('[TestMode] 创建测试伙伴失败:', error);
+        return null;
+    }
+};
+
+// 清理所有测试伙伴
+GameEngine.prototype.cleanupTestPartners = function() {
+    if (!this.npcs || !Array.isArray(this.npcs)) {
+        return;
+    }
+    
+    var removedCount = 0;
+    
+    // 从后往前遍历，移除所有测试伙伴
+    for (var i = this.npcs.length - 1; i >= 0; i--) {
+        var npc = this.npcs[i];
+        if (npc && npc.isTestPartner) {
+            // 从视距裁剪系统移除
+            if (npc.quadTreeInserted && this.viewportCulling && this.viewportCulling.quadTree) {
+                this.viewportCulling.quadTree.remove(npc);
+            }
+            
+            // 从NPC列表中移除
+            this.npcs.splice(i, 1);
+            removedCount++;
+        }
+    }
+    
+    if (removedCount > 0) {
+        console.log('[TestMode] 🧪 清理测试伙伴完成，移除数量:', removedCount);
+    }
+};
+
+// 手动触发测试伙伴生成（控制台调用：gameEngine.spawnTestPartnersAroundPlayer()）
+GameEngine.prototype.triggerTestPartners = function() {
+    console.log('[TestMode] 🧪 手动触发测试伙伴生成');
+    this.spawnTestPartnersAroundPlayer();
+};
+
+// ========================================
+// 测试代码结束
+// ========================================
 
 // 检查僵尸生成位置是否安全（避免与建筑重叠）
 GameEngine.prototype.isSafeZombieSpawnPosition = function(x, y) {
