@@ -4,259 +4,8 @@
  * 使用ES5语法，完全兼容抖音小程序环境
  */
 
-
-// ========================================
-// 人物系统 (Character System)
-// ========================================
-
-// 基础人物类
-function BaseCharacter(config) {
-    this.id = config.id || 1;
-    this.name = config.name || '角色' + this.id;
-    this.description = config.description || '这是一个神秘的角色';
-    this.colors = config.colors || this.getDefaultColors();
-    this.features = config.features || this.getDefaultFeatures();
-    this.animations = config.animations || this.getDefaultAnimations();
-}
-
-BaseCharacter.prototype.getDefaultColors = function () {
-    return {
-        skin: '#FF8C42',
-        skinHighlight: '#FFB366',
-        skinShadow: '#E6732A',
-        clothes: '#FFFFFF',
-        clothesShadow: '#E0E0E0',
-        clothesDetail: '#F0F0F0',
-        hair: '#1A1A1A',
-        hairHighlight: '#404040',
-        eyes: '#000000',
-        eyesHighlight: '#FFFFFF',
-        mouth: '#D4621F',
-        mouthShadow: '#E6732A'
-    };
-};
-
-BaseCharacter.prototype.getDefaultFeatures = function () {
-    return {
-        hasGlasses: true, hairStyle: 'normal', bodyType: 'normal', clothingStyle: 'casual', accessory: 'sunglasses'
-    };
-};
-
-BaseCharacter.prototype.getDefaultAnimations = function () {
-    return {walkBobAmplitude: 1.5, walkLegSwingAmplitude: 3, walkArmSwingAmplitude: 2, walkSpeed: 200};
-};
-
-BaseCharacter.prototype.calculateAnimationOffsets = function (player) {
-    var offsets = {bobOffset: 0, leftLegOffset: 0, rightLegOffset: 0, leftArmOffset: 0, rightArmOffset: 0};
-    if (player.isWalking) {
-        offsets.bobOffset = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkBobAmplitude;
-        var legSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkLegSwingAmplitude;
-        offsets.leftLegOffset = legSwing;
-        offsets.rightLegOffset = -legSwing;
-        var armSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkArmSwingAmplitude;
-        offsets.leftArmOffset = -armSwing;
-        offsets.rightArmOffset = armSwing;
-    }
-    return offsets;
-};
-
-BaseCharacter.prototype.render = function (ctx, x, y, player) {
-    var offsets = this.calculateAnimationOffsets(player);
-    y += offsets.bobOffset;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    this.renderBody(ctx, x, y, player);
-    this.renderHead(ctx, x, y, player);
-    this.renderArms(ctx, x, y, player);
-    this.renderLegs(ctx, x, y, player);
-    ctx.restore();
-};
-
-BaseCharacter.prototype.renderBody = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.clothes;
-    ctx.fillRect(x - 10, y - 6, 20, 18);
-    ctx.fillStyle = this.colors.clothesShadow;
-    ctx.fillRect(x + 8, y - 4, 2, 14);
-    ctx.fillRect(x - 8, y + 10, 16, 2);
-    ctx.fillStyle = this.colors.clothesDetail;
-    ctx.fillRect(x - 6, y - 2, 2, 8);
-    ctx.fillRect(x + 4, y + 2, 2, 6);
-};
-
-BaseCharacter.prototype.renderHead = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 10, y - 20, 20, 16);
-    ctx.fillStyle = this.colors.skinHighlight;
-    ctx.fillRect(x - 8, y - 18, 4, 4);
-    ctx.fillRect(x + 4, y - 16, 4, 3);
-    ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x + 8, y - 16, 2, 12);
-    ctx.fillRect(x - 6, y - 6, 12, 2);
-    this.renderHair(ctx, x, y, player);
-    this.renderFacialFeatures(ctx, x, y, player);
-};
-
-BaseCharacter.prototype.renderHair = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.hair;
-    ctx.fillRect(x - 12, y - 28, 24, 12);
-    ctx.fillRect(x - 10, y - 32, 20, 6);
-    ctx.fillRect(x - 14, y - 26, 4, 8);
-    ctx.fillRect(x + 10, y - 26, 4, 8);
-    ctx.fillRect(x - 8, y - 22, 16, 4);
-    ctx.fillRect(x - 4, y - 24, 8, 2);
-    ctx.fillStyle = this.colors.hairHighlight;
-    ctx.fillRect(x - 6, y - 30, 3, 2);
-    ctx.fillRect(x + 3, y - 32, 3, 2);
-    ctx.fillRect(x - 2, y - 22, 4, 1);
-};
-
-BaseCharacter.prototype.renderFacialFeatures = function (ctx, x, y, player) {
-    if (this.features.hasGlasses) this.renderGlasses(ctx, x, y, player); else this.renderEyes(ctx, x, y, player);
-    this.renderNose(ctx, x, y, player);
-    this.renderMouth(ctx, x, y, player);
-};
-
-BaseCharacter.prototype.renderGlasses = function (ctx, x, y, player) {
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(x - 8, y - 18, 16, 6);
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(x - 7, y - 17, 6, 4);
-    ctx.fillRect(x + 1, y - 17, 6, 4);
-    ctx.fillStyle = '#333333';
-    ctx.fillRect(x - 6, y - 17, 2, 1);
-    ctx.fillRect(x + 2, y - 17, 2, 1);
-    ctx.fillStyle = '#555555';
-    ctx.fillRect(x - 7, y - 16, 1, 2);
-    ctx.fillRect(x + 6, y - 16, 1, 2);
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(x - 1, y - 17, 2, 2);
-    ctx.fillRect(x - 10, y - 17, 2, 1);
-    ctx.fillRect(x + 8, y - 17, 2, 1);
-};
-
-BaseCharacter.prototype.renderEyes = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.eyes;
-    ctx.fillRect(x - 6, y - 16, 3, 2);
-    ctx.fillRect(x + 3, y - 16, 3, 2);
-    ctx.fillStyle = this.colors.eyesHighlight;
-    ctx.fillRect(x - 5, y - 16, 1, 1);
-    ctx.fillRect(x + 4, y - 16, 1, 1);
-};
-
-BaseCharacter.prototype.renderNose = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 1, y - 12, 2, 2);
-    ctx.fillStyle = this.colors.skinHighlight;
-    ctx.fillRect(x, y - 13, 1, 1);
-};
-
-BaseCharacter.prototype.renderMouth = function (ctx, x, y, player) {
-    ctx.fillStyle = this.colors.mouth;
-    ctx.fillRect(x - 2, y - 10, 4, 1);
-    ctx.fillStyle = this.colors.mouthShadow;
-    ctx.fillRect(x - 1, y - 9, 2, 1);
-};
-
-BaseCharacter.prototype.renderArms = function (ctx, x, y, player) {
-    var offsets = this.calculateAnimationOffsets(player);
-    ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 14, y - 4 + offsets.leftArmOffset, 4, 10);
-    ctx.fillRect(x - 16, y + 4 + offsets.leftArmOffset, 4, 8);
-    ctx.fillRect(x + 10, y - 4 + offsets.rightArmOffset, 4, 10);
-    ctx.fillRect(x + 12, y + 4 + offsets.rightArmOffset, 4, 8);
-    ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 12, y + 2 + offsets.leftArmOffset, 2, 4);
-    ctx.fillRect(x + 10, y + 2 + offsets.rightArmOffset, 2, 4);
-    ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 18, y + 10 + offsets.leftArmOffset, 4, 4);
-    ctx.fillRect(x + 14, y + 10 + offsets.rightArmOffset, 4, 4);
-    ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 16, y + 12 + offsets.leftArmOffset, 2, 2);
-    ctx.fillRect(x + 14, y + 12 + offsets.rightArmOffset, 2, 2);
-};
-
-BaseCharacter.prototype.renderLegs = function (ctx, x, y, player) {
-    var offsets = this.calculateAnimationOffsets(player);
-    ctx.fillStyle = this.colors.skin;
-    ctx.fillRect(x - 6, y + 12 + offsets.leftLegOffset, 5, 14);
-    ctx.fillRect(x - 7, y + 24 + offsets.leftLegOffset, 5, 8);
-    ctx.fillRect(x + 1, y + 12 + offsets.rightLegOffset, 5, 14);
-    ctx.fillRect(x + 2, y + 24 + offsets.rightLegOffset, 5, 8);
-    ctx.fillStyle = this.colors.skinShadow;
-    ctx.fillRect(x - 2, y + 20 + offsets.leftLegOffset, 2, 6);
-    ctx.fillRect(x + 1, y + 20 + offsets.rightLegOffset, 2, 6);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(x - 10, y + 30 + offsets.leftLegOffset, 8, 5);
-    ctx.fillRect(x + 2, y + 30 + offsets.rightLegOffset, 8, 5);
-    ctx.fillStyle = '#E0E0E0';
-    ctx.fillRect(x - 8, y + 32 + offsets.leftLegOffset, 4, 2);
-    ctx.fillRect(x + 4, y + 32 + offsets.rightLegOffset, 4, 2);
-    ctx.fillStyle = '#F8F8F8';
-    ctx.fillRect(x - 9, y + 30 + offsets.leftLegOffset, 2, 1);
-    ctx.fillRect(x + 7, y + 30 + offsets.rightLegOffset, 2, 1);
-};
-
-// 人物管理器
-function CharacterManager() {
-    this.characters = {};
-    this.currentCharacterId = 1;
-    this.initializeCharacters();
-}
-
-CharacterManager.prototype.initializeCharacters = function () {
-    var configs = [{
-        id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}
-    }, {
-        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: true}
-    }, {
-        id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: true}
-    }, {
-        id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
-    }, {
-        id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: true}
-    }, {
-        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: true}
-    }, {
-        id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}
-    }, {
-        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: true}
-    }, {
-        id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}
-    }, {
-        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: true}
-    }, {
-        id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}
-    }, {
-        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: true}
-    }, {
-        id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}
-    }, {
-        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: true}
-    }, {
-        id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}
-    }, {
-        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: true}
-    }, {
-        id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
-    }, {
-        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: true}
-    }, {
-        id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}
-    }, {
-        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: true}
-    }];
-    for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
-};
-
-CharacterManager.prototype.getCurrentCharacter = function () {
-    return this.characters[this.currentCharacterId] || this.characters[1];
-};
-
-
-CharacterManager.prototype.renderCurrentCharacter = function (ctx, x, y, player) {
-    var character = this.getCurrentCharacter();
-    if (character) character.render(ctx, x, y, player);
-};
+// 引用人物系统模块
+var characterModule = require('./character.js');
 
 // ========================================
 // 僵尸系统 (Zombie System)
@@ -538,8 +287,8 @@ BaseZombie.prototype.updateAttackingState = function (playerDistance, gameEngine
 
             // 执行攻击
 
-            this.attackTarget(this.target);
-            this.lastAttackTime = currentTime;
+        this.attackTarget(this.target);
+        this.lastAttackTime = currentTime;
 
             // 使用保存的血量值，避免访问可能已变为null的目标
             console.log('[ZombieAI]', this.type, '执行攻击，目标ID:', targetId, '目标血量:', targetHealthBeforeAttack);
@@ -921,23 +670,23 @@ BaseZombie.prototype.attackTarget = function (target) {
         var originalHealth = target.health;
 
         // 执行攻击
-        target.health -= this.attack;
+    target.health -= this.attack;
 
-        // 确保血量不会变成负数
-        if (target.health < 0) {
-            target.health = 0;
-        }
+    // 确保血量不会变成负数
+    if (target.health < 0) {
+        target.health = 0;
+    }
 
         console.log('[ZombieAI]', this.type, '攻击成功，目标血量:', originalHealth, '->', target.health);
 
-        if (target.health <= 0) {
-            this.onTargetDeath(target);
+    if (target.health <= 0) {
+        this.onTargetDeath(target);
 
-            // 如果目标是玩家，立即触发游戏结束
-            if (target === this.gameEngine.player) {
+        // 如果目标是玩家，立即触发游戏结束
+        if (target === this.gameEngine.player) {
                 console.log('[ZombieAI]', this.type, '玩家被击杀，触发游戏结束');
-                this.gameEngine.gameOver('death');
-            }
+            this.gameEngine.gameOver('death');
+        }
         }
     } catch (error) {
         console.error('[ZombieAI]', this.type, '攻击过程中出错:', error);
@@ -951,13 +700,13 @@ BaseZombie.prototype.onTargetDeath = function (target) {
     try {
         // 安全检查目标对象
         if (target && typeof target === 'object') {
-            target.health = 0;
-            target.isDead = true;
+    target.health = 0;
+    target.isDead = true;
         }
 
         // 僵尸状态重置
-        this.state = 'wandering';
-        this.target = null;
+    this.state = 'wandering';
+    this.target = null;
 
         console.log('[ZombieAI]', this.type, '目标死亡，切换到游荡状态');
     } catch (error) {
@@ -1551,8 +1300,8 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
             if (!zombie.lastUpdateTime) zombie.lastUpdateTime = 0;
             if (Date.now() - zombie.lastUpdateTime >= updateInterval) {
                 try {
-                    zombie.update(deltaTime, gameEngine);
-                    zombie.lastUpdateTime = Date.now();
+                zombie.update(deltaTime, gameEngine);
+                zombie.lastUpdateTime = Date.now();
                 } catch (error) {
                     console.error('[ZombieManager] 僵尸更新出错:', error, '僵尸:', zombie);
                     // 如果僵尸更新出错，将其标记为死亡
@@ -2119,21 +1868,21 @@ ViewportCullingManager.prototype.updateVisibleEntities = function (gameEngine) {
         return;
     }
 
-    // 高性能算法：只在必要时重新计算
-    var currentTime = Date.now();
+            // 高性能算法：只在必要时重新计算
+        var currentTime = Date.now();
 
-    // 计算稳定的视口范围（使用整数坐标避免浮点数问题）
-    var stableRange = this.getStableVisibleRange();
+        // 计算稳定的视口范围（使用整数坐标避免浮点数问题）
+        var stableRange = this.getStableVisibleRange();
 
-    // 检查是否需要重新查询（避免频繁查询）
-    if (this.shouldUpdateVisibleQuery(stableRange, currentTime)) {
-        this.performVisibleQuery(stableRange, gameEngine);
-        this.lastQueryTime = currentTime;
-        this.lastQueryRange = stableRange;
+        // 检查是否需要重新查询（避免频繁查询）
+        if (this.shouldUpdateVisibleQuery(stableRange, currentTime)) {
+            this.performVisibleQuery(stableRange, gameEngine);
+            this.lastQueryTime = currentTime;
+            this.lastQueryRange = stableRange;
 
-        // 添加调试信息
-        console.log('[ViewportCulling] 可见实体更新 - 建筑物:', this.visibleEntities.buildings.length);
-    }
+            // 添加调试信息
+            console.log('[ViewportCulling] 可见实体更新 - 建筑物:', this.visibleEntities.buildings.length);
+        }
 
     // 只更新移动实体的位置（静态实体永远不变）
     this.updateMovingEntitiesOnly(gameEngine);
@@ -2271,7 +2020,7 @@ function GameEngine(canvas, ctx) {
     this.isGameEnded = false;
 
     // 初始化管理器
-    this.characterManager = new CharacterManager();
+    this.characterManager = new characterModule.CharacterManager();
     this.zombieManager = new ZombieManager();
 
     // 设置僵尸管理器的游戏引擎引用
@@ -2294,7 +2043,7 @@ function GameEngine(canvas, ctx) {
     this.npcs = [];
     this.followers = [];
 
-    // 验证followers数组的初始状态
+        // 验证followers数组的初始状态
     this.validateFollowersArray();
 
     // 初始化跟随者对象池
@@ -2668,18 +2417,18 @@ GameEngine.prototype.setupInput = function () {
 
     // 初始化摇杆对象
     if (!this.joystick) {
-        this.joystick = {
-            active: false,
-            centerX: 80,
-            centerY: 0,
-            currentX: 80,
-            currentY: 0,
-            direction: {x: 0, y: 0},
-            radius: 60,
-            knobRadius: 20,
-            visible: true,
+    this.joystick = {
+        active: false,
+        centerX: 80,
+        centerY: 0,
+        currentX: 80,
+        currentY: 0,
+        direction: {x: 0, y: 0},
+        radius: 60,
+        knobRadius: 20,
+        visible: true,
             maxDistance: 50
-        };
+    };
     }
 
     // 性能优化：事件监听器引用，便于解绑
@@ -3183,13 +2932,13 @@ GameEngine.prototype.handleSubMapClick = function (x, y) {
     for (var i = 0; i < this.resources.length; i++) {
         var resource = this.resources[i];
         if (!resource.collected) {
-            // 使用距离平方避免开方运算，提高性能
-            var dx = x - resource.x;
-            var dy = y - resource.y;
-            var distanceSquared = dx * dx + dy * dy;
-            var interactionRadiusSquared = 30 * 30; // 900
+                    // 使用距离平方避免开方运算，提高性能
+        var dx = x - resource.x;
+        var dy = y - resource.y;
+        var distanceSquared = dx * dx + dy * dy;
+        var interactionRadiusSquared = 30 * 30; // 900
 
-            if (distanceSquared <= interactionRadiusSquared) {
+        if (distanceSquared <= interactionRadiusSquared) {
                 this.collectResource(resource);
                 break; // 找到一个资源后即可退出
             }
@@ -3556,31 +3305,31 @@ GameEngine.prototype.initializeFollowerPool = function () {
 GameEngine.prototype.createPooledFollower = function (index) {
     return {
         id: 'pool_' + index,
-        characterId: 2, // 默认角色ID
-        x: 0,
-        y: 0,
-        health: 30,
-        maxHealth: 30,
-        attack: 10,
-        attackRange: 25,
-        attackCooldown: 1000,
-        lastAttackTime: 0,
-        isDead: false,
-        isZombie: false,
-        isUnstucking: false,
-        unstuckTargetX: null,
-        unstuckTargetY: null,
-        unstuckStartTime: null,
-        lastMoveTime: null,
-        lastX: null,
-        lastY: null,
-        lastFollowUpdate: null,
-        isWalking: false,
-        direction: 'down',
-        walkAnimationFrame: 0,
-        lastAnimationTime: null,
-        smoothForceX: 0,
-        smoothForceY: 0,
+            characterId: 2, // 默认角色ID
+            x: 0,
+            y: 0,
+            health: 30,
+            maxHealth: 30,
+            attack: 10,
+            attackRange: 25,
+            attackCooldown: 1000,
+            lastAttackTime: 0,
+            isDead: false,
+            isZombie: false,
+            isUnstucking: false,
+            unstuckTargetX: null,
+            unstuckTargetY: null,
+            unstuckStartTime: null,
+            lastMoveTime: null,
+            lastX: null,
+            lastY: null,
+            lastFollowUpdate: null,
+            isWalking: false,
+            direction: 'down',
+            walkAnimationFrame: 0,
+            lastAnimationTime: null,
+            smoothForceX: 0,
+            smoothForceY: 0,
         quadTreeInserted: false, // 池化对象标记
         isPooled: true,
         poolIndex: index
@@ -3802,7 +3551,7 @@ GameEngine.prototype.calculateSpiralOffset = function (index, totalFollowers, pe
     // 添加微小的随机偏移
     var randomOffset = (Math.random() - 0.5) * 1.5; // ±0.75像素随机偏移
 
-    return {
+            return {
         x: Math.cos(angle) * radius + randomOffset, y: Math.sin(angle) * radius + randomOffset
     };
 };
@@ -4377,7 +4126,7 @@ GameEngine.prototype.initializeGame = function () {
 
     // 强制重新绑定触摸事件
     this.eventsBound = false;
-    this.setupInput();
+        this.setupInput();
     console.log('[Input] 触摸事件已重新绑定');
 
     // 重置摇杆状态
@@ -4708,12 +4457,12 @@ GameEngine.prototype.updateNPCs = function (deltaTime) {
 
     // 使用缓存的视口信息
     if (!this.cachedUpdateViewport || this.cachedUpdateViewport.frame !== this.frameCount) {
-        var viewWidth = this.canvas.width / this.camera.zoom;
-        var viewHeight = this.canvas.height / this.camera.zoom;
-        var viewLeft = this.camera.x - 100;
-        var viewRight = this.camera.x + viewWidth + 100;
-        var viewTop = this.camera.y - 100;
-        var viewBottom = this.camera.y + viewHeight + 100;
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x - 100;
+    var viewRight = this.camera.x + viewWidth + 100;
+    var viewTop = this.camera.y - 100;
+    var viewBottom = this.camera.y + viewHeight + 100;
 
         this.cachedUpdateViewport = {
             frame: this.frameCount, left: viewLeft, right: viewRight, top: viewTop, bottom: viewBottom
@@ -5051,17 +4800,17 @@ GameEngine.prototype.helpFollowerUnstuck = function (follower) {
         var testX = this.player.x + Math.cos(angle) * closerRadius;
         var testY = this.player.y + Math.sin(angle) * closerRadius;
 
-        // 确保在边界内
+    // 确保在边界内
         testX = Math.max(50, Math.min(this.mapConfig.width - 50, testX));
         testY = Math.max(50, Math.min(this.mapConfig.height - 50, testY));
 
         if (this.canMoveToPosition(testX, testY, 15)) {
             follower.unstuckTargetX = testX;
             follower.unstuckTargetY = testY;
-            follower.unstuckStartTime = Date.now();
+    follower.unstuckStartTime = Date.now();
             console.log('[Follower] 跟随者', follower.id, '脱困目标位置（近距离）:', testX, testY);
-            return;
-        }
+        return;
+    }
     }
 
     // 最后尝试直接传送到玩家位置附近
@@ -5506,7 +5255,7 @@ GameEngine.prototype.generateZombies = function () {
             zombie.lastAttackTime = 0;
 
             // 将僵尸添加到房间的僵尸数组
-            this.zombies.push(zombie);
+        this.zombies.push(zombie);
         }
     }
 };
@@ -5904,8 +5653,8 @@ GameEngine.prototype.renderGame = function () {
     try {
         // 检查视距裁剪系统是否可用
         if (this.viewportCulling && this.viewportCulling.quadTree && this.viewportCulling.quadTreeInitialized) {
-            // 更新视距裁剪系统
-            this.updateViewportCulling();
+        // 更新视距裁剪系统
+        this.updateViewportCulling();
 
             // 检查更新是否成功
             if (this.viewportCulling.visibleEntities) {
@@ -5938,7 +5687,7 @@ GameEngine.prototype.renderWithViewportCulling = function () {
         // 分层渲染（按优先级）
         this.renderMapBackground();
         this.renderStreetGrid();
-        this.renderLayer('buildings');      // 建筑层
+            this.renderLayer('buildings');      // 建筑层
         this.renderLayer('decorations');    // 装饰层
         this.renderLayer('zombies');        // 僵尸层
         this.renderLayer('followers');      // 跟随者层
@@ -6299,7 +6048,7 @@ GameEngine.prototype.updateViewportCulling = function () {
             console.log('[ViewportCulling] 重新创建视距裁剪管理器成功');
         } catch (error) {
             console.error('[ViewportCulling] 重新创建视距裁剪管理器失败:', error);
-            return;
+        return;
         }
     }
 
@@ -6613,11 +6362,11 @@ GameEngine.prototype.cleanupDeadEntities = function () {
             var zombieCleanupCount = SafeArrayOperations.safeRemoveDeadEntities(this.zombieManager.zombies, function (zombie) {
                 return zombie && zombie.isDead;
             }, function (zombie) {
-                // 从视距裁剪系统中移除
-                if (this.viewportCulling && this.viewportCulling.quadTree) {
-                    this.viewportCulling.quadTree.remove(zombie);
-                    zombie.quadTreeInserted = false; // 重置标记
-                }
+                    // 从视距裁剪系统中移除
+                    if (this.viewportCulling && this.viewportCulling.quadTree) {
+                        this.viewportCulling.quadTree.remove(zombie);
+                        zombie.quadTreeInserted = false; // 重置标记
+                    }
             }.bind(this));
             cleanedCount += zombieCleanupCount;
         }
@@ -6626,18 +6375,18 @@ GameEngine.prototype.cleanupDeadEntities = function () {
         var followerCleanupCount = SafeArrayOperations.safeRemoveDeadEntities(this.followers, function (follower) {
             return follower && follower.isDead;
         }, function (follower) {
-            // 从视距裁剪系统中移除
-            if (this.viewportCulling && this.viewportCulling.quadTree) {
-                this.viewportCulling.quadTree.remove(follower);
-                follower.quadTreeInserted = false; // 重置标记
-            }
+                // 从视距裁剪系统中移除
+                if (this.viewportCulling && this.viewportCulling.quadTree) {
+                    this.viewportCulling.quadTree.remove(follower);
+                    follower.quadTreeInserted = false; // 重置标记
+                }
         }.bind(this));
         cleanedCount += followerCleanupCount;
-
+        
         if (cleanedCount > 0) {
             console.log('[Cleanup] 清理了', cleanedCount, '个死亡实体');
         }
-
+        
     } catch (error) {
         console.error('[Cleanup] 清理死亡实体时出错:', error);
     }
@@ -6646,32 +6395,32 @@ GameEngine.prototype.cleanupDeadEntities = function () {
 // 内存泄漏检测和预防
 GameEngine.prototype.startMemoryLeakDetection = function () {
     var self = this;
-
+    
     // 定期检查内存状态
     setInterval(function () {
         self.checkMemoryHealth();
     }, 30000); // 每30秒检查一次
-
+    
     // 立即执行一次检查，帮助调试
     setTimeout(function () {
         console.log('[MemoryLeak] 执行首次内存健康检查...');
         self.checkMemoryHealth();
     }, 2000);
-
+    
     console.log('[MemoryLeak] 内存泄漏检测已启动');
 };
 
 GameEngine.prototype.checkMemoryHealth = function () {
     try {
         var issues = [];
-
+        
         // 检查僵尸数组
         try {
             if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
                 var zombieCount = this.zombieManager.zombies.length;
                 var deadZombieCount = 0;
                 var quadTreeZombieCount = 0;
-
+                
                 for (var i = 0; i < zombieCount; i++) {
                     var zombie = this.zombieManager.zombies[i];
                     if (zombie && typeof zombie === 'object') {
@@ -6679,11 +6428,11 @@ GameEngine.prototype.checkMemoryHealth = function () {
                         if (zombie.quadTreeInserted === true) quadTreeZombieCount++;
                     }
                 }
-
+                
                 if (deadZombieCount > 0) {
                     issues.push('发现 ' + deadZombieCount + ' 个死亡僵尸未清理');
                 }
-
+                
                 if (quadTreeZombieCount !== zombieCount) {
                     issues.push('僵尸四叉树状态不一致: ' + quadTreeZombieCount + '/' + zombieCount);
                 }
@@ -6692,14 +6441,14 @@ GameEngine.prototype.checkMemoryHealth = function () {
             console.error('[MemoryLeak] 检查僵尸数组时出错:', zombieError);
             issues.push('僵尸数组检查失败: ' + zombieError.message);
         }
-
+        
         // 检查跟随者数组
         try {
             if (this.followers && Array.isArray(this.followers)) {
                 var followerCount = this.followers.length;
                 var deadFollowerCount = 0;
                 var quadTreeFollowerCount = 0;
-
+                
                 for (var i = 0; i < followerCount; i++) {
                     var follower = this.followers[i];
                     if (follower && typeof follower === 'object') {
@@ -6707,11 +6456,11 @@ GameEngine.prototype.checkMemoryHealth = function () {
                         if (follower.quadTreeInserted === true) quadTreeFollowerCount++;
                     }
                 }
-
+                
                 if (deadFollowerCount > 0) {
                     issues.push('发现 ' + deadFollowerCount + ' 个死亡跟随者未清理');
                 }
-
+                
                 if (quadTreeFollowerCount !== followerCount) {
                     issues.push('跟随者四叉树状态不一致: ' + quadTreeFollowerCount + '/' + followerCount);
                 }
@@ -6720,13 +6469,13 @@ GameEngine.prototype.checkMemoryHealth = function () {
             console.error('[MemoryLeak] 检查跟随者数组时出错:', followerError);
             issues.push('跟随者数组检查失败: ' + followerError.message);
         }
-
+        
         // 检查对象池状态
         try {
             if (this.followerPool && Array.isArray(this.followerPool) && this.followerPool.length > this.maxFollowerPoolSize) {
                 issues.push('跟随者对象池超出限制: ' + this.followerPool.length + '/' + this.maxFollowerPoolSize);
             }
-
+            
             if (this.resourcePool && Array.isArray(this.resourcePool) && this.resourcePool.length > this.maxResourcePoolSize) {
                 issues.push('资源对象池超出限制: ' + this.resourcePool.length + '/' + this.maxResourcePoolSize);
             }
@@ -6734,14 +6483,14 @@ GameEngine.prototype.checkMemoryHealth = function () {
             console.error('[MemoryLeak] 检查对象池时出错:', poolError);
             issues.push('对象池检查失败: ' + poolError.message);
         }
-
+        
         // 报告问题
         if (issues.length > 0) {
             console.warn('[MemoryLeak] 发现内存健康问题:');
             for (var j = 0; j < issues.length; j++) {
                 console.warn('[MemoryLeak] - ' + issues[j]);
             }
-
+            
             // 显示详细信息
             console.log('[MemoryLeak] 详细信息:');
             try {
@@ -6760,7 +6509,7 @@ GameEngine.prototype.checkMemoryHealth = function () {
             } catch (detailError) {
                 console.error('[MemoryLeak] 显示详细信息时出错:', detailError);
             }
-
+            
             // 自动清理
             try {
                 this.cleanupDeadEntities();
@@ -6770,7 +6519,7 @@ GameEngine.prototype.checkMemoryHealth = function () {
         } else {
             console.log('[MemoryLeak] 内存状态健康');
         }
-
+        
     } catch (error) {
         console.error('[MemoryLeak] 内存健康检查出错:', error);
     }
@@ -6930,21 +6679,21 @@ GameEngine.prototype.updatePartnerSystem = function () {
     if (!this.player || !this.partnerStates) {
         return;
     }
-
+    
     var currentTime = Date.now();
     var playerX = this.player.x;
     var playerY = this.player.y;
-
+    
     // 遍历所有伙伴状态
     this.partnerStates.forEach(function (partnerState, partnerId) {
         // 跳过已死亡或已加入团队的伙伴
         if (partnerState.isDead || partnerState.isFollowing) {
             return;
         }
-
+        
         // 计算到玩家的距离
         var distance = Math.sqrt(Math.pow(partnerState.x - playerX, 2) + Math.pow(partnerState.y - playerY, 2));
-
+        
         // 检查是否需要加载
         if (!partnerState.isLoaded && distance <= partnerState.loadDistance) {
             this.loadPartner(partnerState);
@@ -6953,7 +6702,7 @@ GameEngine.prototype.updatePartnerSystem = function () {
         else if (partnerState.isLoaded && distance > partnerState.unloadDistance) {
             this.unloadPartner(partnerState);
         }
-
+        
     }.bind(this));
 
     // 检查已加载NPC的碰撞（避免重复处理）
@@ -7025,22 +6774,22 @@ GameEngine.prototype.loadPartner = function (partnerState) {
             character: this.characterManager.characters[partnerState.characterId],
             personality: this.getCharacterPersonality(this.characterManager.characters[partnerState.characterId])
         };
-
+        
         // 插入到视距裁剪系统
         if (this.viewportCulling && this.viewportCulling.quadTree) {
             this.viewportCulling.quadTree.insert(partner);
             partner.quadTreeInserted = true;
         }
-
+        
         // 添加到NPC列表
         this.npcs.push(partner);
-
+        
         // 更新状态
         partnerState.isLoaded = true;
         partnerState.npcReference = partner;
-
+        
         console.log('[PartnerSystem] 加载伙伴:', partnerState.name, '位置:', partnerState.x, partnerState.y);
-
+        
     } catch (error) {
         console.error('[PartnerSystem] 加载伙伴失败:', error);
     }
@@ -7051,26 +6800,26 @@ GameEngine.prototype.unloadPartner = function (partnerState) {
     try {
         if (partnerState.npcReference) {
             var partner = partnerState.npcReference;
-
+            
             // 从视距裁剪系统移除
             if (this.viewportCulling && this.viewportCulling.quadTree && partner.quadTreeInserted) {
                 this.viewportCulling.quadTree.remove(partner);
                 partner.quadTreeInserted = false;
             }
-
+            
             // 从NPC列表中移除
             var npcIndex = this.npcs.indexOf(partner);
             if (npcIndex > -1) {
                 this.npcs.splice(npcIndex, 1);
             }
-
+            
             // 更新状态
             partnerState.isLoaded = false;
             partnerState.npcReference = null;
-
+            
             console.log('[PartnerSystem] 卸载伙伴:', partnerState.name);
         }
-
+        
     } catch (error) {
         console.error('[PartnerSystem] 卸载伙伴失败:', error);
     }
@@ -7085,7 +6834,7 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
             this.player.quadTreeInserted = true; // 标记已插入
             this.viewportCulling.quadTree.insert(this.player);
         }
-
+        
         // 插入跟随者
         if (this.followers && Array.isArray(this.followers)) {
             for (var i = 0; i < this.followers.length; i++) {
@@ -7096,7 +6845,7 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
                 }
             }
         }
-
+        
         // 插入僵尸（只插入一次，避免重复）
         if (this.zombieManager && this.zombieManager.zombies && Array.isArray(this.zombieManager.zombies)) {
             for (var i = 0; i < this.zombieManager.zombies.length; i++) {
@@ -7108,7 +6857,7 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
                 }
             }
         }
-
+        
         // 插入建筑（只插入一次，避免重复）
         if (this.buildings && Array.isArray(this.buildings)) {
             var buildingsInserted = 0;
@@ -7117,10 +6866,10 @@ GameEngine.prototype.insertEntitiesToQuadTree = function () {
                 var building = this.buildings[i];
                 if (building && typeof building.x === 'number' && typeof building.y === 'number') {
                     try {
-                        building.type = 'building';
-                        building.quadTreeInserted = true; // 标记已插入
-                        this.viewportCulling.quadTree.insert(building);
-                        buildingsInserted++;
+                    building.type = 'building';
+                    building.quadTreeInserted = true; // 标记已插入
+                    this.viewportCulling.quadTree.insert(building);
+                    buildingsInserted++;
 
                         // 调试信息：检查前几个建筑物
                         if (buildingsInserted <= 3) {
@@ -7214,7 +6963,7 @@ GameEngine.prototype.markStaticEntities = function () {
             }
         }
     }
-
+    
     // 记录玩家初始位置
     if (this.player) {
         this.player.lastViewportUpdateX = this.player.x;
@@ -7349,7 +7098,7 @@ GameEngine.prototype.cleanupTestPartners = function () {
 
     // 从后往前遍历，移除所有测试伙伴
     for (var i = this.npcs.length - 1; i >= 0; i--) {
-        var npc = this.npcs[i];
+                var npc = this.npcs[i];
         if (npc && npc.isTestPartner) {
             // 从视距裁剪系统移除
             if (npc.quadTreeInserted && this.viewportCulling && this.viewportCulling.quadTree) {
@@ -7424,12 +7173,12 @@ GameEngine.prototype.renderStatusBar = function () {
     this.ctx.fillText('第 ' + this.gameData.survivalDays + ' 天', 10, 25);
     this.ctx.fillText('🍞 ' + this.gameData.food, 10, 45);
     this.ctx.fillText('👥 ' + this.gameData.teamSize, 120, 25);
-
+    
     // 调试信息：显示NPC和跟随者数量
     this.ctx.fillStyle = '#ffff00';
     this.ctx.font = '12px Arial';
     this.ctx.fillText('NPC:' + this.npcs.length + ' 跟随:' + this.followers.length, 10, 55);
-
+    
     // 显示碰撞阈值信息
     this.ctx.fillText('碰撞阈值:' + Math.sqrt(GAME_CONFIG.TEAM.COLLISION_THRESHOLD) + 'px', 200, 55);
 };
@@ -7466,12 +7215,12 @@ GameEngine.prototype.renderTimeInfo = function () {
 GameEngine.prototype.renderNPCs = function () {
     // 使用缓存的视口信息，避免重复计算
     if (!this.cachedViewport || this.cachedViewport.frame !== this.frameCount) {
-        var viewWidth = this.canvas.width / this.camera.zoom;
-        var viewHeight = this.canvas.height / this.camera.zoom;
-        var viewLeft = this.camera.x;
-        var viewRight = this.camera.x + viewWidth;
-        var viewTop = this.camera.y;
-        var viewBottom = this.camera.y + viewHeight;
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x;
+    var viewRight = this.camera.x + viewWidth;
+    var viewTop = this.camera.y;
+    var viewBottom = this.camera.y + viewHeight;
 
         this.cachedViewport = {
             frame: this.frameCount,
@@ -7498,10 +7247,10 @@ GameEngine.prototype.renderNPCs = function () {
         }
     } else {
         // 回退到传统渲染方式
-        for (var i = 0; i < this.npcs.length; i++) {
-            var npc = this.npcs[i];
+    for (var i = 0; i < this.npcs.length; i++) {
+        var npc = this.npcs[i];
             if (npc && this.isNPCOnScreen(npc, viewport)) {
-                this.renderSingleNPC(npc);
+            this.renderSingleNPC(npc);
                 npcsToRender++;
             }
         }
@@ -7622,42 +7371,42 @@ GameEngine.prototype.renderDefaultFollower = function (follower) {
         follower.character.render(this.ctx, follower.x, follower.y, followerPlayer);
     } else {
         // 如果没有角色数据，使用默认的彩色方块渲染（备用方案）
-        var personality = follower.personality;
-        var baseColor = '#3498db';
+    var personality = follower.personality;
+    var baseColor = '#3498db';
 
-        if (personality) {
-            switch (personality.personalityType) {
-                case 'leader':
-                    baseColor = '#f1c40f';
-                    break;
-                case 'supporter':
-                    baseColor = '#e74c3c';
-                    break;
-                case 'scout':
-                    baseColor = '#3498db';
-                    break;
-                case 'guardian':
-                    baseColor = '#27ae60';
-                    break;
-                case 'independent':
-                    baseColor = '#9b59b6';
-                    break;
-            }
+    if (personality) {
+        switch (personality.personalityType) {
+            case 'leader':
+                baseColor = '#f1c40f';
+                break;
+            case 'supporter':
+                baseColor = '#e74c3c';
+                break;
+            case 'scout':
+                baseColor = '#3498db';
+                break;
+            case 'guardian':
+                baseColor = '#27ae60';
+                break;
+            case 'independent':
+                baseColor = '#9b59b6';
+                break;
         }
+    }
 
         // 渲染人物形状（不同颜色的方块）
-        this.ctx.fillStyle = baseColor;
-        this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
+    this.ctx.fillStyle = baseColor;
+    this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
 
         // 人物边框
-        this.ctx.strokeStyle = '#2c3e50';
-        this.ctx.lineWidth = 3;
-        this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
 
         // 行走状态指示器
-        if (follower.isWalking) {
-            this.ctx.fillStyle = '#2ecc71';
-            this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
+    if (follower.isWalking) {
+        this.ctx.fillStyle = '#2ecc71';
+        this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
         }
     }
 
@@ -7786,7 +7535,7 @@ GameEngine.prototype.renderVisibleBuildings = function () {
                 this.ctx.lineWidth = 4;
                 this.ctx.strokeRect(doorX - 2, doorY - 2, doorWidth + 4, doorHeight + 4);
                 this.ctx.restore();
-
+                
                 // 弹出提示在checkNearDoor函数中处理，这里只负责门变色
             }
 
@@ -7929,11 +7678,11 @@ GameEngine.prototype.renderMiniMap = function () {
 GameEngine.prototype.renderJoystick = function () {
     var joystickRadius = 60;
     var knobRadius = 25;
-
+    
     // 抖音平台适配：默认位置在屏幕底部中央
     var joystickX = this.canvas.width / 2;
     var joystickY = this.canvas.height - 100;
-
+    
     // 触摸区域动态扩展：手指移动时范围+50%
     var touchRadius = joystickRadius;
     if (this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0)) {
@@ -7985,7 +7734,7 @@ GameEngine.prototype.renderJoystick = function () {
     }
 
     this.ctx.restore();
-
+    
     // 调试信息：显示摇杆状态
     if (this.gameState === 'playing' || this.gameState === 'submap') {
         this.ctx.save();
@@ -8087,8 +7836,8 @@ GameEngine.prototype.renderSubMap = function () {
 
     // 渲染房间内的僵尸，使用主地图僵尸的渲染系统
     if (this.gameState !== 'gameover' && this.gameState !== 'menu') {
-        for (var i = 0; i < this.zombies.length; i++) {
-            var zombie = this.zombies[i];
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
             if (zombie.render && typeof zombie.render === 'function') {
                 // 创建房间内的相机对象，用于僵尸渲染
                 var roomCamera = {
@@ -8276,23 +8025,23 @@ function initGame() {
 
         var gameEngine = new GameEngine(canvas, ctx);
         gameEngine.start();
-
-        // 延迟检查建筑物状态
+        
+            // 延迟检查建筑物状态
         setTimeout(function () {
-            if (gameEngine.buildings && gameEngine.buildings.length > 0) {
-                console.log('[Main] 建筑物状态检查 - 总数:', gameEngine.buildings.length);
-                console.log('[Main] 视距裁剪系统状态:', !!gameEngine.viewportCulling);
-                if (gameEngine.viewportCulling) {
-                    console.log('[Main] 可见建筑物数量:', gameEngine.viewportCulling.visibleEntities.buildings.length);
-                }
+        if (gameEngine.buildings && gameEngine.buildings.length > 0) {
+            console.log('[Main] 建筑物状态检查 - 总数:', gameEngine.buildings.length);
+            console.log('[Main] 视距裁剪系统状态:', !!gameEngine.viewportCulling);
+            if (gameEngine.viewportCulling) {
+                console.log('[Main] 可见建筑物数量:', gameEngine.viewportCulling.visibleEntities.buildings.length);
             }
-
-            // 内存泄漏检测
-            gameEngine.startMemoryLeakDetection();
+        }
+        
+        // 内存泄漏检测
+        gameEngine.startMemoryLeakDetection();
 
             // 性能监控
             gameEngine.startPerformanceMonitoring();
-        }, 1000);
+    }, 1000);
 
     } catch (error) {
         console.error('[Main] 游戏初始化失败:', error);
