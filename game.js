@@ -4050,26 +4050,35 @@ GameEngine.prototype.calculateSeparation = function (follower) {
     var separationRadius = dynamicParams.radius;
     var separationStrength = dynamicParams.strength;
     
+    // 增强分离逻辑：确保每个跟随者都有唯一位置
+    var minDistance = 20; // 最小距离，防止重叠
+    var strongSeparationRadius = 15; // 强分离半径，近距离时强制分离
+    
     for (var i = 0; i < this.followers.length; i++) {
         var other = this.followers[i];
         if (other !== follower) {
-            // 使用距离平方避免开方运算，提高性能
             var dx = follower.x - other.x;
             var dy = follower.y - other.y;
             var distanceSquared = dx * dx + dy * dy;
-            var separationRadiusSquared = separationRadius * separationRadius;
+            var distance = Math.sqrt(distanceSquared);
             
-            if (distanceSquared < separationRadiusSquared && distanceSquared > 0) {
-                // 计算推开方向
+            // 如果距离太近，强制分离
+            if (distance < minDistance && distance > 0) {
                 var pushDirectionX = dx;
                 var pushDirectionY = dy;
                 
-                // 使用更平滑的分离力计算
-                var normalizedDistance = Math.sqrt(distanceSquared) / separationRadius;
-                var pushStrength = Math.pow(1 - normalizedDistance, 1.5) * separationStrength;
+                // 距离越近，分离力越强
+                var pushStrength;
+                if (distance < strongSeparationRadius) {
+                    // 非常近时，使用强分离力
+                    pushStrength = 2.0 * separationStrength;
+                } else {
+                    // 一般距离时，使用正常分离力
+                    var normalizedDistance = distance / separationRadius;
+                    pushStrength = Math.pow(1 - normalizedDistance, 1.5) * separationStrength;
+                }
                 
-                // 标准化方向向量
-                var distance = Math.sqrt(distanceSquared);
+                // 标准化方向向量并应用分离力
                 separationX += (pushDirectionX / distance) * pushStrength;
                 separationY += (pushDirectionY / distance) * pushStrength;
             }
@@ -5345,14 +5354,39 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
             newY = newY * 0.7 + predictedPosition.y * 0.3;
         }
         
+        // 限制最大移动距离，防止闪现
+        var maxMoveDistance = 8; // 每帧最大移动距离
+        var currentDistance = Math.sqrt(
+            Math.pow(newX - follower.x, 2) + 
+            Math.pow(newY - follower.y, 2)
+        );
+        
+        if (currentDistance > maxMoveDistance) {
+            var scale = maxMoveDistance / currentDistance;
+            newX = follower.x + (newX - follower.x) * scale;
+            newY = follower.y + (newY - follower.y) * scale;
+        }
+        
         // 检查移动是否安全 - 使用三重碰撞检测，确保绝对不穿墙
         var canMove = this.canMoveAlongPath(follower.x, follower.y, newX, newY, 15) && 
                      this.canMoveToPosition(newX, newY, 15);
         
         if (canMove) {
-            // 双重检查都通过，安全移动
-            follower.x = newX;
-            follower.y = newY;
+            // 检查位置冲突，确保不会与其他跟随者重叠
+            var positionConflict = this.checkPositionConflict(follower, newX, newY);
+            
+            if (!positionConflict) {
+                // 没有冲突，安全移动
+                follower.x = newX;
+                follower.y = newY;
+            } else {
+                // 有冲突，尝试微调位置
+                var adjustedPosition = this.findNonConflictingPosition(follower, newX, newY);
+                if (adjustedPosition) {
+                    follower.x = adjustedPosition.x;
+                    follower.y = adjustedPosition.y;
+                }
+            }
         } else {
             // 尝试单轴移动，同样进行双重检查
             var canMoveX = this.canMoveAlongPath(follower.x, follower.y, newX, follower.y, 15) && 
