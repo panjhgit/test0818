@@ -4346,6 +4346,12 @@ GameEngine.prototype.update = function (deltaTime) {
         this.updateTime(deltaTime);
 
         if (this.gameState === 'playing') {
+            // 更新伙伴系统
+            this.updatePartnerSystem();
+            
+            // 检查伙伴碰撞（玩家碰到伙伴时触发加入团队）
+            this.checkPartnerCollision();
+            
             this.zombieManager.update(deltaTime, this);
             this.updateCombat(deltaTime);
             this.updateTeamHealth(deltaTime);
@@ -7350,6 +7356,97 @@ GameEngine.prototype.checkMemoryHealth = function() {
         
     } catch (error) {
         console.error('[MemoryLeak] 内存健康检查出错:', error);
+    }
+};
+
+// 检查伙伴碰撞（玩家碰到伙伴时触发加入团队）
+GameEngine.prototype.checkPartnerCollision = function() {
+    if (!this.player || !this.npcs || this.npcs.length === 0) {
+        return;
+    }
+    
+    var playerRadius = GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+    var npcRadius = 18; // NPC的碰撞半径
+    
+    for (var i = 0; i < this.npcs.length; i++) {
+        var npc = this.npcs[i];
+        
+        // 跳过已经加入团队的伙伴
+        if (npc.isFollowing || npc.isDead) {
+            continue;
+        }
+        
+        // 检查玩家与NPC的碰撞
+        var dx = this.player.x - npc.x;
+        var dy = this.player.y - npc.y;
+        var distanceSquared = dx * dx + dy * dy;
+        var collisionDistance = playerRadius + npcRadius;
+        var collisionDistanceSquared = collisionDistance * collisionDistance;
+        
+        if (distanceSquared <= collisionDistanceSquared) {
+            // 玩家碰到了伙伴，触发加入团队
+            console.log('[PartnerCollision] 玩家碰到伙伴:', npc.name, '触发加入团队');
+            this.addPartnerToTeam(npc);
+        }
+    }
+};
+
+// 添加伙伴到团队
+GameEngine.prototype.addPartnerToTeam = function(npc) {
+    try {
+        // 检查团队是否已满
+        if (this.gameData.teamSize >= GAME_CONFIG.TEAM.MAX_SIZE) {
+            console.log('[Team] 团队已达到最大规模限制:', GAME_CONFIG.TEAM.MAX_SIZE);
+            return;
+        }
+        
+        // 标记伙伴为已跟随状态
+        npc.isFollowing = true;
+        
+        // 从NPC列表移除
+        var npcIndex = this.npcs.indexOf(npc);
+        if (npcIndex !== -1) {
+            this.npcs.splice(npcIndex, 1);
+        }
+        
+        // 从视距裁剪系统移除
+        if (this.viewportCulling && this.viewportCulling.quadTree && npc.quadTreeInserted) {
+            this.viewportCulling.quadTree.remove(npc);
+            npc.quadTreeInserted = false;
+        }
+        
+        // 设置伙伴为跟随者类型
+        npc.type = 'follower';
+        
+        // 计算安全的跟随位置
+        var safePosition = this.getSafeFollowerPosition();
+        npc.x = safePosition.x;
+        npc.y = safePosition.y;
+        
+        // 添加到跟随者列表
+        this.followers.push(npc);
+        
+        // 插入到视距裁剪系统
+        if (this.viewportCulling && this.viewportCulling.quadTree) {
+            this.viewportCulling.quadTree.insert(npc);
+            npc.quadTreeInserted = true;
+        }
+        
+        // 更新团队规模
+        this.gameData.teamSize = this.followers.length;
+        if (this.gameData.teamSize > this.gameData.maxTeamSize) {
+            this.gameData.maxTeamSize = this.gameData.teamSize;
+        }
+        
+        // 更新伙伴状态
+        if (npc.partnerState) {
+            npc.partnerState.isFollowing = true;
+        }
+        
+        console.log('[Team] 伙伴', npc.name, '成功加入团队，当前团队规模:', this.gameData.teamSize);
+        
+    } catch (error) {
+        console.error('[Team] 添加伙伴到团队时出错:', error);
     }
 };
 
