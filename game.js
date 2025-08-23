@@ -4205,18 +4205,80 @@ GameEngine.prototype.calculateDynamicCohesionParams = function(follower) {
 // 菱形布局：4个以下跟随者
 GameEngine.prototype.calculateDiamondFormation = function(index, totalFollowers, personality) {
     var baseDistance = Math.max(18, personality.followDistance - 15); // 减少基础距离
+    
+    // 添加随机偏移，避免完全重叠
+    var randomOffset = (Math.random() - 0.5) * 4; // ±2像素随机偏移
+    
     var positions = [
-        {x: 0, y: -baseDistance},           // 前方
-        {x: -baseDistance, y: 0},           // 左侧
-        {x: baseDistance, y: 0},            // 右侧
-        {x: 0, y: baseDistance}             // 后方
+        {x: 0 + randomOffset, y: -baseDistance + randomOffset},           // 前方
+        {x: -baseDistance + randomOffset, y: 0 + randomOffset},           // 左侧
+        {x: baseDistance + randomOffset, y: 0 + randomOffset},            // 右侧
+        {x: 0 + randomOffset, y: baseDistance + randomOffset}             // 后方
     ];
     
     var position = positions[index] || {x: 0, y: 0};
-    return {
+    
+    // 检查位置是否与其他跟随者冲突，如果有冲突则微调
+    var finalPosition = this.adjustPositionForConflict(index, {
         x: this.player.x + position.x,
         y: this.player.y + position.y
-    };
+    });
+    
+    return finalPosition;
+};
+
+// 调整位置以避免冲突
+GameEngine.prototype.adjustPositionForConflict = function(currentIndex, targetPosition) {
+    var minDistance = 18;
+    var adjustedPosition = {x: targetPosition.x, y: targetPosition.y};
+    
+    // 检查与已分配的跟随者位置是否有冲突
+    for (var i = 0; i < currentIndex; i++) {
+        if (i < this.followers.length) {
+            var other = this.followers[i];
+            var dx = adjustedPosition.x - other.x;
+            var dy = adjustedPosition.y - other.y;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < minDistance) {
+                // 有冲突，向远离方向调整
+                var angle = Math.atan2(dy, dx);
+                var pushDistance = minDistance - distance + 2; // 额外2像素缓冲
+                
+                adjustedPosition.x += Math.cos(angle) * pushDistance;
+                adjustedPosition.y += Math.sin(angle) * pushDistance;
+            }
+        }
+    }
+    
+    return adjustedPosition;
+};
+
+// 确保跟随者位置唯一性
+GameEngine.prototype.ensureFollowerPositionUniqueness = function(follower) {
+    var minDistance = 16; // 最小距离，稍微小于分离距离
+    
+    for (var i = 0; i < this.followers.length; i++) {
+        var other = this.followers[i];
+        if (other !== follower) {
+            var dx = follower.x - other.x;
+            var dy = follower.y - other.y;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < minDistance) {
+                // 强制分离
+                var angle = Math.atan2(dy, dx);
+                var pushDistance = minDistance - distance + 1;
+                
+                follower.x += Math.cos(angle) * pushDistance;
+                follower.y += Math.sin(angle) * pushDistance;
+                
+                // 确保不超出地图边界
+                follower.x = Math.max(50, Math.min(this.mapConfig.width - 50, follower.x));
+                follower.y = Math.max(50, Math.min(this.mapConfig.height - 50, follower.y));
+            }
+        }
+    }
 };
 
 // 双环布局：5-8个跟随者
@@ -4224,23 +4286,32 @@ GameEngine.prototype.calculateDoubleRingFormation = function(index, totalFollowe
     var innerRadius = Math.max(15, personality.followDistance - 20); // 减少内环半径
     var outerRadius = innerRadius + 12; // 减少外环半径
     
+    // 添加随机偏移
+    var randomOffset = (Math.random() - 0.5) * 3; // ±1.5像素随机偏移
+    
     if (index < 4) {
         // 内环：4个位置
         var angle = (index / 4) * Math.PI * 2;
-        return {
-            x: this.player.x + Math.cos(angle) * innerRadius,
-            y: this.player.y + Math.sin(angle) * innerRadius
+        var position = {
+            x: this.player.x + Math.cos(angle) * innerRadius + randomOffset,
+            y: this.player.y + Math.sin(angle) * innerRadius + randomOffset
         };
+        
+        // 检查位置冲突并调整
+        return this.adjustPositionForConflict(index, position);
     } else {
         // 外环：剩余位置
         var outerIndex = index - 4;
         var outerCount = totalFollowers - 4;
         var angle = (outerIndex / outerCount) * Math.PI * 2;
-        return {
-            x: this.player.x + Math.cos(angle) * outerRadius,
-            y: this.player.y + Math.sin(angle) * outerRadius
+        var position = {
+            x: this.player.x + Math.cos(angle) * outerRadius + randomOffset,
+            y: this.player.y + Math.sin(angle) * outerRadius + randomOffset
         };
-        }
+        
+        // 检查位置冲突并调整
+        return this.adjustPositionForConflict(index, position);
+    }
 };
 
 // 螺旋布局：9个以上跟随者
@@ -4253,10 +4324,16 @@ GameEngine.prototype.calculateSpiralFormation = function(index, totalFollowers, 
     var angle = index * goldenAngle;
     var radius = baseRadius + index * spiralSpacing;
     
-    return {
-        x: this.player.x + Math.cos(angle) * radius,
-        y: this.player.y + Math.sin(angle) * radius
+    // 添加随机偏移
+    var randomOffset = (Math.random() - 0.5) * 2; // ±1像素随机偏移
+    
+    var position = {
+        x: this.player.x + Math.cos(angle) * radius + randomOffset,
+        y: this.player.y + Math.sin(angle) * radius + randomOffset
     };
+    
+    // 检查位置冲突并调整
+    return this.adjustPositionForConflict(index, position);
 };
 
 // Flocking算法：对齐规则 - 与群体保持一致的移动方向
@@ -5432,6 +5509,9 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
     
     // 检测跟随者是否被卡住，如果被卡住则尝试脱困
     this.checkFollowerStuck(follower);
+    
+    // 最后检查：确保没有位置重叠
+    this.ensureFollowerPositionUniqueness(follower);
 };
 
 // 预测玩家移动方向
@@ -5495,6 +5575,51 @@ GameEngine.prototype.findAlternativePathForFollower = function(follower, targetX
     }
     
     return {success: false};
+};
+
+// 检查位置冲突
+GameEngine.prototype.checkPositionConflict = function(follower, newX, newY) {
+    var minDistance = 18; // 最小安全距离
+    
+    for (var i = 0; i < this.followers.length; i++) {
+        var other = this.followers[i];
+        if (other !== follower) {
+            var dx = newX - other.x;
+            var dy = newY - other.y;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < minDistance) {
+                return true; // 有冲突
+            }
+        }
+    }
+    
+    return false; // 无冲突
+};
+
+// 寻找非冲突位置
+GameEngine.prototype.findNonConflictingPosition = function(follower, targetX, targetY) {
+    var minDistance = 18;
+    var searchRadius = 30; // 搜索半径
+    var searchSteps = 8; // 搜索步数
+    
+    // 从目标位置开始，向外螺旋搜索
+    for (var step = 1; step <= searchSteps; step++) {
+        var angle = (step / searchSteps) * Math.PI * 2;
+        var radius = (step / searchSteps) * searchRadius;
+        
+        var testX = targetX + Math.cos(angle) * radius;
+        var testY = targetY + Math.sin(angle) * radius;
+        
+        // 检查测试位置是否安全且无冲突
+        if (this.canMoveToPosition(testX, testY, 8) && 
+            !this.checkPositionConflict(follower, testX, testY)) {
+            return {x: testX, y: testY};
+        }
+    }
+    
+    // 如果找不到合适位置，返回原位置
+    return {x: follower.x, y: follower.y};
 };
 
 // 动态计算平滑因子
