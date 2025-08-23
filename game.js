@@ -13,7 +13,7 @@
 function BaseCharacter(config) {
     this.id = config.id || 1;
     this.name = config.name || '角色' + this.id;
-    this.description = config.description || '这是一个神秘的角色';
+    this.description = config.description || '主人物';
     this.colors = config.colors || this.getDefaultColors();
     this.features = config.features || this.getDefaultFeatures();
     this.animations = config.animations || this.getDefaultAnimations();
