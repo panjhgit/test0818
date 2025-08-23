@@ -3,10 +3,17 @@
 // 输入系统实现 (Input System Implementation)
 // ========================================
 
-GameEngine.prototype.setupInput = function () {
+// 输入管理器
+function InputManager() {
+    this.joystick = null;
+    this.eventHandlers = null;
+    this.eventsBound = false;
+}
+
+InputManager.prototype.setupInput = function (gameEngine) {
     var self = this;
 
-    console.log('[Input] 开始设置触摸事件，画布尺寸:', this.canvas.width, 'x', this.canvas.height);
+    console.log('[Input] 开始设置触摸事件，画布尺寸:', gameEngine.canvas.width, 'x', gameEngine.canvas.height);
 
     // 初始化摇杆对象
     if (!this.joystick) {
@@ -33,8 +40,8 @@ GameEngine.prototype.setupInput = function () {
     this.eventsBound = false;
 
     // 抖音平台适配：默认位置在屏幕底部中央
-    this.joystick.centerX = this.canvas.width / 2;
-    this.joystick.centerY = this.canvas.height - 80;
+    this.joystick.centerX = gameEngine.canvas.width / 2;
+    this.joystick.centerY = gameEngine.canvas.height - 80;
     this.joystick.currentX = this.joystick.centerX;
     this.joystick.currentY = this.joystick.centerY;
 
@@ -68,13 +75,13 @@ GameEngine.prototype.setupInput = function () {
         // 使用抖音小程序的触摸事件API
         try {
             this.eventHandlers.touchStart = function (res) {
-                self.onTouchStart(res);
+                self.onTouchStart(res, gameEngine);
             };
             this.eventHandlers.touchMove = function (res) {
-                self.onTouchMove(res);
+                self.onTouchMove(res, gameEngine);
             };
             this.eventHandlers.touchEnd = function (res) {
-                self.onTouchEnd(res);
+                self.onTouchEnd(res, gameEngine);
             };
 
             tt.onTouchStart(this.eventHandlers.touchStart);
@@ -86,39 +93,62 @@ GameEngine.prototype.setupInput = function () {
 
         } catch (ttError) {
             console.warn('[Input] 抖音触摸事件绑定失败，使用Canvas事件:', ttError);
-            this.bindCanvasEvents();
+            this.bindCanvasEvents(gameEngine);
         }
     } else {
         // 抖音小游戏环境：使用Canvas事件属性
-        this.bindCanvasEvents();
+        this.bindCanvasEvents(gameEngine);
     }
-
 };
 
 // 绑定Canvas事件的方法
-GameEngine.prototype.bindCanvasEvents = function () {
+InputManager.prototype.bindCanvasEvents = function (gameEngine) {
     var self = this;
 
     try {
         // 先清理之前的事件绑定
-        this.canvas.ontouchstart = null;
-        this.canvas.ontouchmove = null;
-        this.canvas.ontouchend = null;
-        this.canvas.onclick = null;
+        if (gameEngine.canvas.removeEventListener) {
+            // 使用removeEventListener清理
+            gameEngine.canvas.removeEventListener('touchstart', this.touchStartHandler);
+            gameEngine.canvas.removeEventListener('touchmove', this.touchMoveHandler);
+            gameEngine.canvas.removeEventListener('touchend', this.touchEndHandler);
+            gameEngine.canvas.removeEventListener('click', this.clickHandler);
+        } else {
+            // 回退到传统方式
+            gameEngine.canvas.ontouchstart = null;
+            gameEngine.canvas.ontouchmove = null;
+            gameEngine.canvas.ontouchend = null;
+            gameEngine.canvas.onclick = null;
+        }
 
-        // 重新绑定事件
-        this.canvas.ontouchstart = function (e) {
-            self.onTouchStart(e);
+        // 创建事件处理器引用，以便后续清理
+        this.touchStartHandler = function (e) {
+            self.onTouchStart(e, gameEngine);
         };
-        this.canvas.ontouchmove = function (e) {
-            self.onTouchMove(e);
+        this.touchMoveHandler = function (e) {
+            self.onTouchMove(e, gameEngine);
         };
-        this.canvas.ontouchend = function (e) {
-            self.onTouchEnd(e);
+        this.touchEndHandler = function (e) {
+            self.onTouchEnd(e, gameEngine);
         };
-        this.canvas.onclick = function (e) {
-            self.onClick(e);
+        this.clickHandler = function (e) {
+            self.onClick(e, gameEngine);
         };
+
+        // 重新绑定事件，优先使用addEventListener并设置passive选项
+        if (gameEngine.canvas.addEventListener) {
+            // 使用addEventListener并设置passive选项以提高性能
+            gameEngine.canvas.addEventListener('touchstart', this.touchStartHandler, { passive: true });
+            gameEngine.canvas.addEventListener('touchmove', this.touchMoveHandler, { passive: true });
+            gameEngine.canvas.addEventListener('touchend', this.touchEndHandler, { passive: true });
+            gameEngine.canvas.addEventListener('click', this.clickHandler, { passive: true });
+        } else {
+            // 回退到传统方式
+            gameEngine.canvas.ontouchstart = this.touchStartHandler;
+            gameEngine.canvas.ontouchmove = this.touchMoveHandler;
+            gameEngine.canvas.ontouchend = this.touchEndHandler;
+            gameEngine.canvas.onclick = this.clickHandler;
+        }
 
         this.eventsBound = true;
         console.log('[Input] Canvas触摸事件绑定成功');
@@ -127,7 +157,7 @@ GameEngine.prototype.bindCanvasEvents = function () {
     }
 };
 
-GameEngine.prototype.onTouchStart = function (e) {
+InputManager.prototype.onTouchStart = function (e, gameEngine) {
     try {
 
         // 抖音小程序事件对象结构可能不同
@@ -163,21 +193,21 @@ GameEngine.prototype.onTouchStart = function (e) {
 
         // 转换为画布坐标
         try {
-            var rect = this.canvas.getBoundingClientRect();
+            var rect = gameEngine.canvas.getBoundingClientRect();
             x = x - rect.left;
             y = y - rect.top;
         } catch (error) {
             console.warn('[Touch] 画布坐标转换失败，使用原始坐标:', error);
         }
 
-        this.touchStartX = x;
-        this.touchStartY = y;
-        this.touchStartTime = Date.now();
+        gameEngine.touchStartX = x;
+        gameEngine.touchStartY = y;
+        gameEngine.touchStartTime = Date.now();
 
-        console.log('[Touch] 触摸开始，坐标:', x, y, '游戏状态:', this.gameState);
+        console.log('[Touch] 触摸开始，坐标:', x, y, '游戏状态:', gameEngine.gameState);
 
 
-        if (this.gameState === 'playing' || this.gameState === 'submap') {
+        if (gameEngine.gameState === 'playing' || gameEngine.gameState === 'submap') {
             // 抖音小游戏环境：确保坐标是有效数值
             if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
                 // 使用距离平方避免开方运算，提高性能
@@ -193,7 +223,7 @@ GameEngine.prototype.onTouchStart = function (e) {
                     this.joystick.active = true;
                     this.joystick.currentX = x;
                     this.joystick.currentY = y;
-                    this.updateJoystickDirection();
+                    this.updateJoystickDirection(gameEngine);
                     console.log('[Joystick] 摇杆已激活，开始控制移动');
                 } else {
                     console.log('[Touch] 触摸位置超出摇杆范围，不激活摇杆');
@@ -202,15 +232,15 @@ GameEngine.prototype.onTouchStart = function (e) {
                 console.warn('[Touch] 无效的触摸坐标:', {x: x, y: y, event: e});
             }
         } else {
-            console.log('[Touch] 当前游戏状态不支持摇杆控制:', this.gameState);
+            console.log('[Touch] 当前游戏状态不支持摇杆控制:', gameEngine.gameState);
         }
     } catch (error) {
         console.error('[Input] 触摸开始处理错误:', error);
-        this.resetJoystick();
+        this.resetJoystick(gameEngine);
     }
 };
 
-GameEngine.prototype.onTouchMove = function (e) {
+InputManager.prototype.onTouchMove = function (e, gameEngine) {
     try {
 
         if (!this.joystick.active) {
@@ -244,7 +274,7 @@ GameEngine.prototype.onTouchMove = function (e) {
 
             // 转换为画布坐标
             try {
-                var rect = this.canvas.getBoundingClientRect();
+                var rect = gameEngine.canvas.getBoundingClientRect();
                 x = x - rect.left;
                 y = y - rect.top;
             } catch (error) {
@@ -268,38 +298,38 @@ GameEngine.prototype.onTouchMove = function (e) {
         }
 
         // 实时更新摇杆方向
-        this.updateJoystickDirection();
+        this.updateJoystickDirection(gameEngine);
 
     } catch (error) {
         console.error('[Input] 触摸移动处理错误:', error);
-        this.resetJoystick();
+        this.resetJoystick(gameEngine);
     }
 };
 
-GameEngine.prototype.onTouchEnd = function (e) {
+InputManager.prototype.onTouchEnd = function (e, gameEngine) {
     try {
         // 检测是否为快速点击（tap）
         var touchEndTime = Date.now();
-        var touchDuration = touchEndTime - (this.touchStartTime || touchEndTime);
+        var touchDuration = touchEndTime - (gameEngine.touchStartTime || touchEndTime);
 
         if (touchDuration < 300 && !this.joystick.active) {
             // 模拟点击事件
-            console.log('[Touch] 检测到点击，坐标:', this.touchStartX, this.touchStartY, '游戏状态:', this.gameState);
+            console.log('[Touch] 检测到点击，坐标:', gameEngine.touchStartX, gameEngine.touchStartY, '游戏状态:', gameEngine.gameState);
             this.onClick({
-                x: this.touchStartX || 0, y: this.touchStartY || 0
-            });
+                x: gameEngine.touchStartX || 0, y: gameEngine.touchStartY || 0
+            }, gameEngine);
         }
 
         // 立即重置摇杆状态
-        this.resetJoystick();
+        this.resetJoystick(gameEngine);
 
     } catch (error) {
         console.error('[Input] 触摸结束处理错误:', error);
-        this.resetJoystick();
+        this.resetJoystick(gameEngine);
     }
 };
 
-GameEngine.prototype.resetJoystick = function () {
+InputManager.prototype.resetJoystick = function (gameEngine) {
     // 完全重置摇杆状态
     this.joystick.active = false;
     this.joystick.currentX = this.joystick.centerX;
@@ -308,29 +338,21 @@ GameEngine.prototype.resetJoystick = function () {
     this.joystick.direction.y = 0;
 
     // 确保玩家停止移动
-    if (this.player) {
-        this.player.isWalking = false;
-        this.player.walkAnimationFrame = 0;
+    if (gameEngine && gameEngine.player) {
+        gameEngine.player.isWalking = false;
+        gameEngine.player.walkAnimationFrame = 0;
     }
 
     console.log('[Joystick] 摇杆状态已重置');
 };
 
-
-
-
 // 检查事件绑定状态的方法
-GameEngine.prototype.checkEventBindingStatus = function () {
+InputManager.prototype.checkEventBindingStatus = function () {
     var status = {
         eventsBound: this.eventsBound, ttAvailable: typeof tt !== 'undefined', eventHandlers: {
             touchStart: !!this.eventHandlers.touchStart,
             touchMove: !!this.eventHandlers.touchMove,
             touchEnd: !!this.eventHandlers.touchEnd
-        }, canvasEvents: {
-            ontouchstart: !!this.canvas.ontouchstart,
-            ontouchmove: !!this.canvas.ontouchmove,
-            ontouchend: !!this.canvas.ontouchend,
-            onclick: !!this.canvas.onclick
         }
     };
 
@@ -338,7 +360,7 @@ GameEngine.prototype.checkEventBindingStatus = function () {
     return status;
 };
 
-GameEngine.prototype.updateJoystickDirection = function () {
+InputManager.prototype.updateJoystickDirection = function (gameEngine) {
     try {
         // 只有在摇杆激活时才更新方向
         if (!this.joystick.active) {
@@ -363,11 +385,11 @@ GameEngine.prototype.updateJoystickDirection = function () {
         }
     } catch (error) {
         console.error('[Input] 摇杆方向更新错误:', error);
-        this.resetJoystick();
+        this.resetJoystick(gameEngine);
     }
 };
 
-GameEngine.prototype.onClick = function (e) {
+InputManager.prototype.onClick = function (e, gameEngine) {
     var x, y;
 
 
@@ -401,46 +423,46 @@ GameEngine.prototype.onClick = function (e) {
     }
 
 
-    if (this.gameState === 'menu') {
-        this.handleMenuClick(x, y);
-    } else if (this.gameState === 'playing') {
-        this.handleGameClick(x, y);
-    } else if (this.gameState === 'submap') {
-        this.handleSubMapClick(x, y);
-    } else if (this.gameState === 'gameover' || this.gameState === 'victory') {
-        this.handleEndGameClick(x, y);
+    if (gameEngine.gameState === 'menu') {
+        this.handleMenuClick(x, y, gameEngine);
+    } else if (gameEngine.gameState === 'playing') {
+        this.handleGameClick(x, y, gameEngine);
+    } else if (gameEngine.gameState === 'submap') {
+        this.handleSubMapClick(x, y, gameEngine);
+    } else if (gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory') {
+        this.handleEndGameClick(x, y, gameEngine);
     }
 };
 
-GameEngine.prototype.handleMenuClick = function (x, y) {
-    var centerX = this.canvas.width / 2;
+InputManager.prototype.handleMenuClick = function (x, y, gameEngine) {
+    var centerX = gameEngine.canvas.width / 2;
     var buttonWidth = 220;
     var buttonHeight = 55;
     var buttonX = centerX - buttonWidth / 2;
     var buttonY = 320;
 
     if (x >= buttonX && x <= buttonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
-        this.startGame();
+        gameEngine.startGame();
     }
 };
 
-GameEngine.prototype.handleGameClick = function (x, y) {
+InputManager.prototype.handleGameClick = function (x, y, gameEngine) {
     console.log('[Click] 游戏点击事件，坐标:', x, y, '弹出提示状态:', {
-        exists: !!this.buildingEntryPrompt, active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false
+        exists: !!gameEngine.buildingEntryPrompt, active: gameEngine.buildingEntryPrompt ? gameEngine.buildingEntryPrompt.active : false
     });
 
-    if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+    if (gameEngine.buildingEntryPrompt && gameEngine.buildingEntryPrompt.active) {
         console.log('[Click] 调用建筑进入提示点击处理');
-        this.handleBuildingEntryPromptClick(x, y);
+        this.handleBuildingEntryPromptClick(x, y, gameEngine);
         return;
     }
 };
 
-GameEngine.prototype.handleBuildingEntryPromptClick = function (x, y) {
+InputManager.prototype.handleBuildingEntryPromptClick = function (x, y, gameEngine) {
     console.log('[Click] 处理建筑进入提示点击，坐标:', x, y);
-    var prompt = this.buildingEntryPrompt;
-    var centerX = this.canvas.width / 2;
-    var centerY = this.canvas.height / 2;
+    var prompt = gameEngine.buildingEntryPrompt;
+    var centerX = gameEngine.canvas.width / 2;
+    var centerY = gameEngine.canvas.height / 2;
     var boxHeight = 150;
     var boxY = centerY - boxHeight / 2;
     var buttonWidth = 80;
@@ -453,35 +475,35 @@ GameEngine.prototype.handleBuildingEntryPromptClick = function (x, y) {
 
     if (x >= enterButtonX && x <= enterButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
         console.log('[Click] 进入按钮被点击');
-        if (this.nearBuilding && this.nearBuilding.id === prompt.building.id && this.nearBuilding.name === prompt.building.name) {
+        if (gameEngine.nearBuilding && gameEngine.nearBuilding.id === prompt.building.id && gameEngine.nearBuilding.name === prompt.building.name) {
             console.log('[Click] 开始进入建筑:', prompt.building.name);
-            mapModule.exploreBuilding(prompt.building, this);
+            mapModule.exploreBuilding(prompt.building, gameEngine);
         } else {
             console.log('[Click] 进入建筑失败，nearBuilding不匹配:', {
-                nearBuilding: this.nearBuilding, promptBuilding: prompt.building
+                nearBuilding: gameEngine.nearBuilding, promptBuilding: prompt.building
             });
         }
-        this.buildingEntryPrompt = null;
+        gameEngine.buildingEntryPrompt = null;
         return;
     }
 
     var cancelButtonX = centerX + 20;
     if (x >= cancelButtonX && x <= cancelButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
-        this.buildingEntryPrompt = null;
+        gameEngine.buildingEntryPrompt = null;
         return;
     }
 };
 
-GameEngine.prototype.handleSubMapClick = function (x, y) {
+InputManager.prototype.handleSubMapClick = function (x, y, gameEngine) {
     var self = this;
-    if (x >= 10 && x <= 90 && y >= this.canvas.height - 40 && y <= this.canvas.height - 10) {
-        mapModule.exitBuilding(this);
+    if (x >= 10 && x <= 90 && y >= gameEngine.canvas.height - 40 && y <= gameEngine.canvas.height - 10) {
+        mapModule.exitBuilding(gameEngine);
         return;
     }
 
     // 使用for循环遍历资源，可以提前退出以提高性能
-    for (var i = 0; i < this.resources.length; i++) {
-        var resource = this.resources[i];
+    for (var i = 0; i < gameEngine.resources.length; i++) {
+        var resource = gameEngine.resources[i];
         if (!resource.collected) {
             // 使用距离平方避免开方运算，提高性能
             var dx = x - resource.x;
@@ -490,16 +512,16 @@ GameEngine.prototype.handleSubMapClick = function (x, y) {
             var interactionRadiusSquared = 30 * 30; // 900
 
             if (distanceSquared <= interactionRadiusSquared) {
-                this.collectResource(resource);
+                gameEngine.collectResource(resource);
                 break; // 找到一个资源后即可退出
             }
         }
     }
 };
 
-GameEngine.prototype.handleEndGameClick = function (x, y) {
-    var centerX = this.canvas.width / 2;
-    var centerY = this.canvas.height / 2;
+InputManager.prototype.handleEndGameClick = function (x, y, gameEngine) {
+    var centerX = gameEngine.canvas.width / 2;
+    var centerY = gameEngine.canvas.height / 2;
 
     // 重新开始按钮 (160x50, 居中) - 与渲染代码保持一致
     var restartButtonX = centerX - 80;
@@ -514,7 +536,7 @@ GameEngine.prototype.handleEndGameClick = function (x, y) {
     var menuButtonHeight = 50;
 
     console.log('[EndGame] 点击坐标:', x, y);
-    console.log('[EndGame] 画布尺寸:', this.canvas.width, 'x', this.canvas.height);
+    console.log('[EndGame] 画布尺寸:', gameEngine.canvas.width, 'x', gameEngine.canvas.height);
     console.log('[EndGame] 画布中心:', centerX, centerY);
     console.log('[EndGame] 重新开始按钮区域:', restartButtonX, restartButtonY, restartButtonWidth, restartButtonHeight);
     console.log('[EndGame] 返回菜单按钮区域:', menuButtonX, menuButtonY, menuButtonWidth, menuButtonHeight);
@@ -522,14 +544,14 @@ GameEngine.prototype.handleEndGameClick = function (x, y) {
     // 检查重新开始按钮点击
     if (x >= restartButtonX && x <= restartButtonX + restartButtonWidth && y >= restartButtonY && y <= restartButtonY + restartButtonHeight) {
         console.log('[EndGame] 重新开始按钮被点击');
-        this.restartGame();
+        gameEngine.restartGame();
         return;
     }
 
     // 检查返回菜单按钮点击
     if (x >= menuButtonX && x <= menuButtonX + menuButtonWidth && y >= menuButtonY && y <= menuButtonY + menuButtonHeight) {
         console.log('[EndGame] 返回菜单按钮被点击');
-        this.returnToMenu();
+        this.returnToMenu(gameEngine);
         return;
     }
 
@@ -537,25 +559,32 @@ GameEngine.prototype.handleEndGameClick = function (x, y) {
 };
 
 // 返回菜单函数
-GameEngine.prototype.returnToMenu = function () {
+InputManager.prototype.returnToMenu = function (gameEngine) {
     console.log('[GameEngine] 返回菜单');
 
     // 重置游戏状态
-    this.gameState = 'menu';
-    this.isGameEnded = false;
+    gameEngine.gameState = 'menu';
+    gameEngine.isGameEnded = false;
 
     // 清理游戏对象
-    this.cleanupGameObjects();
+    gameEngine.cleanupGameObjects();
 
     // 强制重新绑定触摸事件
     this.eventsBound = false;
-    this.setupInput();
+    this.setupInput(gameEngine);
     console.log('[Input] 返回菜单时重新绑定触摸事件');
 
     // 重置摇杆状态
-    this.resetJoystick();
+    this.resetJoystick(gameEngine);
 
     // 重新开始游戏循环以显示菜单
-    this.running = true;
-    this.lastTime = Date.now();
+    gameEngine.running = true;
+    gameEngine.lastTime = Date.now();
 };
+
+// 模块导出
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        InputManager: InputManager
+    };
+}

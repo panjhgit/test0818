@@ -2,6 +2,24 @@
 // 僵尸系统 (Zombie System)
 // ========================================
 
+// 引用工具模块
+var utilsModule;
+try {
+    utilsModule = require('./utils.js');
+    console.log('[Zombie] 工具模块加载成功');
+} catch (error) {
+    console.error('[Zombie] 工具模块加载失败:', error);
+    // 创建默认工具模块避免崩溃
+    utilsModule = {
+        SafeArrayOperations: {
+            safeBatchRemove: function(array, indicesToRemove, onRemove) {
+                console.error('[Zombie] SafeArrayOperations未加载，使用默认实现');
+                return 0;
+            }
+        }
+    };
+}
+
 // 游戏平衡配置
 var GAME_CONFIG = {
     // 僵尸生成配置
@@ -1362,6 +1380,36 @@ ZombieManager.prototype.update = function (deltaTime, gameEngine) {
     }
 };
 
+// 清理无效僵尸的方法
+ZombieManager.prototype.cleanupInvalidZombies = function () {
+    if (!this.zombies || !Array.isArray(this.zombies)) {
+        return;
+    }
+
+    var invalidZombies = [];
+    
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
+        
+        // 检查僵尸是否无效
+        if (!zombie || typeof zombie !== 'object' || 
+            typeof zombie.x !== 'number' || typeof zombie.y !== 'number' ||
+            isNaN(zombie.x) || isNaN(zombie.y) || 
+            !isFinite(zombie.x) || !isFinite(zombie.y) ||
+            zombie.health <= 0 || zombie.isDead) {
+            invalidZombies.push(i);
+        }
+    }
+    
+    // 批量删除无效僵尸
+    if (invalidZombies.length > 0) {
+        var removedCount = this.safeBatchRemoveZombies(invalidZombies);
+        if (removedCount > 0) {
+            console.log('[ZombieManager] 清理了', removedCount, '个无效僵尸');
+        }
+    }
+};
+
 ZombieManager.prototype.render = function (ctx, camera) {
     // 检查参数有效性
     if (!ctx || !camera) {
@@ -1489,7 +1537,7 @@ ZombieManager.prototype.safeBatchRemoveZombies = function (deadZombies) {
     }
 
     // 使用通用安全数组操作工具
-    var removedCount = SafeArrayOperations.safeBatchRemove(this.zombies, deadZombies, function (zombie) {
+            var removedCount = utilsModule.SafeArrayOperations.safeBatchRemove(this.zombies, deadZombies, function (zombie) {
         // 从视距裁剪系统中移除死亡僵尸
         if (this.gameEngine && this.gameEngine.viewportCulling) {
             zombie.isDead = true;
