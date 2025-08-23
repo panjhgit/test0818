@@ -7057,6 +7057,15 @@ GameEngine.prototype.generateInitialPartners = function() {
                 personality: this.getCharacterPersonality(this.characterManager.characters[partnerConfig.characterId])
             };
             
+            // 调试信息：检查角色数据
+            console.log('[InitialPartners] 伙伴', (i + 1), '角色数据:', {
+                characterId: partnerConfig.characterId,
+                character: !!partner.character,
+                characterManager: !!this.characterManager,
+                characters: !!this.characterManager.characters,
+                characterExists: !!(this.characterManager.characters[partnerConfig.characterId])
+            });
+            
             // 添加到NPC列表（不是跟随者列表）
             this.npcs.push(partner);
             
@@ -8490,38 +8499,21 @@ GameEngine.prototype.renderSingleNPC = function (npc) {
 GameEngine.prototype.renderDefaultNPC = function (npc) {
     this.ctx.save();
 
-    // 渲染NPC人物形状（20x20彩色方块，与跟随者保持一致）
-    var baseColor = '#3498db'; // 默认蓝色
-    
-    // 如果有性格属性，使用对应的颜色
-    if (npc.personality && npc.personality.personalityType) {
-        switch (npc.personality.personalityType) {
-            case 'leader':
-                baseColor = '#f1c40f';
-                break;
-            case 'supporter':
-                baseColor = '#e74c3c';
-                break;
-            case 'scout':
-                baseColor = '#3498db';
-                break;
-            case 'guardian':
-                baseColor = '#27ae60';
-                break;
-            case 'independent':
-                baseColor = '#9b59b6';
-                break;
-        }
+    // 如果有角色数据，使用角色渲染方法（人物形状）
+    if (npc.character && npc.character.render) {
+        var npcPlayer = {
+            isWalking: npc.isWalking || false,
+            walkAnimationFrame: (Date.now() / 200) % 4,
+            walkAnimationSpeed: 200,
+            lastAnimationTime: 0,
+            direction: npc.direction || 'down'
+        };
+        
+        npc.character.render(this.ctx, npc.x, npc.y, npcPlayer);
+        console.log('[RenderNPC] 使用角色渲染:', npc.name, '角色ID:', npc.characterId);
+    } else {
+        console.warn('[RenderNPC] 无法使用角色渲染:', npc.name, 'character:', !!npc.character, 'render方法:', !!(npc.character && npc.character.render));
     }
-
-    // 渲染20x20像素的彩色方块
-    this.ctx.fillStyle = baseColor;
-    this.ctx.fillRect(npc.x - 10, npc.y - 10, 20, 20);
-
-    // NPC边框
-    this.ctx.strokeStyle = '#2c3e50';
-    this.ctx.lineWidth = 3;
-    this.ctx.strokeRect(npc.x - 10, npc.y - 10, 20, 20);
 
     this.ctx.restore();
 };
@@ -8551,8 +8543,7 @@ GameEngine.prototype.renderSingleFollower = function (follower, index) {
     this.ctx.save();
     this.applyFollowerPersonalityEffects(follower, personality);
     this.renderFollowerCharacter(follower, character);
-    // 删除性格指示器，保持与NPC相同的形状
-    // this.renderPersonalityIndicator(follower, personality, index);
+    this.renderPersonalityIndicator(follower, personality, index);
     this.ctx.restore();
 };
 
@@ -8567,42 +8558,56 @@ GameEngine.prototype.renderFollowerCharacter = function (follower, character) {
 GameEngine.prototype.renderDefaultFollower = function (follower) {
     this.ctx.save();
 
-    var personality = follower.personality;
-    var baseColor = '#3498db';
+    // 如果有角色数据，使用角色渲染方法（与NPC保持一致的形状）
+    if (follower.character && follower.character.render) {
+        var followerPlayer = {
+            isWalking: follower.isWalking || false,
+            walkAnimationFrame: (Date.now() / 200) % 4,
+            walkAnimationSpeed: 200,
+            lastAnimationTime: 0,
+            direction: follower.direction || 'down'
+        };
+        
+        follower.character.render(this.ctx, follower.x, follower.y, followerPlayer);
+    } else {
+        // 如果没有角色数据，使用默认的彩色方块渲染（备用方案）
+        var personality = follower.personality;
+        var baseColor = '#3498db';
 
-    if (personality) {
-        switch (personality.personalityType) {
-            case 'leader':
-                baseColor = '#f1c40f';
-                break;
-            case 'supporter':
-                baseColor = '#e74c3c';
-                break;
-            case 'scout':
-                baseColor = '#3498db';
-                break;
-            case 'guardian':
-                baseColor = '#27ae60';
-                break;
-            case 'independent':
-                baseColor = '#9b59b6';
-                break;
+        if (personality) {
+            switch (personality.personalityType) {
+                case 'leader':
+                    baseColor = '#f1c40f';
+                    break;
+                case 'supporter':
+                    baseColor = '#e74c3c';
+                    break;
+                case 'scout':
+                    baseColor = '#3498db';
+                    break;
+                case 'guardian':
+                    baseColor = '#27ae60';
+                    break;
+                case 'independent':
+                    baseColor = '#9b59b6';
+                    break;
+            }
         }
-    }
 
-    // 渲染人物形状（不同颜色的方块）
-    this.ctx.fillStyle = baseColor;
-    this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
+        // 渲染人物形状（不同颜色的方块）
+        this.ctx.fillStyle = baseColor;
+        this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
 
-    // 人物边框
-    this.ctx.strokeStyle = '#2c3e50';
-    this.ctx.lineWidth = 3;
-    this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
+        // 人物边框
+        this.ctx.strokeStyle = '#2c3e50';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
 
-    // 行走状态指示器
-    if (follower.isWalking) {
-        this.ctx.fillStyle = '#2ecc71';
-        this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
+        // 行走状态指示器
+        if (follower.isWalking) {
+            this.ctx.fillStyle = '#2ecc71';
+            this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
+        }
     }
 
     this.ctx.restore();
