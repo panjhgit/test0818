@@ -5852,26 +5852,7 @@ GameEngine.prototype.renderGame = function () {
         return;
     }
 
-    try {
-        // 检查视距裁剪系统是否可用
-        if (this.viewportCulling && this.viewportCulling.quadTree && this.viewportCulling.quadTreeInitialized) {
-            // 更新视距裁剪系统
-            this.updateViewportCulling();
 
-            // 检查更新是否成功
-            if (this.viewportCulling.visibleEntities) {
-                // 正常使用视距裁剪渲染
-                this.renderWithViewportCulling();
-                return;
-            } else {
-                console.warn('[Render] 视距裁剪系统更新后仍不可用');
-            }
-        } else {
-            console.log('[Render] 视距裁剪系统未就绪，使用传统建筑物渲染');
-        }
-    } catch (error) {
-        console.error('[Render] 视距裁剪渲染出错:', error);
-    }
 
     // 如果视距裁剪系统有问题，回退到传统渲染
     console.log('[Render] 视距裁剪系统异常，强制回退到传统渲染');
