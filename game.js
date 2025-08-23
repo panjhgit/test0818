@@ -4,165 +4,2254 @@
  * 使用ES5语法，完全兼容抖音小程序环境
  */
 
-// 引用人物系统模块
-var characterModule;
-var zombieModule;
 
-// 引用碰撞检测系统模块
-var collisionModule;
+// ========================================
+// 人物系统 (Character System)
+// ========================================
 
-// 引用视距裁剪系统模块
-var viewModule;
-
-// 引用地图系统模块
-var mapModule;
-
-// 引用输入系统模块
-var inputModule;
-
-// 尝试加载模块
-try {
-    console.log('[Game] 开始加载模块...');
-    characterModule = require('./js/character.js');
-    console.log('[Game] 人物模块加载成功:', characterModule);
-
-    zombieModule = require('./js/zombie.js');
-    console.log('[Game] 僵尸模块加载成功:', zombieModule);
-
-    viewModule = require('./js/view.js');
-    console.log('[Game] 视距模块加载成功:', viewModule);
-
-    mapModule = require('./js/map.js');
-    console.log('[Game] 地图模块加载成功:', mapModule);
-
-    inputModule = require('./js/input.js');
-    console.log('[Game] 输入模块加载成功:', inputModule);
-
-    collisionModule = require('./js/collision.js');
-    console.log('[Game] 碰撞检测模块加载成功:', collisionModule);
-} catch (error) {
-    console.error('[Game] 模块加载失败:', error);
-
-    // 创建默认模块避免崩溃
-    characterModule = {
-        BaseCharacter: function() { console.error('人物模块加载失败'); },
-        CharacterManager: function() {
-            console.error('人物管理器加载失败');
-            return {
-                characters: {},
-                getCurrentCharacter: function() { return null; },
-                renderCurrentCharacter: function() {}
-            };
-        }
-    };
-
-    viewModule = {
-        VIEWPORT_CONFIG: {
-            GRID_SIZE: 500,
-            EXTRA_RENDER: 1,
-            MAX_VIEW_DISTANCE: 1000,
-            UPDATE_FREQUENCIES: {
-                CORE: 1, IMPORTANT: 2, NORMAL: 4, LOW: 30, SLEEP: 0
-            }
-        },
-        Bounds: function(x, y, width, height) {
-            console.error('视距模块加载失败');
-            return {x: x, y: y, width: width, height: height};
-        },
-        QuadTreeNode: function() {
-            console.error('四叉树模块加载失败');
-            return {};
-        },
-        ViewportCullingManager: function() {
-            console.error('视距裁剪管理器加载失败');
-            return {
-                quadTree: null,
-                visibleEntities: {players: [], followers: [], zombies: [], buildings: [], decorations: []},
-                update: function() {},
-                init: function() {}
-            };
-        }
-    };
-
-    mapModule = {
-        getBuildingTypes: function() {
-            console.error('地图模块加载失败');
-            return [];
-        },
-        calculateBuildingPosition: function() {
-            console.error('建筑位置计算模块加载失败');
-            return null;
-        },
-        initializeBuildings: function() {
-            console.error('建筑初始化模块加载失败');
-            return [];
-        },
-        exploreBuilding: function() {
-            console.error('建筑探索模块加载失败');
-        },
-        exitBuilding: function() {
-            console.error('建筑退出模块加载失败');
-        }
-    };
-
-    collisionModule = {
-        CollisionManager: function() {
-            console.error('碰撞检测管理器加载失败');
-            return {
-                checkCollisionWithBuildings: function() { return {collision: false, building: null, inDoor: false}; },
-                checkCharacterOverlap: function() { return true; },
-                circleRectCollision: function() { return false; },
-                calculateDoorInfo: function() { return {}; },
-                checkNearDoor: function() { return {nearBuilding: null, buildingEntryPrompt: null}; },
-                checkLoadedNPCCollision: function() {},
-                getFollowerIndex: function() { return -1; },
-                safeRemoveFollower: function() { return false; },
-                canMoveAlongPath: function() { return true; }
-            };
-        }
-    };
-
-    zombieModule = {
-        ZombieManager: function() {
-            console.error('僵尸管理器加载失败');
-            return {
-                zombies: [],
-                update: function() {},
-                render: function() {},
-                createZombie: function() { return null; }
-            };
-        },
-        GAME_CONFIG: {
-            PLAYER: { BASE_HEALTH: 50, BASE_ATTACK: 15, ATTACK_RANGE: 35, ATTACK_COOLDOWN: 800, MOVE_SPEED: 3, CHARACTER_RADIUS: 18 },
-            TEAM: { MAX_SIZE: 20, FOLLOW_DISTANCE: 35, COLLISION_THRESHOLD: 900 },
-            TIME: { DAY_DURATION: 30000, NIGHT_DURATION: 30000, FOOD_COST_PER_DAY: 1 },
-            BUILDING: { INTERACTION_DISTANCE: 60, TRIGGER_DISTANCE: 50, EXIT_COOLDOWN: 2000 },
-            ZOMBIE_SPAWN: { BASE_COUNT: 10, PER_DAY_INCREASE: 3, MAX_ZOMBIES: 50, SPAWN_RADIUS: 2000, MIN_DISTANCE: 300, MAX_ATTEMPTS_MULTIPLIER: 10 }
-        }
-    };
-
-    inputModule = {
-        setupInput: function() { console.error('输入模块加载失败'); },
-        onTouchStart: function() { console.error('触摸开始事件处理失败'); },
-        onTouchMove: function() { console.error('触摸移动事件处理失败'); },
-        onTouchEnd: function() { console.error('触摸结束事件处理失败'); },
-        resetJoystick: function() { console.error('摇杆重置失败'); },
-        updateJoystickDirection: function() { console.error('摇杆方向更新失败'); },
-        onClick: function() { console.error('点击事件处理失败'); },
-        handleMenuClick: function() { console.error('菜单点击处理失败'); },
-        handleGameClick: function() { console.error('游戏点击处理失败'); },
-        handleBuildingEntryPromptClick: function() { console.error('建筑进入提示点击处理失败'); },
-        handleSubMapClick: function() { console.error('子地图点击处理失败'); },
-        handleEndGameClick: function() { console.error('游戏结束点击处理失败'); },
-        returnToMenu: function() { console.error('返回菜单失败'); },
-        checkEventBindingStatus: function() { console.error('事件绑定状态检查失败'); },
-        bindCanvasEvents: function() { console.error('Canvas事件绑定失败'); }
-    };
+// 基础人物类
+function BaseCharacter(config) {
+    this.id = config.id || 1;
+    this.name = config.name || '角色' + this.id;
+    this.description = config.description || '这是一个神秘的角色';
+    this.colors = config.colors || this.getDefaultColors();
+    this.features = config.features || this.getDefaultFeatures();
+    this.animations = config.animations || this.getDefaultAnimations();
 }
 
+BaseCharacter.prototype.getDefaultColors = function () {
+    return {
+        skin: '#FF8C42',
+        skinHighlight: '#FFB366',
+        skinShadow: '#E6732A',
+        clothes: '#FFFFFF',
+        clothesShadow: '#E0E0E0',
+        clothesDetail: '#F0F0F0',
+        hair: '#1A1A1A',
+        hairHighlight: '#404040',
+        eyes: '#000000',
+        eyesHighlight: '#FFFFFF',
+        mouth: '#D4621F',
+        mouthShadow: '#E6732A'
+    };
+};
+
+BaseCharacter.prototype.getDefaultFeatures = function () {
+    return {
+        hasGlasses: true, hairStyle: 'normal', bodyType: 'normal', clothingStyle: 'casual', accessory: 'sunglasses'
+    };
+};
+
+BaseCharacter.prototype.getDefaultAnimations = function () {
+    return {walkBobAmplitude: 1.5, walkLegSwingAmplitude: 3, walkArmSwingAmplitude: 2, walkSpeed: 200};
+};
+
+BaseCharacter.prototype.calculateAnimationOffsets = function (player) {
+    var offsets = {bobOffset: 0, leftLegOffset: 0, rightLegOffset: 0, leftArmOffset: 0, rightArmOffset: 0};
+    if (player.isWalking) {
+        offsets.bobOffset = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkBobAmplitude;
+        var legSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkLegSwingAmplitude;
+        offsets.leftLegOffset = legSwing;
+        offsets.rightLegOffset = -legSwing;
+        var armSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkArmSwingAmplitude;
+        offsets.leftArmOffset = -armSwing;
+        offsets.rightArmOffset = armSwing;
+    }
+    return offsets;
+};
+
+BaseCharacter.prototype.render = function (ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    y += offsets.bobOffset;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    this.renderBody(ctx, x, y, player);
+    this.renderHead(ctx, x, y, player);
+    this.renderArms(ctx, x, y, player);
+    this.renderLegs(ctx, x, y, player);
+    ctx.restore();
+};
+
+BaseCharacter.prototype.renderBody = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.clothes;
+    ctx.fillRect(x - 10, y - 6, 20, 18);
+    ctx.fillStyle = this.colors.clothesShadow;
+    ctx.fillRect(x + 8, y - 4, 2, 14);
+    ctx.fillRect(x - 8, y + 10, 16, 2);
+    ctx.fillStyle = this.colors.clothesDetail;
+    ctx.fillRect(x - 6, y - 2, 2, 8);
+    ctx.fillRect(x + 4, y + 2, 2, 6);
+};
+
+BaseCharacter.prototype.renderHead = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 10, y - 20, 20, 16);
+    ctx.fillStyle = this.colors.skinHighlight;
+    ctx.fillRect(x - 8, y - 18, 4, 4);
+    ctx.fillRect(x + 4, y - 16, 4, 3);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x + 8, y - 16, 2, 12);
+    ctx.fillRect(x - 6, y - 6, 12, 2);
+    this.renderHair(ctx, x, y, player);
+    this.renderFacialFeatures(ctx, x, y, player);
+};
+
+BaseCharacter.prototype.renderHair = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.hair;
+    ctx.fillRect(x - 12, y - 28, 24, 12);
+    ctx.fillRect(x - 10, y - 32, 20, 6);
+    ctx.fillRect(x - 14, y - 26, 4, 8);
+    ctx.fillRect(x + 10, y - 26, 4, 8);
+    ctx.fillRect(x - 8, y - 22, 16, 4);
+    ctx.fillRect(x - 4, y - 24, 8, 2);
+    ctx.fillStyle = this.colors.hairHighlight;
+    ctx.fillRect(x - 6, y - 30, 3, 2);
+    ctx.fillRect(x + 3, y - 32, 3, 2);
+    ctx.fillRect(x - 2, y - 22, 4, 1);
+};
+
+BaseCharacter.prototype.renderFacialFeatures = function (ctx, x, y, player) {
+    if (this.features.hasGlasses) this.renderGlasses(ctx, x, y, player); else this.renderEyes(ctx, x, y, player);
+    this.renderNose(ctx, x, y, player);
+    this.renderMouth(ctx, x, y, player);
+};
+
+BaseCharacter.prototype.renderGlasses = function (ctx, x, y, player) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 8, y - 18, 16, 6);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - 7, y - 17, 6, 4);
+    ctx.fillRect(x + 1, y - 17, 6, 4);
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(x - 6, y - 17, 2, 1);
+    ctx.fillRect(x + 2, y - 17, 2, 1);
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(x - 7, y - 16, 1, 2);
+    ctx.fillRect(x + 6, y - 16, 1, 2);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 1, y - 17, 2, 2);
+    ctx.fillRect(x - 10, y - 17, 2, 1);
+    ctx.fillRect(x + 8, y - 17, 2, 1);
+};
+
+BaseCharacter.prototype.renderEyes = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.eyes;
+    ctx.fillRect(x - 6, y - 16, 3, 2);
+    ctx.fillRect(x + 3, y - 16, 3, 2);
+    ctx.fillStyle = this.colors.eyesHighlight;
+    ctx.fillRect(x - 5, y - 16, 1, 1);
+    ctx.fillRect(x + 4, y - 16, 1, 1);
+};
+
+BaseCharacter.prototype.renderNose = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 1, y - 12, 2, 2);
+    ctx.fillStyle = this.colors.skinHighlight;
+    ctx.fillRect(x, y - 13, 1, 1);
+};
+
+BaseCharacter.prototype.renderMouth = function (ctx, x, y, player) {
+    ctx.fillStyle = this.colors.mouth;
+    ctx.fillRect(x - 2, y - 10, 4, 1);
+    ctx.fillStyle = this.colors.mouthShadow;
+    ctx.fillRect(x - 1, y - 9, 2, 1);
+};
+
+BaseCharacter.prototype.renderArms = function (ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 14, y - 4 + offsets.leftArmOffset, 4, 10);
+    ctx.fillRect(x - 16, y + 4 + offsets.leftArmOffset, 4, 8);
+    ctx.fillRect(x + 10, y - 4 + offsets.rightArmOffset, 4, 10);
+    ctx.fillRect(x + 12, y + 4 + offsets.rightArmOffset, 4, 8);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 12, y + 2 + offsets.leftArmOffset, 2, 4);
+    ctx.fillRect(x + 10, y + 2 + offsets.rightArmOffset, 2, 4);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 18, y + 10 + offsets.leftArmOffset, 4, 4);
+    ctx.fillRect(x + 14, y + 10 + offsets.rightArmOffset, 4, 4);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 16, y + 12 + offsets.leftArmOffset, 2, 2);
+    ctx.fillRect(x + 14, y + 12 + offsets.rightArmOffset, 2, 2);
+};
+
+BaseCharacter.prototype.renderLegs = function (ctx, x, y, player) {
+    var offsets = this.calculateAnimationOffsets(player);
+    ctx.fillStyle = this.colors.skin;
+    ctx.fillRect(x - 6, y + 12 + offsets.leftLegOffset, 5, 14);
+    ctx.fillRect(x - 7, y + 24 + offsets.leftLegOffset, 5, 8);
+    ctx.fillRect(x + 1, y + 12 + offsets.rightLegOffset, 5, 14);
+    ctx.fillRect(x + 2, y + 24 + offsets.rightLegOffset, 5, 8);
+    ctx.fillStyle = this.colors.skinShadow;
+    ctx.fillRect(x - 2, y + 20 + offsets.leftLegOffset, 2, 6);
+    ctx.fillRect(x + 1, y + 20 + offsets.rightLegOffset, 2, 6);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(x - 10, y + 30 + offsets.leftLegOffset, 8, 5);
+    ctx.fillRect(x + 2, y + 30 + offsets.rightLegOffset, 8, 5);
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillRect(x - 8, y + 32 + offsets.leftLegOffset, 4, 2);
+    ctx.fillRect(x + 4, y + 32 + offsets.rightLegOffset, 4, 2);
+    ctx.fillStyle = '#F8F8F8';
+    ctx.fillRect(x - 9, y + 30 + offsets.leftLegOffset, 2, 1);
+    ctx.fillRect(x + 7, y + 30 + offsets.rightLegOffset, 2, 1);
+};
+
+// 人物管理器
+function CharacterManager() {
+    this.characters = {};
+    this.currentCharacterId = 1;
+    this.initializeCharacters();
+}
+
+CharacterManager.prototype.initializeCharacters = function () {
+    var configs = [{
+        id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}
+    }, {
+        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: true}
+    }, {
+        id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: true}
+    }, {
+        id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
+    }, {
+        id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: true}
+    }, {
+        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: true}
+    }, {
+        id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}
+    }, {
+        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: true}
+    }, {
+        id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}
+    }, {
+        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: true}
+    }, {
+        id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}
+    }, {
+        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: true}
+    }, {
+        id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}
+    }, {
+        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: true}
+    }, {
+        id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}
+    }, {
+        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: true}
+    }, {
+        id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
+    }, {
+        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: true}
+    }, {
+        id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}
+    }, {
+        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: true}
+    }];
+    for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
+};
+
+CharacterManager.prototype.getCurrentCharacter = function () {
+    return this.characters[this.currentCharacterId] || this.characters[1];
+};
 
 
+CharacterManager.prototype.renderCurrentCharacter = function (ctx, x, y, player) {
+    var character = this.getCurrentCharacter();
+    if (character) character.render(ctx, x, y, player);
+};
 
+// ========================================
+// 僵尸系统 (Zombie System)
+// ========================================
+
+// 基础僵尸类
+function BaseZombie(config) {
+    this.id = config.id || Math.random().toString(36).substr(2, 9);
+    this.type = config.type || 'thin';
+    this.x = config.x || 0;
+    this.y = config.y || 0;
+    this.health = config.health || 30;
+    this.maxHealth = config.maxHealth || 30;
+    this.attack = config.attack || 8;
+    this.moveSpeed = config.moveSpeed || 1.5;
+    this.detectionRange = config.detectionRange || 800; // 大幅增加检测范围，让僵尸能跟随更远
+    this.attackRange = config.attackRange || 25;
+    this.size = config.size || 1.2; // 比人物大一点
+
+    // AI状态机
+    this.state = 'wandering'; // wandering, aware, chasing, attacking
+    this.target = null;
+    this.lastAttackTime = 0;
+    this.attackCooldown = config.attackCooldown || 1500; // 攻击冷却时间
+    this.lastStateChangeTime = Date.now(); // 状态切换时间
+    this.aiUpdateTimer = 0; // AI更新计时器
+
+    // 移动相关
+    this.lastX = this.x;
+    this.lastY = this.y;
+    this.isWalking = false;
+    this.direction = 'down';
+    this.wanderTarget = null;
+    this.wanderTimer = 0;
+
+    // 动画相关
+    this.walkAnimationFrame = 0;
+    this.lastAnimationTime = 0;
+    this.walkAnimationSpeed = 300; // 比人物慢一点
+
+    // 对象池相关
+    this.active = true;
+}
+
+// 重置僵尸状态（用于对象池）
+BaseZombie.prototype.reset = function (type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.health = this.maxHealth;
+    this.state = 'wandering';
+    this.target = null;
+    this.lastAttackTime = 0;
+    this.aiUpdateTimer = 0;
+    this.wanderTarget = null;
+    this.wanderTimer = 0;
+    this.isWalking = false;
+    this.direction = 'down';
+    this.walkAnimationFrame = 0;
+    this.lastAnimationTime = 0;
+
+    // 更新配置
+    var zombieTypes = this.gameEngine ? this.gameEngine.zombieManager.zombieTypes : {};
+    if (zombieTypes[type]) {
+        var config = zombieTypes[type];
+        this.attack = config.attack;
+        this.moveSpeed = config.moveSpeed;
+        this.detectionRange = config.detectionRange;
+        this.attackCooldown = config.attackCooldown;
+        this.size = config.size;
+    }
+};
+
+BaseZombie.prototype.update = function (deltaTime, gameEngine) {
+    // 检查游戏是否已结束，如果是则不进行任何更新
+    if (gameEngine && (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory')) {
+        return;
+    }
+
+    this.gameEngine = gameEngine;
+    this.updateAI(deltaTime, gameEngine);
+    this.updateAnimation(deltaTime);
+    this.updateMovement(deltaTime);
+};
+
+BaseZombie.prototype.updateAI = function (deltaTime, gameEngine) {
+    // 检查游戏是否已结束，如果是则不进行AI更新
+    if (!gameEngine || gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory') {
+        return;
+    }
+
+    // 额外检查：如果僵尸本身无效，则不更新
+    if (!this || this.health <= 0 || this.isDead) {
+        return;
+    }
+
+    if (!this.aiUpdateTimer) this.aiUpdateTimer = 0;
+    this.aiUpdateTimer += deltaTime;
+
+    if (this.aiUpdateTimer < 100) return; // 提高AI更新频率
+    this.aiUpdateTimer = 0;
+
+    // 检查游戏引擎和玩家对象是否有效
+    if (!gameEngine.player || gameEngine.player.health <= 0 || gameEngine.player.isDead) {
+        // 如果玩家无效，僵尸应该回到游荡状态
+        if (this.state !== 'wandering') {
+            this.state = 'wandering';
+            this.target = null;
+            console.log('[ZombieAI]', this.type, '玩家无效，切换到游荡状态');
+        }
+        return;
+    }
+
+    var currentTime = Date.now();
+    var playerDistance = Math.sqrt(Math.pow(this.x - gameEngine.player.x, 2) + Math.pow(this.y - gameEngine.player.y, 2));
+
+    // 状态机核心逻辑
+    switch (this.state) {
+        case 'wandering':
+            this.updateWanderingState(playerDistance, gameEngine, currentTime);
+            break;
+        case 'aware':
+            this.updateAwareState(playerDistance, gameEngine, currentTime);
+            break;
+        case 'chasing':
+            this.updateChasingState(playerDistance, gameEngine, currentTime);
+            break;
+        case 'attacking':
+            this.updateAttackingState(playerDistance, gameEngine, currentTime);
+            break;
+        default:
+            this.state = 'wandering';
+            break;
+    }
+};
+
+// 游荡状态更新
+BaseZombie.prototype.updateWanderingState = function (playerDistance, gameEngine, currentTime) {
+    // 再次检查玩家对象是否有效
+    if (!gameEngine || !gameEngine.player || gameEngine.player.health <= 0 || gameEngine.player.isDead) {
+        return;
+    }
+
+    // 检测是否有人类进入察觉范围（70%检测范围）
+    var awareRange = this.detectionRange * 0.7;
+    if (playerDistance <= awareRange && gameEngine.player.health > 0 && !gameEngine.player.isDead) {
+        // 游荡→察觉：检测到人类进入察觉范围
+        this.state = 'aware';
+        this.target = gameEngine.player;
+        this.lastStateChangeTime = currentTime;
+        console.log('[ZombieAI]', this.type, '从游荡切换到察觉状态，距离:', playerDistance.toFixed(0));
+        return;
+    }
+
+    // 继续游荡
+    this.wander(100); // 固定时间间隔
+};
+
+// 察觉状态更新（新增）
+BaseZombie.prototype.updateAwareState = function (playerDistance, gameEngine, currentTime) {
+    // 检查目标是否仍然有效
+    if (!this.target || this.target.health <= 0 || this.target.isDead) {
+        // 察觉→游荡：目标无效
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从察觉切换到游荡状态（目标无效）');
+        return;
+    }
+
+    // 检查是否进入追击范围
+    if (playerDistance <= this.detectionRange) {
+        // 察觉→追击：进入追击范围
+        this.state = 'chasing';
+        console.log('[ZombieAI]', this.type, '从察觉切换到追击状态');
+        return;
+    }
+
+    // 检查是否超出察觉范围
+    if (playerDistance > this.detectionRange * 0.8) {
+        // 察觉→游荡：超出察觉范围
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从察觉切换到游荡状态（超出察觉范围）');
+        return;
+    }
+
+    // 察觉状态：缓慢转向玩家方向
+    var dx = this.target.x - this.x;
+    var dy = this.target.y - this.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+        var dirX = dx / distance;
+        var dirY = dy / distance;
+
+        // 缓慢移动（0.3倍速度）
+        var slowSpeed = this.moveSpeed * 0.3;
+        var newX = this.x + dirX * slowSpeed;
+        var newY = this.y + dirY * slowSpeed;
+
+        // 检查移动安全性
+        if (this.canZombieMoveTo(newX, newY, this.gameEngine)) {
+            this.x = newX;
+            this.y = newY;
+            this.isWalking = true;
+            this.direction = this.getDirectionFromDelta(dirX, dirY);
+        }
+    }
+};
+
+// 追击状态更新
+BaseZombie.prototype.updateChasingState = function (playerDistance, gameEngine, currentTime) {
+    // 检查目标是否仍然有效
+    if (!this.target || this.target.health <= 0 || this.target.isDead) {
+        // 追击→游荡：目标无效
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从追击切换到游荡状态（目标无效）');
+        return;
+    }
+
+    // 检查目标是否超出检测范围（增加追击距离）
+    var chaseDistance = this.detectionRange * 1.2; // 追击距离比检测范围多20%
+    if (playerDistance > chaseDistance) {
+        // 追击→游荡：目标超出追击距离
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从追击切换到游荡状态（目标超出追击距离:', chaseDistance.toFixed(0), '像素）');
+        return;
+    }
+
+    // 检查是否进入攻击范围
+    if (playerDistance <= this.attackRange) {
+        // 追击→攻击：与目标距离≤攻击范围
+        this.state = 'attacking';
+        this.lastStateChangeTime = currentTime;
+        console.log('[ZombieAI]', this.type, '从追击切换到攻击状态');
+        return;
+    }
+
+    // 继续追击
+    this.chaseTarget(this.target);
+};
+
+// 攻击状态更新
+BaseZombie.prototype.updateAttackingState = function (playerDistance, gameEngine, currentTime) {
+    // 检查目标是否仍然有效
+    if (!this.target || this.target.health <= 0 || this.target.isDead) {
+        // 攻击→游荡：目标无效
+        this.state = 'wandering';
+        this.target = null;
+        console.log('[ZombieAI]', this.type, '从攻击切换到游荡状态（目标无效）');
+        return;
+    }
+
+    // 检查目标是否逃离攻击范围
+    if (playerDistance > this.attackRange) {
+        var chaseDistance = this.detectionRange * 1.2; // 追击距离比检测范围多20%
+        if (playerDistance <= chaseDistance) {
+            // 攻击→追击：目标逃离攻击范围但仍在追击距离内
+            this.state = 'chasing';
+            console.log('[ZombieAI]', this.type, '从攻击切换到追击状态');
+        } else {
+            // 攻击→游荡：目标超出追击距离
+            this.state = 'wandering';
+            this.target = null;
+            console.log('[ZombieAI]', this.type, '从攻击切换到游荡状态（目标超出追击距离:', chaseDistance.toFixed(0), '像素）');
+        }
+        return;
+    }
+
+    // 执行攻击
+    if (currentTime - this.lastAttackTime >= this.attackCooldown) {
+        // 再次检查目标是否有效，防止在攻击过程中目标被清空
+        if (this.target && this.target.health > 0 && !this.target.isDead) {
+            // 在攻击前保存目标的血量，防止攻击后目标变为null导致报错
+            var targetHealthBeforeAttack = this.target.health;
+            var targetId = this.target.id || 'unknown';
+
+            // 执行攻击
+
+            this.attackTarget(this.target);
+            this.lastAttackTime = currentTime;
+
+            // 使用保存的血量值，避免访问可能已变为null的目标
+            console.log('[ZombieAI]', this.type, '执行攻击，目标ID:', targetId, '目标血量:', targetHealthBeforeAttack);
+        } else {
+            // 目标无效，切换到游荡状态
+            this.state = 'wandering';
+            this.target = null;
+            console.log('[ZombieAI]', this.type, '攻击时发现目标无效，切换到游荡状态');
+        }
+    }
+};
+
+BaseZombie.prototype.chaseTarget = function (target) {
+    if (!target || target.health <= 0 || target.isDead) {
+        // 目标无效，停止追击
+        this.state = 'wandering';
+        this.target = null;
+        return;
+    }
+
+    var dx = target.x - this.x;
+    var dy = target.y - this.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+        var dirX = dx / distance;
+        var dirY = dy / distance;
+
+        // 群体追击策略：≥3只僵尸时形成包围
+        var nearbyZombies = this.getNearbyZombies(300);
+        if (nearbyZombies.length >= 3) {
+            var flankingAngle = this.calculateFlankingAngle(target, nearbyZombies);
+            if (flankingAngle !== null) {
+                // 计算侧翼位置
+                var flankX = target.x + Math.cos(flankingAngle) * 150;
+                var flankY = target.y + Math.sin(flankingAngle) * 150;
+
+                // 向侧翼位置移动
+                var flankDx = flankX - this.x;
+                var flankDy = flankY - this.y;
+                var flankDistance = Math.sqrt(flankDx * flankDx + flankDy * flankDy);
+
+                if (flankDistance > 0) {
+                    dirX = flankDx / flankDistance;
+                    dirY = flankDy / flankDistance;
+                }
+            }
+        }
+
+        var newX = this.x + dirX * this.moveSpeed;
+        var newY = this.y + dirY * this.moveSpeed;
+
+        // 尝试直接路径移动
+        if (this.canZombieMoveAlongPath(this.x, this.y, newX, newY, this.gameEngine)) {
+            this.x = newX;
+            this.y = newY;
+        } else {
+            // 如果直接路径被阻挡，使用A*寻路算法
+            var path = this.findPathToTarget(target);
+            if (path && path.length > 0) {
+                // 移动到路径的下一个节点
+                var nextNode = path[0];
+                var pathDx = nextNode.x - this.x;
+                var pathDy = nextNode.y - this.y;
+                var pathDistance = Math.sqrt(pathDx * pathDx + pathDy * pathDy);
+
+                if (pathDistance > 0) {
+                    var pathDirX = pathDx / pathDistance;
+                    var pathDirY = pathDy / pathDistance;
+                    var moveX = this.x + pathDirX * this.moveSpeed;
+                    var moveY = this.y + pathDirY * this.moveSpeed;
+
+                    if (this.canZombieMoveTo(moveX, moveY, this.gameEngine)) {
+                        this.x = moveX;
+                        this.y = moveY;
+                    }
+                }
+            } else {
+                // 如果A*寻路失败，尝试单轴移动
+                var canMoveX = this.canZombieMoveAlongPath(this.x, this.y, newX, this.y, this.gameEngine);
+                var canMoveY = this.canZombieMoveAlongPath(this.x, this.y, this.x, newY, this.gameEngine);
+
+                if (canMoveX) {
+                    this.x = newX;
+                } else if (canMoveY) {
+                    this.y = newY;
+                }
+            }
+        }
+
+        this.isWalking = true;
+        this.direction = this.getDirectionFromDelta(dirX, dirY);
+    }
+};
+
+// 获取附近僵尸
+BaseZombie.prototype.getNearbyZombies = function (radius) {
+    var nearby = [];
+    if (!this.gameEngine || !this.gameEngine.zombieManager) return nearby;
+
+    for (var i = 0; i < this.gameEngine.zombieManager.zombies.length; i++) {
+        var zombie = this.gameEngine.zombieManager.zombies[i];
+        if (zombie !== this && zombie.active) {
+            var distance = Math.sqrt(Math.pow(this.x - zombie.x, 2) + Math.pow(this.y - zombie.y, 2));
+            if (distance <= radius) {
+                nearby.push(zombie);
+            }
+        }
+    }
+    return nearby;
+};
+
+// 计算侧翼角度
+BaseZombie.prototype.calculateFlankingAngle = function (target, nearbyZombies) {
+    if (!target || nearbyZombies.length === 0) return null;
+
+    // 计算僵尸群的平均位置
+    var avgX = 0, avgY = 0;
+    for (var i = 0; i < nearbyZombies.length; i++) {
+        avgX += nearbyZombies[i].x;
+        avgY += nearbyZombies[i].y;
+    }
+    avgX /= nearbyZombies.length;
+    avgY /= nearbyZombies.length;
+
+    // 计算从目标到僵尸群的方向
+    var dx = avgX - target.x;
+    var dy = avgY - target.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+        // 返回相反方向（侧翼位置）
+        return Math.atan2(-dy, -dx);
+    }
+
+    return null;
+};
+
+// A*寻路算法：寻找从当前位置到目标的最短路径
+BaseZombie.prototype.findPathToTarget = function (target) {
+    if (!this.gameEngine || !target) return null;
+
+    var startX = Math.floor(this.x / 50) * 50; // 网格化坐标
+    var startY = Math.floor(this.y / 50) * 50;
+    var endX = Math.floor(target.x / 50) * 50;
+    var endY = Math.floor(target.y / 50) * 50;
+
+    // 简单的A*实现，适用于小范围寻路
+    var openList = [{x: startX, y: startY, g: 0, h: 0, f: 0, parent: null}];
+    var closedList = [];
+    var maxIterations = 100; // 防止无限循环
+
+    while (openList.length > 0 && maxIterations > 0) {
+        maxIterations--;
+
+        // 找到f值最小的节点
+        var currentNode = openList[0];
+        var currentIndex = 0;
+        for (var i = 1; i < openList.length; i++) {
+            if (openList[i].f < currentNode.f) {
+                currentNode = openList[i];
+                currentIndex = i;
+            }
+        }
+
+        // 从开放列表中移除当前节点
+        openList.splice(currentIndex, 1);
+        closedList.push(currentNode);
+
+        // 检查是否到达目标
+        if (currentNode.x === endX && currentNode.y === endY) {
+            // 构建路径
+            var path = [];
+            var current = currentNode;
+            while (current) {
+                path.unshift({x: current.x, y: current.y});
+                current = current.parent;
+            }
+            return path;
+        }
+
+        // 检查相邻节点
+        var neighbors = this.getNeighborNodes(currentNode);
+        for (var j = 0; j < neighbors.length; j++) {
+            var neighbor = neighbors[j];
+
+            // 检查是否已在关闭列表中
+            var inClosedList = false;
+            for (var k = 0; k < closedList.length; k++) {
+                if (closedList[k].x === neighbor.x && closedList[k].y === neighbor.y) {
+                    inClosedList = true;
+                    break;
+                }
+            }
+            if (inClosedList) continue;
+
+            // 检查节点是否可通行
+            if (!this.canZombieMoveTo(neighbor.x, neighbor.y, this.gameEngine)) {
+                continue;
+            }
+
+            var g = currentNode.g + 50; // 网格距离
+            var h = Math.sqrt(Math.pow(neighbor.x - endX, 2) + Math.pow(neighbor.y - endY, 2));
+            var f = g + h;
+
+            // 检查是否已在开放列表中
+            var inOpenList = false;
+            for (var l = 0; l < openList.length; l++) {
+                if (openList[l].x === neighbor.x && openList[l].y === neighbor.y) {
+                    if (g < openList[l].g) {
+                        openList[l].g = g;
+                        openList[l].f = f;
+                        openList[l].parent = currentNode;
+                    }
+                    inOpenList = true;
+                    break;
+                }
+            }
+
+            if (!inOpenList) {
+                neighbor.g = g;
+                neighbor.h = h;
+                neighbor.f = f;
+                neighbor.parent = currentNode;
+                openList.push(neighbor);
+            }
+        }
+    }
+
+    return null; // 未找到路径
+};
+
+// 获取相邻节点
+BaseZombie.prototype.getNeighborNodes = function (node) {
+    var neighbors = [];
+    var directions = [{x: 0, y: -50},   // 上
+        {x: 50, y: 0},    // 右
+        {x: 0, y: 50},    // 下
+        {x: -50, y: 0},   // 左
+        {x: 50, y: -50},  // 右上
+        {x: 50, y: 50},   // 右下
+        {x: -50, y: 50},  // 左下
+        {x: -50, y: -50}  // 左上
+    ];
+
+    for (var i = 0; i < directions.length; i++) {
+        var dir = directions[i];
+        neighbors.push({
+            x: node.x + dir.x, y: node.y + dir.y
+        });
+    }
+
+    return neighbors;
+};
+
+BaseZombie.prototype.canZombieMoveTo = function (x, y, gameEngine) {
+    var zombieRadius = 20;
+    var mapConfig = gameEngine ? gameEngine.mapConfig : {width: 10000, height: 10000};
+
+    // 检查地图边界
+    if (x < zombieRadius || x > mapConfig.width - zombieRadius || y < zombieRadius || y > mapConfig.height - zombieRadius) {
+        return false;
+    }
+
+    // 检查与建筑物的碰撞
+    var buildings = gameEngine ? gameEngine.buildings : [];
+    for (var i = 0; i < buildings.length; i++) {
+        var building = buildings[i];
+        if (x + zombieRadius >= building.x && x - zombieRadius <= building.x + building.width && y + zombieRadius >= building.y && y - zombieRadius <= building.y + building.height) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+// 新增：僵尸路径安全检查
+BaseZombie.prototype.canZombieMoveAlongPath = function (fromX, fromY, toX, toY, gameEngine) {
+    var zombieRadius = 20;
+
+    // 计算路径上的多个检查点
+    var distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+    var checkPoints = Math.max(2, Math.floor(distance / zombieRadius));
+
+    for (var i = 0; i <= checkPoints; i++) {
+        var t = i / checkPoints;
+        var checkX = fromX + (toX - fromX) * t;
+        var checkY = fromY + (toY - fromY) * t;
+
+        if (!this.canZombieMoveTo(checkX, checkY, gameEngine)) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+
+BaseZombie.prototype.wander = function (deltaTime) {
+    // 初始化游荡计时器
+    if (!this.wanderTimer) this.wanderTimer = 0;
+    if (!this.wanderTarget) this.wanderTarget = null;
+
+    this.wanderTimer -= deltaTime;
+
+    // 每500ms改变方向，实现随机游荡
+    if (!this.wanderTarget || this.wanderTimer <= 0) {
+        var attempts = 0;
+        var maxAttempts = 15; // 增加尝试次数
+
+        while (attempts < maxAttempts) {
+            var angle = Math.random() * Math.PI * 2;
+            var distance = 80 + Math.random() * 120; // 增加游荡范围
+            var targetX = this.x + Math.cos(angle) * distance;
+            var targetY = this.y + Math.sin(angle) * distance;
+
+            // 检查目标位置是否可通行
+            if (this.canZombieMoveTo(targetX, targetY, this.gameEngine)) {
+                this.wanderTarget = {x: targetX, y: targetY};
+                break;
+            }
+            attempts++;
+        }
+
+        if (!this.wanderTarget) {
+            // 如果找不到合适的目标，在原地小范围移动
+            this.wanderTarget = {
+                x: this.x + (Math.random() - 0.5) * 60, y: this.y + (Math.random() - 0.5) * 60
+            };
+        }
+
+        // 游荡时间：2-4秒
+        this.wanderTimer = 2000 + Math.random() * 2000;
+    }
+
+    // 执行游荡移动
+    if (this.wanderTarget) {
+        var dx = this.wanderTarget.x - this.x;
+        var dy = this.wanderTarget.y - this.y;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 10) { // 增加到达阈值
+            var dirX = dx / distance;
+            var dirY = dy / distance;
+            var newX = this.x + dirX * this.moveSpeed * 0.6; // 游荡速度稍慢
+            var newY = this.y + dirY * this.moveSpeed * 0.6;
+
+            // 使用路径安全检查，防止穿墙
+            if (this.canZombieMoveAlongPath(this.x, this.y, newX, newY, this.gameEngine)) {
+                this.x = newX;
+                this.y = newY;
+                this.isWalking = true;
+                this.direction = this.getDirectionFromDelta(dirX, dirY);
+            } else {
+                // 如果路径被阻挡，重新选择游荡目标
+                this.wanderTarget = null;
+                this.wanderTimer = 0;
+                this.isWalking = false;
+            }
+        } else {
+            // 到达目标，停止移动
+            this.wanderTarget = null;
+            this.isWalking = false;
+        }
+    }
+};
+
+BaseZombie.prototype.attackTarget = function (target) {
+    // 强化目标有效性检查
+    if (!target || typeof target !== 'object' || target.health === undefined || target.health <= 0) {
+        console.warn('[ZombieAI]', this.type, '攻击目标无效:', target);
+        this.state = 'wandering';
+        this.target = null;
+        return;
+    }
+
+    try {
+        // 保存攻击前的血量，用于安全检查
+        var originalHealth = target.health;
+
+        // 执行攻击
+        target.health -= this.attack;
+
+        // 确保血量不会变成负数
+        if (target.health < 0) {
+            target.health = 0;
+        }
+
+        console.log('[ZombieAI]', this.type, '攻击成功，目标血量:', originalHealth, '->', target.health);
+
+        if (target.health <= 0) {
+            this.onTargetDeath(target);
+
+            // 如果目标是玩家，立即触发游戏结束
+            if (target === this.gameEngine.player) {
+                console.log('[ZombieAI]', this.type, '玩家被击杀，触发游戏结束');
+                this.gameEngine.gameOver('death');
+            }
+        }
+    } catch (error) {
+        console.error('[ZombieAI]', this.type, '攻击过程中出错:', error);
+        // 攻击出错时，僵尸应该回到游荡状态
+        this.state = 'wandering';
+        this.target = null;
+    }
+};
+
+BaseZombie.prototype.onTargetDeath = function (target) {
+    try {
+        // 安全检查目标对象
+        if (target && typeof target === 'object') {
+            target.health = 0;
+            target.isDead = true;
+        }
+
+        // 僵尸状态重置
+        this.state = 'wandering';
+        this.target = null;
+
+        console.log('[ZombieAI]', this.type, '目标死亡，切换到游荡状态');
+    } catch (error) {
+        console.error('[ZombieAI]', this.type, '处理目标死亡时出错:', error);
+        // 出错时确保僵尸状态正确
+        this.state = 'wandering';
+        this.target = null;
+    }
+};
+
+BaseZombie.prototype.takeDamage = function (damage) {
+    this.health -= damage;
+
+    if (this.health <= 0) {
+        this.health = 0;
+        return true;
+    }
+
+    return false;
+};
+
+BaseZombie.prototype.updateAnimation = function (deltaTime) {
+    if (this.isWalking) {
+        this.lastAnimationTime += deltaTime;
+        if (this.lastAnimationTime >= this.walkAnimationSpeed) {
+            this.walkAnimationFrame = (this.walkAnimationFrame + 1) % 4;
+            this.lastAnimationTime = 0;
+        }
+    } else {
+        this.walkAnimationFrame = 0;
+    }
+};
+
+BaseZombie.prototype.updateMovement = function (deltaTime) {
+    if (Math.abs(this.x - this.lastX) > 0.1 || Math.abs(this.y - this.lastY) > 0.1) {
+        this.isWalking = true;
+    } else {
+        this.isWalking = false;
+    }
+
+    this.lastX = this.x;
+    this.lastY = this.y;
+};
+
+BaseZombie.prototype.getDirectionFromDelta = function (deltaX, deltaY) {
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        return deltaX > 0 ? 'right' : 'left';
+    } else {
+        return deltaY > 0 ? 'down' : 'up';
+    }
+};
+
+BaseZombie.prototype.render = function (ctx, camera) {
+    // 检查参数有效性
+    if (!ctx || !camera) {
+        console.warn('[BaseZombie] 渲染参数无效:', {ctx: !!ctx, camera: !!camera});
+        return;
+    }
+
+    // 检查canvas是否有效
+    if (!ctx.canvas || !ctx.canvas.width || !ctx.canvas.height) {
+        console.warn('[BaseZombie] Canvas无效:', ctx.canvas);
+        return;
+    }
+
+    // 检查相机属性是否有效
+    if (typeof camera.x !== 'number' || typeof camera.y !== 'number' || typeof camera.zoom !== 'number' || isNaN(camera.x) || isNaN(camera.y) || isNaN(camera.zoom) || !isFinite(camera.x) || !isFinite(camera.y) || !isFinite(camera.zoom)) {
+        console.warn('[BaseZombie] 相机属性无效:', camera);
+        return;
+    }
+
+    // 检查僵尸属性是否有效
+    if (typeof this.x !== 'number' || typeof this.y !== 'number' || typeof this.size !== 'number' || isNaN(this.x) || isNaN(this.y) || isNaN(this.size) || !isFinite(this.x) || !isFinite(this.y) || !isFinite(this.size)) {
+        console.warn('[BaseZombie] 僵尸属性无效:', {x: this.x, y: this.y, size: this.size});
+        return;
+    }
+
+    try {
+        var viewWidth = ctx.canvas.width / camera.zoom;
+        var viewHeight = ctx.canvas.height / camera.zoom;
+        var viewLeft = camera.x;
+        var viewRight = camera.x + viewWidth;
+        var viewTop = camera.y;
+        var viewBottom = camera.y + viewHeight;
+
+        var margin = 100;
+        if (this.x < viewLeft - margin || this.x > viewRight + margin || this.y < viewTop - margin || this.y > viewBottom + margin) {
+            return;
+        }
+
+        ctx.save();
+        var scale = this.size;
+        ctx.translate(this.x, this.y);
+        ctx.scale(scale, scale);
+
+        this.renderZombie(ctx);
+        this.renderHealthBar(ctx);
+        this.renderStateIndicator(ctx);
+
+        ctx.restore();
+    } catch (error) {
+        console.error('[BaseZombie] 渲染过程中出错:', error);
+        // 确保在出错时恢复上下文状态，避免重复调用restore
+        if (ctx._saveCount && ctx._saveCount > 0) {
+            try {
+                ctx.restore();
+            } catch (restoreError) {
+                console.error('[BaseZombie] 恢复上下文状态失败:', restoreError);
+            }
+        }
+    }
+};
+
+BaseZombie.prototype.renderZombie = function (ctx) {
+    // 检查上下文是否有效
+    if (!ctx || typeof ctx.fillStyle !== 'string' || typeof ctx.fillRect !== 'function') {
+        console.warn('[BaseZombie] 渲染上下文无效:', ctx);
+        return;
+    }
+
+    try {
+        ctx.fillStyle = '#8b0000';
+        ctx.fillRect(-12, -12, 24, 24);
+
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(-8, -8, 3, 3);
+        ctx.fillRect(5, -8, 3, 3);
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-4, -2, 8, 2);
+    } catch (error) {
+        console.error('[BaseZombie] 渲染僵尸主体时出错:', error);
+    }
+};
+
+BaseZombie.prototype.renderHealthBar = function (ctx) {
+    // 检查上下文是否有效
+    if (!ctx || typeof ctx.fillStyle !== 'string' || typeof ctx.fillRect !== 'function' || typeof ctx.strokeStyle !== 'string' || typeof ctx.lineWidth !== 'number' || typeof ctx.strokeRect !== 'function') {
+        console.warn('[BaseZombie] 血条渲染上下文无效:', ctx);
+        return;
+    }
+
+    // 检查血量属性是否有效
+    if (typeof this.health !== 'number' || typeof this.maxHealth !== 'number' || isNaN(this.health) || isNaN(this.maxHealth) || this.maxHealth <= 0) {
+        console.warn('[BaseZombie] 血量属性无效:', {health: this.health, maxHealth: this.maxHealth});
+        return;
+    }
+
+    try {
+        var healthPercentage = Math.max(0, Math.min(1, this.health / this.maxHealth));
+        var barWidth = 20;
+        var barHeight = 3;
+
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(-barWidth / 2, -20, barWidth, barHeight);
+
+        ctx.fillStyle = healthPercentage > 0.5 ? '#4CAF50' : healthPercentage > 0.2 ? '#FF9800' : '#F44336';
+        ctx.fillRect(-barWidth / 2, -20, barWidth * healthPercentage, barHeight);
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(-barWidth / 2, -20, barWidth, barHeight);
+    } catch (error) {
+        console.error('[BaseZombie] 渲染血条时出错:', error);
+    }
+};
+
+BaseZombie.prototype.renderStateIndicator = function (ctx) {
+    // 检查上下文是否有效
+    if (!ctx || typeof ctx.fillStyle !== 'string' || typeof ctx.font !== 'string' || typeof ctx.textAlign !== 'string' || typeof ctx.fillText !== 'function') {
+        console.warn('[BaseZombie] 状态指示器渲染上下文无效:', ctx);
+        return;
+    }
+
+    // 检查状态属性是否有效
+    if (typeof this.state !== 'string') {
+        console.warn('[BaseZombie] 状态属性无效:', this.state);
+        return;
+    }
+
+    try {
+        var indicator = '';
+        var color = '#ffffff';
+
+        switch (this.state) {
+            case 'chasing':
+                indicator = '!';
+                color = '#ff4444';
+                break;
+            case 'attacking':
+                indicator = '⚡';
+                color = '#ff0000';
+                break;
+            case 'wandering':
+                indicator = '?';
+                color = '#888888';
+                break;
+            default:
+                // 未知状态，不显示指示器
+                return;
+        }
+
+        if (indicator) {
+            ctx.fillStyle = color;
+            ctx.font = 'bold 8px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(indicator, 0, -25);
+        }
+    } catch (error) {
+        console.error('[BaseZombie] 渲染状态指示器时出错:', error);
+    }
+};
+
+// 瘦僵尸类
+function ThinZombie(config) {
+    BaseZombie.call(this, config);
+}
+
+ThinZombie.prototype = Object.create(BaseZombie.prototype);
+ThinZombie.prototype.constructor = ThinZombie;
+
+ThinZombie.prototype.renderZombie = function (ctx) {
+    ctx.fillStyle = '#8b0000';
+    ctx.fillRect(-8, -15, 16, 30);
+
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(-10, -20, 20, 15);
+
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(-7, -17, 3, 3);
+    ctx.fillRect(4, -17, 3, 3);
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(-4, -12, 8, 2);
+
+    ctx.fillStyle = '#8b0000';
+    ctx.fillRect(-12, -10, 4, 20);
+    ctx.fillRect(8, -10, 4, 20);
+    ctx.fillRect(-6, 15, 4, 15);
+    ctx.fillRect(2, 15, 4, 15);
+
+    ctx.fillStyle = '#444444';
+    ctx.fillRect(-6, -5, 12, 8);
+    ctx.fillRect(-4, 5, 8, 6);
+};
+
+// 胖僵尸类
+function FatZombie(config) {
+    BaseZombie.call(this, config);
+}
+
+FatZombie.prototype = Object.create(BaseZombie.prototype);
+
+// 僵尸Boss1类
+function ZombieBoss1(config) {
+    BaseZombie.call(this, config);
+}
+
+ZombieBoss1.prototype = Object.create(BaseZombie.prototype);
+
+
+// 僵尸管理器
+function ZombieManager() {
+    this.zombies = [];
+    this.zombieTypes = this.getZombieTypes();
+    this.gameEngine = null; // 游戏引擎引用
+
+    // 性能优化：空间分区系统
+    this.spatialGrid = {};
+    this.gridSize = 200;
+
+    // 性能优化：对象池
+    this.zombiePool = [];
+    this.maxPoolSize = 100;
+
+    // 性能优化：更新频率控制
+    this.updateIntervals = {
+        near: 100,    // 近距离僵尸更新频率
+        medium: 300,  // 中距离僵尸更新频率
+        far: 800      // 远距离僵尸更新频率
+    };
+
+    // 初始化对象池
+    this.initializePool();
+}
+
+ZombieManager.prototype.getZombieTypes = function () {
+    return {
+        thin: {
+            name: '瘦僵尸',
+            health: 25,
+            attack: 6,
+            moveSpeed: 5.0,
+            size: 1.1,
+            attackCooldown: 1200,
+            detectionRange: 600,
+            color: '#8b0000'
+        }, fat: {
+            name: '胖僵尸',
+            health: 50,
+            attack: 12,
+            moveSpeed: 4.5,
+            size: 1.4,
+            attackCooldown: 2000,
+            detectionRange: 700,
+            color: '#4a4a4a'
+        }, boss1: {
+            name: '僵尸Boss1',
+            health: 100,
+            attack: 20,
+            moveSpeed: 6.0,
+            size: 1.6,
+            attackCooldown: 1000,
+            detectionRange: 1000,
+            color: '#2d0d0d'
+        }
+    };
+};
+
+// 基于生存天数计算僵尸移动速度倍数
+ZombieManager.prototype.getZombieSpeedMultiplier = function (survivalDays) {
+    if (survivalDays <= 10) {
+        return 1.5; // 1-10天：僵尸速度是人物速度的1.5倍（更快）
+    } else if (survivalDays <= 20) {
+        return 1.8; // 10-20天：僵尸速度是人物速度的1.8倍
+    } else if (survivalDays <= 50) {
+        return 2.2; // 20-50天：僵尸速度是人物速度的2.2倍
+    } else if (survivalDays <= 70) {
+        return 2.6; // 50-70天：僵尸速度是人物速度的2.6倍
+    } else {
+        return 3.0; // 70-100天：僵尸速度是人物速度的3.0倍
+    }
+};
+
+// 获取僵尸的实际移动速度（基于生存天数）
+ZombieManager.prototype.getZombieActualSpeed = function (baseSpeed, survivalDays) {
+    var speedMultiplier = this.getZombieSpeedMultiplier(survivalDays);
+    var playerBaseSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED;
+
+    // 僵尸基础速度 + 基于天数的倍数调整
+    var baseZombieSpeed = baseSpeed;
+    var adjustedSpeed = baseZombieSpeed * speedMultiplier;
+
+    // 确保僵尸速度不会太慢，至少比玩家快20%
+    var minSpeed = playerBaseSpeed * 1.2;
+    return Math.max(adjustedSpeed, minSpeed);
+};
+
+// 更新所有僵尸的移动速度（基于当前生存天数）
+ZombieManager.prototype.updateAllZombieSpeeds = function (survivalDays) {
+    var speedMultiplier = this.getZombieSpeedMultiplier(survivalDays);
+
+    // 为每个僵尸类型计算正确的速度
+    var thinSpeed = this.getZombieActualSpeed(5.0, survivalDays);
+    var fatSpeed = this.getZombieActualSpeed(4.5, survivalDays);
+    var bossSpeed = this.getZombieActualSpeed(6.0, survivalDays);
+
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
+
+        // 根据僵尸类型设置正确的速度
+        switch (zombie.type) {
+            case 'thin':
+                zombie.moveSpeed = thinSpeed;
+                break;
+            case 'fat':
+                zombie.moveSpeed = fatSpeed;
+                break;
+            case 'boss1':
+                zombie.moveSpeed = bossSpeed;
+                break;
+            default:
+                zombie.moveSpeed = thinSpeed; // 默认使用瘦僵尸速度
+        }
+
+        zombie.speedMultiplier = speedMultiplier;
+    }
+
+    console.log('[ZombieManager] 僵尸速度已更新，生存天数:', survivalDays, '速度倍数:', speedMultiplier);
+    console.log('[ZombieManager] 各类型僵尸速度: 瘦僵尸', thinSpeed, '胖僵尸', fatSpeed, 'Boss僵尸', bossSpeed);
+
+    // 显示速度对比信息
+    var playerSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED;
+    console.log('[ZombieManager] 速度对比 - 玩家:', playerSpeed, '瘦僵尸:', thinSpeed, '胖僵尸:', fatSpeed, 'Boss僵尸:', bossSpeed);
+    console.log('[ZombieManager] 速度倍数 - 瘦僵尸:', (thinSpeed / playerSpeed).toFixed(1), '胖僵尸:', (fatSpeed / playerSpeed).toFixed(1), 'Boss僵尸:', (bossSpeed / playerSpeed).toFixed(1));
+};
+
+// 对象池管理
+ZombieManager.prototype.initializePool = function () {
+    try {
+        console.log('[ZombieManager] 初始化僵尸对象池，预创建', this.maxPoolSize, '个实例');
+
+        for (var i = 0; i < this.maxPoolSize; i++) {
+            var zombie = this.createZombieInstance();
+            if (zombie) {
+                zombie.active = false;
+                this.zombiePool.push(zombie);
+            }
+        }
+
+        console.log('[ZombieManager] 对象池初始化完成，实际创建', this.zombiePool.length, '个实例');
+    } catch (error) {
+        console.error('[ZombieManager] 初始化对象池时出错:', error);
+        // 出错时创建空对象池
+        this.zombiePool = [];
+    }
+};
+
+ZombieManager.prototype.createZombieInstance = function () {
+    try {
+        var zombieTypes = Object.keys(this.zombieTypes);
+        if (zombieTypes.length === 0) {
+            console.warn('[ZombieManager] 没有可用的僵尸类型');
+            return null;
+        }
+
+        var randomType = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+        var config = this.zombieTypes[randomType];
+
+        if (!config) {
+            console.warn('[ZombieManager] 僵尸配置无效:', randomType);
+            return null;
+        }
+
+        return new BaseZombie({
+            type: randomType,
+            health: config.health,
+            attack: config.attack,
+            moveSpeed: config.moveSpeed,
+            size: config.size,
+            attackCooldown: config.attackCooldown,
+            detectionRange: config.detectionRange,
+            color: config.color,
+            gameEngine: this.gameEngine
+        });
+    } catch (error) {
+        console.error('[ZombieManager] 创建僵尸实例时出错:', error);
+        return null;
+    }
+};
+
+ZombieManager.prototype.getZombieFromPool = function (type, x, y) {
+    // 从对象池中获取僵尸
+    for (var i = 0; i < this.zombiePool.length; i++) {
+        if (!this.zombiePool[i].active) {
+            var zombie = this.zombiePool[i];
+            zombie.reset(type, x, y);
+            zombie.active = true;
+            return zombie;
+        }
+    }
+
+    // 如果对象池满了，创建新实例
+    if (this.zombies.length < this.maxPoolSize) {
+        var newZombie = this.createZombieInstance();
+        newZombie.reset(type, x, y);
+        newZombie.active = true;
+        this.zombiePool.push(newZombie);
+        return newZombie;
+    }
+
+    return null;
+};
+
+
+ZombieManager.prototype.createZombie = function (type, x, y) {
+    var zombieType = this.zombieTypes[type];
+    if (!zombieType) {
+        console.warn('[ZombieManager] 未知的僵尸类型:', type);
+        return null;
+    }
+
+    // 性能优化：从对象池获取僵尸
+    var zombie = this.getZombieFromPool(type);
+
+    if (!zombie) {
+        // 获取当前生存天数
+        var survivalDays = this.gameEngine ? this.gameEngine.gameData.survivalDays : 1;
+
+        // 计算基于天数的实际移动速度
+        var actualMoveSpeed = this.getZombieActualSpeed(zombieType.moveSpeed, survivalDays);
+
+        var config = {
+            type: type,
+            x: x,
+            y: y,
+            health: zombieType.health,
+            maxHealth: zombieType.health,
+            attack: zombieType.attack,
+            moveSpeed: actualMoveSpeed, // 使用基于天数的实际速度
+            baseMoveSpeed: zombieType.moveSpeed, // 保存基础速度
+            speedMultiplier: this.getZombieSpeedMultiplier(survivalDays), // 保存速度倍数
+            size: zombieType.size,
+            attackCooldown: zombieType.attackCooldown,
+            detectionRange: zombieType.detectionRange || 800, // 使用更大的默认检测范围
+            state: 'wandering', // 确保初始状态
+            isDead: false, // 确保死亡状态
+            renderFailed: false // 渲染失败标记
+        };
+
+        switch (type) {
+            case 'thin':
+                zombie = new ThinZombie(config);
+                break;
+            case 'fat':
+                zombie = new FatZombie(config);
+                break;
+            case 'boss1':
+                zombie = new ZombieBoss1(config);
+                break;
+            default:
+                zombie = new BaseZombie(config);
+        }
+    } else {
+        // 获取当前生存天数
+        var survivalDays = this.gameEngine ? this.gameEngine.gameData.survivalDays : 1;
+
+        // 更新基于天数的实际移动速度
+        var actualMoveSpeed = this.getZombieActualSpeed(zombieType.moveSpeed, survivalDays);
+
+        // 重置僵尸状态
+        zombie.x = x;
+        zombie.y = y;
+        zombie.health = zombieType.health;
+        zombie.maxHealth = zombieType.health;
+        zombie.moveSpeed = actualMoveSpeed; // 更新移动速度
+        zombie.speedMultiplier = this.getZombieSpeedMultiplier(survivalDays); // 更新速度倍数
+        zombie.state = 'wandering';
+        zombie.target = null;
+        zombie.lastAttackTime = 0;
+        zombie.isWalking = false;
+        zombie.walkAnimationFrame = 0;
+        zombie.isDead = false; // 重置死亡状态
+        zombie.renderFailed = false; // 重置渲染失败标记
+    }
+
+    this.zombies.push(zombie);
+    return zombie;
+};
+
+ZombieManager.prototype.update = function (deltaTime, gameEngine) {
+    // 检查游戏是否已经结束
+    if (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'menu' || gameEngine.gameState === 'victory') {
+        return;
+    }
+
+    // 检查玩家是否已经死亡
+    if (gameEngine.player.health <= 0 && !gameEngine.player.isDead) {
+        gameEngine.player.isDead = true;
+        gameEngine.gameOver('death');
+        return;
+    }
+
+    var viewWidth = gameEngine.canvas.width / gameEngine.camera.zoom;
+    var viewHeight = gameEngine.canvas.height / gameEngine.camera.zoom;
+    var viewLeft = gameEngine.camera.x - 200;
+    var viewRight = gameEngine.camera.x + viewWidth + 200;
+    var viewTop = gameEngine.camera.y - 200;
+    var viewBottom = gameEngine.camera.y + viewHeight + 200;
+
+    // 性能优化：批量处理僵尸死亡
+    var deadZombies = [];
+
+    for (var i = this.zombies.length - 1; i >= 0; i--) {
+        var zombie = this.zombies[i];
+
+        var inView = (zombie.x >= viewLeft && zombie.x <= viewRight && zombie.y >= viewTop && zombie.y <= viewBottom);
+        var isChasing = zombie.state === 'chasing' || zombie.state === 'attacking';
+
+        if (inView || isChasing) {
+            // 强化僵尸有效性检查
+            if (!zombie || typeof zombie !== 'object' || zombie.health <= 0 || zombie.isDead) {
+                deadZombies.push(i);
+                continue;
+            }
+
+            // 额外检查：如果游戏已经结束，僵尸应该停止所有活动
+            if (gameEngine.isGameEnded || gameEngine.gameState === 'gameover' || gameEngine.gameState === 'victory') {
+                // 强制僵尸回到游荡状态
+                if (zombie.state !== 'wandering') {
+                    zombie.state = 'wandering';
+                    zombie.target = null;
+                }
+                continue;
+            }
+
+            // 性能优化：动态更新频率
+            var distanceToPlayer = Math.sqrt(Math.pow(zombie.x - gameEngine.player.x, 2) + Math.pow(zombie.y - gameEngine.player.y, 2));
+            var updateInterval = distanceToPlayer < 300 ? this.updateIntervals.near : distanceToPlayer < 800 ? this.updateIntervals.medium : this.updateIntervals.far;
+
+            if (!zombie.lastUpdateTime) zombie.lastUpdateTime = 0;
+            if (Date.now() - zombie.lastUpdateTime >= updateInterval) {
+                try {
+                    zombie.update(deltaTime, gameEngine);
+                    zombie.lastUpdateTime = Date.now();
+                } catch (error) {
+                    console.error('[ZombieManager] 僵尸更新出错:', error, '僵尸:', zombie);
+                    // 如果僵尸更新出错，将其标记为死亡
+                    zombie.health = 0;
+                    zombie.isDead = true;
+                    deadZombies.push(i);
+                }
+            }
+        }
+
+        if (zombie.health <= 0) {
+            deadZombies.push(i);
+            gameEngine.gameData.zombieKills++;
+        }
+    }
+
+    // 性能优化：批量删除死亡僵尸
+    // 使用安全的批量删除方法，避免索引问题
+    if (deadZombies.length > 0) {
+        var removedCount = this.safeBatchRemoveZombies(deadZombies);
+        if (removedCount !== deadZombies.length) {
+            console.warn('[ZombieManager] 批量删除数量不匹配，预期:', deadZombies.length, '实际:', removedCount);
+        }
+    }
+
+    // 定期清理无效僵尸（每100帧执行一次）
+    if (!this.cleanupCounter) this.cleanupCounter = 0;
+    this.cleanupCounter++;
+    if (this.cleanupCounter >= 100) {
+        this.cleanupInvalidZombies();
+        this.cleanupCounter = 0;
+    }
+};
+
+ZombieManager.prototype.render = function (ctx, camera) {
+    // 检查参数有效性
+    if (!ctx || !camera) {
+        console.warn('[ZombieManager] 渲染参数无效:', {ctx: !!ctx, camera: !!camera});
+        return;
+    }
+
+    // 检查zombies数组是否有效
+    if (!this.zombies || !Array.isArray(this.zombies)) {
+        console.warn('[ZombieManager] zombies数组无效:', this.zombies);
+        return;
+    }
+
+    // 渲染每个僵尸，添加完整的对象完整性检查
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
+
+        // 检查僵尸对象是否有效
+        if (!zombie || typeof zombie !== 'object') {
+            console.warn('[ZombieManager] 僵尸对象无效，索引:', i, '值:', zombie);
+            continue;
+        }
+
+        // 检查僵尸是否已死亡（不应该渲染死亡的僵尸）
+        if (zombie.health <= 0 || zombie.isDead) {
+            continue;
+        }
+
+        // 检查僵尸是否有必要的属性和方法
+        if (typeof zombie.x !== 'number' || typeof zombie.y !== 'number' || typeof zombie.render !== 'function') {
+            console.warn('[ZombieManager] 僵尸对象缺少必要属性，索引:', i, '僵尸:', zombie);
+            continue;
+        }
+
+        // 检查僵尸坐标是否有效
+        if (isNaN(zombie.x) || isNaN(zombie.y) || !isFinite(zombie.x) || !isFinite(zombie.y)) {
+            console.warn('[ZombieManager] 僵尸坐标无效，索引:', i, '坐标:', zombie.x, zombie.y);
+            continue;
+        }
+
+        // 检查僵尸状态是否有效
+        if (typeof zombie.state !== 'string' || !zombie.state) {
+            zombie.state = 'wandering'; // 设置默认状态
+        }
+
+        // 检查僵尸血量是否有效
+        if (typeof zombie.health !== 'number' || typeof zombie.maxHealth !== 'number' || zombie.health <= 0 || zombie.maxHealth <= 0) {
+            console.warn('[ZombieManager] 僵尸血量无效，索引:', i, '血量:', zombie.health, '最大血量:', zombie.maxHealth);
+            continue;
+        }
+
+        // 检查僵尸大小是否有效
+        if (typeof zombie.size !== 'number' || zombie.size <= 0 || !isFinite(zombie.size)) {
+            zombie.size = 1.0; // 设置默认大小
+        }
+
+        try {
+            zombie.render(ctx, camera);
+        } catch (error) {
+            console.error('[ZombieManager] 渲染僵尸时出错，索引:', i, '僵尸:', zombie, '错误:', error);
+            // 如果渲染失败，标记僵尸为无效状态
+            zombie.renderFailed = true;
+        }
+    }
+};
+
+ZombieManager.prototype.getZombiesInRange = function (x, y, range) {
+    // 检查参数有效性
+    if (typeof x !== 'number' || typeof y !== 'number' || typeof range !== 'number' || isNaN(x) || isNaN(y) || isNaN(range) || !isFinite(x) || !isFinite(y) || !isFinite(range)) {
+        console.warn('[ZombieManager] 参数无效:', {x: x, y: y, range: range});
+        return [];
+    }
+
+    // 检查zombies数组是否有效
+    if (!this.zombies || !Array.isArray(this.zombies)) {
+        console.warn('[ZombieManager] zombies数组无效:', this.zombies);
+        return [];
+    }
+
+    var zombiesInRange = [];
+
+    for (var i = 0; i < this.zombies.length; i++) {
+        var zombie = this.zombies[i];
+
+        // 检查僵尸对象是否有效
+        if (!zombie || typeof zombie !== 'object') {
+            console.warn('[ZombieManager] 僵尸对象无效，索引:', i, '值:', zombie);
+            continue;
+        }
+
+        // 检查僵尸坐标是否有效
+        if (typeof zombie.x !== 'number' || typeof zombie.y !== 'number' || isNaN(zombie.x) || isNaN(zombie.y) || !isFinite(zombie.x) || !isFinite(zombie.y)) {
+            console.warn('[ZombieManager] 僵尸坐标无效，索引:', i, '坐标:', zombie.x, zombie.y);
+            continue;
+        }
+
+        try {
+            var distance = Math.sqrt(Math.pow(zombie.x - x, 2) + Math.pow(zombie.y - y, 2));
+
+            if (distance <= range) {
+                zombiesInRange.push({zombie: zombie, distance: distance});
+            }
+        } catch (error) {
+            console.error('[ZombieManager] 计算距离时出错，索引:', i, '僵尸:', zombie, '错误:', error);
+        }
+    }
+
+    return zombiesInRange;
+};
+
+// 性能优化：对象池管理方法
+ZombieManager.prototype.getZombieFromPool = function (type) {
+    for (var i = 0; i < this.zombiePool.length; i++) {
+        if (this.zombiePool[i].type === type) {
+            return this.zombiePool.splice(i, 1)[0];
+        }
+    }
+    return null;
+};
+
+// 安全的批量删除方法，使用对象引用而不是索引
+ZombieManager.prototype.safeBatchRemoveZombies = function (deadZombies) {
+    if (!deadZombies || deadZombies.length === 0) {
+        return 0;
+    }
+
+    // 使用通用安全数组操作工具
+    var removedCount = SafeArrayOperations.safeBatchRemove(this.zombies, deadZombies, function (zombie) {
+        // 从视距裁剪系统中移除死亡僵尸
+        if (this.gameEngine && this.gameEngine.viewportCulling) {
+            zombie.isDead = true;
+            zombie.quadTreeInserted = false;
+        }
+
+        // 回收到对象池
+        this.recycleZombie(zombie);
+    }.bind(this));
+
+    console.log('[ZombieManager] 安全批量删除完成，移除', removedCount, '个死亡僵尸，剩余僵尸数量:', this.zombies.length);
+    return removedCount;
+};
+
+ZombieManager.prototype.recycleZombie = function (zombie) {
+    if (!zombie || typeof zombie !== 'object') {
+        console.warn('[ZombieManager] 无效的僵尸对象，跳过回收:', zombie);
+        return false;
+    }
+
+    if (this.zombiePool.length >= this.maxPoolSize) {
+        console.log('[ZombieManager] 僵尸对象池已满，跳过回收');
+        return false;
+    }
+
+    try {
+        // 重置僵尸状态
+        zombie.x = 0;
+        zombie.y = 0;
+        zombie.health = 0;
+        zombie.maxHealth = 0;
+        zombie.state = 'wandering';
+        zombie.target = null;
+        zombie.lastAttackTime = 0;
+        zombie.isWalking = false;
+        zombie.walkAnimationFrame = 0;
+        zombie.isDead = false;
+        zombie.isConverted = false;
+        zombie.originalName = null;
+        zombie.quadTreeInserted = false;
+        zombie.renderFailed = false; // 重置渲染失败标记
+        zombie.aiUpdateTimer = 0; // 重置AI更新计时器
+        zombie.lastStateChangeTime = 0; // 重置状态变化时间
+
+        // 添加到对象池
+        this.zombiePool.push(zombie);
+        console.log('[ZombieManager] 僵尸回收成功，当前池大小:', this.zombiePool.length);
+        return true;
+    } catch (error) {
+        console.error('[ZombieManager] 回收僵尸时出错:', error);
+        return false;
+    }
+};
+
+// 为主地图生成僵尸
+ZombieManager.prototype.generateZombiesForMap = function () {
+    console.log('[ZombieManager] 开始为主地图生成僵尸');
+
+    // 清空现有僵尸
+    this.zombies = [];
+
+    // 获取当前生存天数
+    var survivalDays = this.gameEngine ? this.gameEngine.gameData.survivalDays : 1;
+
+    // 计算僵尸数量（基于生存天数）
+    var baseCount = GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
+    var additionalCount = Math.floor((survivalDays - 1) * GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE);
+    var totalCount = Math.min(baseCount + additionalCount, GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES);
+
+    console.log('[ZombieManager] 生存天数:', survivalDays, '基础数量:', baseCount, '额外数量:', additionalCount, '总数量:', totalCount);
+
+    // 生成僵尸
+    for (var i = 0; i < totalCount; i++) {
+        var zombie = this.generateZombieAtRandomLocation();
+        if (zombie) {
+            this.zombies.push(zombie);
+        }
+    }
+
+    console.log('[ZombieManager] 主地图僵尸生成完成，数量:', this.zombies.length);
+};
+
+// 在随机位置生成僵尸
+ZombieManager.prototype.generateZombieAtRandomLocation = function () {
+    if (!this.gameEngine) {
+        console.warn('[ZombieManager] 游戏引擎引用无效，无法生成僵尸');
+        return null;
+    }
+
+    var maxAttempts = GAME_CONFIG.ZOMBIE_SPAWN.MAX_ATTEMPTS_MULTIPLIER * 10;
+    var attempt = 0;
+
+    console.log('[ZombieManager] 开始生成僵尸，最大尝试次数:', maxAttempts);
+
+    while (attempt < maxAttempts) {
+        attempt++;
+
+        // 随机选择僵尸类型
+        var zombieTypes = ['thin', 'fat', 'boss1'];
+        var randomType = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+
+        // 随机位置（在玩家周围一定范围内）
+        var angle = Math.random() * Math.PI * 2;
+        var distance = GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE + Math.random() * (GAME_CONFIG.ZOMBIE_SPAWN.SPAWN_RADIUS - GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE);
+        var x = this.gameEngine.player.x + Math.cos(angle) * distance;
+        var y = this.gameEngine.player.y + Math.sin(angle) * distance;
+
+        // 确保位置在地图范围内
+        x = Math.max(100, Math.min(this.gameEngine.mapConfig.width - 100, x));
+        y = Math.max(100, Math.min(this.gameEngine.mapConfig.height - 100, y));
+
+        // 检查位置是否安全（不与建筑物重叠）
+        if (this.isSafeZombieSpawnPosition(x, y)) {
+            // 创建僵尸
+            var zombie = this.createZombie(randomType, x, y);
+            if (zombie) {
+                console.log('[ZombieManager] 僵尸生成成功，位置:', {x: x, y: y, type: randomType});
+                return zombie;
+            }
+        } else {
+            console.log('[ZombieManager] 位置不安全，重新尝试:', {x: x, y: y});
+        }
+    }
+
+    console.warn('[ZombieManager] 达到最大尝试次数，僵尸生成失败');
+    return null;
+};
+
+// 检查僵尸生成位置是否安全（不与建筑物重叠）
+ZombieManager.prototype.isSafeZombieSpawnPosition = function (x, y) {
+    if (!this.gameEngine || !this.gameEngine.buildings) {
+        console.warn('[ZombieManager] 无法检查位置安全性，缺少游戏引擎或建筑物数据');
+        return true; // 如果无法检查，默认安全
+    }
+
+    var zombieRadius = 20; // 僵尸的碰撞半径
+    var safetyMargin = 10; // 额外的安全边距
+    var totalRadius = zombieRadius + safetyMargin;
+
+    // 检查是否与任何建筑物重叠
+    for (var i = 0; i < this.gameEngine.buildings.length; i++) {
+        var building = this.gameEngine.buildings[i];
+
+        if (!building || typeof building.x !== 'number' || typeof building.y !== 'number') {
+            continue; // 跳过无效的建筑物数据
+        }
+
+        // 计算僵尸中心到建筑物边缘的最短距离
+        var closestX = Math.max(building.x, Math.min(x, building.x + building.width));
+        var closestY = Math.max(building.y, Math.min(y, building.y + building.height));
+
+        var distanceSquared = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
+        var minDistanceSquared = Math.pow(totalRadius, 2);
+
+        // 如果距离小于安全距离，位置不安全
+        if (distanceSquared < minDistanceSquared) {
+            console.log('[ZombieManager] 位置不安全，与建筑物重叠:', {
+                zombiePos: {x: x, y: y}, building: {
+                    x: building.x, y: building.y, width: building.width, height: building.height, name: building.name
+                }, distance: Math.sqrt(distanceSquared).toFixed(1), minDistance: totalRadius
+            });
+            return false;
+        }
+    }
+
+    // 检查是否与玩家太近
+    if (this.gameEngine.player) {
+        var playerDistanceSquared = Math.pow(x - this.gameEngine.player.x, 2) + Math.pow(y - this.gameEngine.player.y, 2);
+        var minPlayerDistanceSquared = Math.pow(GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE, 2);
+
+        if (playerDistanceSquared < minPlayerDistanceSquared) {
+            console.log('[ZombieManager] 位置不安全，与玩家太近:', {
+                zombiePos: {x: x, y: y},
+                playerPos: {x: this.gameEngine.player.x, y: this.gameEngine.player.y},
+                distance: Math.sqrt(playerDistanceSquared).toFixed(1),
+                minDistance: GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE
+            });
+            return false;
+        }
+    }
+
+    // 位置安全
+    return true;
+};
+
+
+// 游戏平衡配置
+var GAME_CONFIG = {
+    // 僵尸生成配置
+    ZOMBIE_SPAWN: {
+        BASE_COUNT: 10,
+        PER_DAY_INCREASE: 3,
+        MAX_ZOMBIES: 50,
+        SPAWN_RADIUS: 2000,
+        MIN_DISTANCE: 300,
+        MAX_ATTEMPTS_MULTIPLIER: 10
+    },
+
+    // 玩家配置
+    PLAYER: {
+        BASE_HEALTH: 50, BASE_ATTACK: 15, ATTACK_RANGE: 35, ATTACK_COOLDOWN: 800, MOVE_SPEED: 3, CHARACTER_RADIUS: 18
+    },
+
+    // 团队配置
+    TEAM: {
+        MAX_SIZE: 20, FOLLOW_DISTANCE: 35, COLLISION_THRESHOLD: 900
+    },
+
+    // 时间配置
+    TIME: {
+        DAY_DURATION: 30000,     // 30秒
+        NIGHT_DURATION: 30000,   // 30秒
+        FOOD_COST_PER_DAY: 1
+    },
+
+    // 建筑配置
+    BUILDING: {
+        INTERACTION_DISTANCE: 60, TRIGGER_DISTANCE: 50, EXIT_COOLDOWN: 2000
+    }
+};
+
+// ========================================
+// 视距裁剪系统 (Viewport Culling System)
+// ========================================
+
+// 视距裁剪系统配置
+var VIEWPORT_CONFIG = {
+    GRID_SIZE: 500,           // 网格区块大小
+    EXTRA_RENDER: 1,          // 额外渲染区块数
+    MAX_VIEW_DISTANCE: 1000,  // 最大视距
+    UPDATE_FREQUENCIES: {
+        CORE: 1,              // 60fps (每帧更新)
+        IMPORTANT: 2,         // 30fps (每2帧更新)
+        NORMAL: 4,            // 15fps (每4帧更新)
+        LOW: 30,              // 2fps (每30帧更新)
+        SLEEP: 0              // 停止更新
+    }
+};
+
+// 边界框类
+function Bounds(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+}
+
+Bounds.prototype.contains = function (x, y) {
+    return x >= this.x && x <= this.x + this.width && y >= this.y && y <= this.y + this.height;
+};
+
+Bounds.prototype.intersects = function (other) {
+    return !(this.x > other.x + other.width || this.x + this.width < other.x || this.y > other.y + other.height || this.y + this.height < other.y);
+};
+
+// 四叉树节点类
+function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
+    this.bounds = bounds;           // 边界 {x, y, width, height}
+    this.maxObjects = maxObjects || 10;
+    this.maxLevels = maxLevels || 5;
+    this.level = level || 0;
+    this.objects = [];
+    this.nodes = [];
+    this.isLeaf = true;
+}
+
+QuadTreeNode.prototype.insert = function (object) {
+    if (!this.bounds.contains(object.x, object.y)) {
+        return false;
+    }
+
+    if (this.isLeaf && this.objects.length < this.maxObjects) {
+        this.objects.push(object);
+        return true;
+    }
+
+    if (this.isLeaf && this.level < this.maxLevels) {
+        this.split();
+    }
+
+    for (var i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].insert(object)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+QuadTreeNode.prototype.split = function () {
+    var subWidth = this.bounds.width / 2;
+    var subHeight = this.bounds.height / 2;
+    var x = this.bounds.x;
+    var y = this.bounds.y;
+
+    this.nodes[0] = new QuadTreeNode(new Bounds(x + subWidth, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.nodes[1] = new QuadTreeNode(new Bounds(x, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.nodes[2] = new QuadTreeNode(new Bounds(x, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.nodes[3] = new QuadTreeNode(new Bounds(x + subWidth, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.isLeaf = false;
+
+    // 重新分配现有对象
+    for (var i = 0; i < this.objects.length; i++) {
+        for (var j = 0; j < this.nodes.length; j++) {
+            if (this.nodes[j].insert(this.objects[i])) {
+                break;
+            }
+        }
+    }
+    this.objects = [];
+};
+
+QuadTreeNode.prototype.query = function (range) {
+    var result = [];
+
+    if (!this.bounds.intersects(range)) {
+        return result;
+    }
+
+    for (var i = 0; i < this.objects.length; i++) {
+        if (range.contains(this.objects[i].x, this.objects[i].y)) {
+            result.push(this.objects[i]);
+        }
+    }
+
+    if (!this.isLeaf) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            result = result.concat(this.nodes[i].query(range));
+        }
+    }
+
+    return result;
+};
+
+// 从四叉树中移除对象
+QuadTreeNode.prototype.remove = function (object) {
+    if (this.isLeaf) {
+        // 在叶子节点中查找并移除对象
+        for (var i = 0; i < this.objects.length; i++) {
+            if (this.objects[i] === object) {
+                this.objects.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    } else {
+        // 在子节点中查找并移除对象
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].remove(object)) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+// 视距裁剪管理器
+function ViewportCullingManager() {
+    this.quadTree = null;
+    this.quadTreeInitialized = false; // 添加四叉树初始化标志位
+    this.visibleEntities = {
+        players: [], followers: [], zombies: [], buildings: [], decorations: []
+    };
+    this.updateCounters = {
+        core: 0, important: 0, normal: 0, low: 0
+    };
+    this.camera = {x: 0, y: 0, width: 800, height: 600};
+    this.pauseMainMapUpdates = false; // 添加暂停主地图更新的标志位
+}
+
+ViewportCullingManager.prototype.init = function (mapWidth, mapHeight) {
+    this.quadTree = new QuadTreeNode(new Bounds(0, 0, mapWidth, mapHeight));
+    this.quadTreeInitialized = true;
+    this.lastMapWidth = mapWidth;
+    this.lastMapHeight = mapHeight;
+};
+
+// 添加重置四叉树的方法
+ViewportCullingManager.prototype.resetQuadTree = function () {
+    this.quadTree = null;
+    this.quadTreeInitialized = false;
+    this.lastMapWidth = null;
+    this.lastMapHeight = null;
+    console.log('[ViewportCulling] 四叉树已重置');
+};
+
+ViewportCullingManager.prototype.updateCamera = function (x, y, width, height) {
+    this.camera.x = x;
+    this.camera.y = y;
+    this.camera.width = width;
+    this.camera.height = height;
+};
+
+
+ViewportCullingManager.prototype.updateVisibleEntities = function (gameEngine) {
+    // 如果暂停主地图更新，则跳过
+    if (this.pauseMainMapUpdates) {
+        return;
+    }
+
+    // 高性能算法：只在必要时重新计算
+    var currentTime = Date.now();
+
+    // 计算稳定的视口范围（使用整数坐标避免浮点数问题）
+    var stableRange = this.getStableVisibleRange();
+
+    // 检查是否需要重新查询（避免频繁查询）
+    if (this.shouldUpdateVisibleQuery(stableRange, currentTime)) {
+        this.performVisibleQuery(stableRange, gameEngine);
+        this.lastQueryTime = currentTime;
+        this.lastQueryRange = stableRange;
+
+        // 添加调试信息
+        console.log('[ViewportCulling] 可见实体更新 - 建筑物:', this.visibleEntities.buildings.length);
+    }
+
+    // 只更新移动实体的位置（静态实体永远不变）
+    this.updateMovingEntitiesOnly(gameEngine);
+
+    // 轻量级计数器更新
+    this.updateCounters.core++;
+    if (this.updateCounters.core % 10 === 0) this.updateCounters.important++;
+    if (this.updateCounters.core % 30 === 0) this.updateCounters.normal++;
+    if (this.updateCounters.core % 60 === 0) this.updateCounters.low++;
+};
+
+// 获取稳定的视口范围（使用整数坐标）
+ViewportCullingManager.prototype.getStableVisibleRange = function () {
+    var extra = VIEWPORT_CONFIG.GRID_SIZE * VIEWPORT_CONFIG.EXTRA_RENDER;
+
+    // 使用整数坐标，避免浮点数精度问题
+    var stableX = Math.floor(this.camera.x / 50) * 50; // 50像素网格对齐
+    var stableY = Math.floor(this.camera.y / 50) * 50;
+
+    return new Bounds(Math.max(0, stableX - extra), Math.max(0, stableY - extra), this.camera.width + extra * 2, this.camera.height + extra * 2);
+};
+
+// 检查是否需要重新查询（高性能判断）
+ViewportCullingManager.prototype.shouldUpdateVisibleQuery = function (currentRange, currentTime) {
+    // 首次查询
+    if (!this.lastQueryTime || !this.lastQueryRange) {
+        return true;
+    }
+
+    // 时间间隔检查（至少500ms才重新查询）
+    if (currentTime - this.lastQueryTime < 500) {
+        return false;
+    }
+
+    // 视口范围变化检查（只有显著变化才重新查询）
+    var rangeChanged = Math.abs(currentRange.x - this.lastQueryRange.x) > 200 || Math.abs(currentRange.y - this.lastQueryRange.y) > 200;
+
+    return rangeChanged;
+};
+
+// 执行可见实体查询（重型操作，尽量少调用）
+ViewportCullingManager.prototype.performVisibleQuery = function (range, gameEngine) {
+    console.log('[HighPerf] 执行视口查询，范围:', range.x, range.y, range.width, range.height);
+
+    var allEntities = this.quadTree.query(range);
+
+    // 调试信息：检查四叉树查询结果
+    console.log('[ViewportCulling] 四叉树查询结果:', {
+        totalEntities: allEntities.length, entityTypes: allEntities.map(function (e) {
+            return e ? e.type : 'null';
+        }), firstFewEntities: allEntities.slice(0, 5).map(function (e) {
+            return e ? {type: e.type, x: e.x, y: e.y} : 'null';
+        })
+    });
+
+    // 清空并重新分类（只在查询时做一次）
+    for (var key in this.visibleEntities) {
+        this.visibleEntities[key] = [];
+    }
+
+    for (var i = 0; i < allEntities.length; i++) {
+        var entity = allEntities[i];
+
+        // 快速类型分类（避免复杂计算）
+        if (entity.type === 'player') {
+            this.visibleEntities.players.push(entity);
+            console.log('[ViewportCulling] 分类玩家:', entity.id || 'unknown');
+        } else if (entity.type === 'building') {
+            this.visibleEntities.buildings.push(entity);
+        } else if (entity.type === 'follower' || (entity.isFollowing && entity.type === 'npc')) {
+            this.visibleEntities.followers.push(entity);
+            console.log('[ViewportCulling] 分类跟随者:', entity.id || 'unknown', 'type:', entity.type, 'isFollowing:', entity.isFollowing);
+        } else if (entity.type === 'thin' || entity.type === 'fat' || entity.type === 'boss1') {
+            this.visibleEntities.zombies.push(entity);
+        } else if (entity.type === 'npc') {
+            this.visibleEntities.decorations.push(entity);
+        } else {
+            this.visibleEntities.decorations.push(entity);
+            console.log('[ViewportCulling] 分类到装饰物:', entity.id || 'unknown', 'type:', entity.type);
+        }
+    }
+
+    // 调试信息：检查分类结果
+    console.log('[ViewportCulling] 实体分类结果:', {
+        players: this.visibleEntities.players.length,
+        buildings: this.visibleEntities.buildings.length,
+        followers: this.visibleEntities.followers.length,
+        zombies: this.visibleEntities.zombies.length,
+        decorations: this.visibleEntities.decorations.length
+    });
+};
+
+// 只更新移动实体（轻量级操作，每帧可调用）
+ViewportCullingManager.prototype.updateMovingEntitiesOnly = function (gameEngine) {
+    // 确保玩家始终在可见列表中
+    if (this.visibleEntities.players.length === 0 && gameEngine.player) {
+        this.visibleEntities.players.push(gameEngine.player);
+    }
+
+    // 快速更新玩家位置（如果在可见列表中）
+    for (var i = 0; i < this.visibleEntities.players.length; i++) {
+        var player = this.visibleEntities.players[i];
+        if (player === gameEngine.player) {
+            // 玩家位置已经是最新的，无需更新
+            break;
+        }
+    }
+
+    // 快速更新跟随者位置（如果在可见列表中）
+    for (var i = 0; i < this.visibleEntities.followers.length; i++) {
+        var follower = this.visibleEntities.followers[i];
+        // 跟随者位置由游戏逻辑更新，这里只需要确认可见性
+        var distance = Math.sqrt(Math.pow(follower.x - gameEngine.player.x, 2) + Math.pow(follower.y - gameEngine.player.y, 2));
+
+        // 如果距离过远，标记为不可见（但不从列表中移除，避免数组操作）
+        follower.tooFarToRender = distance > VIEWPORT_CONFIG.MAX_VIEW_DISTANCE;
+    }
+};
 
 // ========================================
 // 游戏引擎 (Game Engine)
@@ -182,17 +2271,15 @@ function GameEngine(canvas, ctx) {
     this.isGameEnded = false;
 
     // 初始化管理器
-    this.characterManager = new characterModule.CharacterManager();
-    this.zombieManager = new zombieModule.ZombieManager();
-    this.inputManager = new inputModule.InputManager();
-    this.collisionManager = new collisionModule.CollisionManager();
+    this.characterManager = new CharacterManager();
+    this.zombieManager = new ZombieManager();
 
     // 设置僵尸管理器的游戏引擎引用
     this.zombieManager.gameEngine = this;
 
     // 确保视距裁剪系统正确初始化
     try {
-        this.viewportCulling = new viewModule.ViewportCullingManager();
+        this.viewportCulling = new ViewportCullingManager();
         console.log('[GameEngine] 视距裁剪管理器创建成功');
     } catch (error) {
         console.error('[GameEngine] 视距裁剪管理器创建失败:', error);
@@ -208,10 +2295,10 @@ function GameEngine(canvas, ctx) {
     this.followers = [];
 
     // 验证followers数组的初始状态
-    this.collisionManager.validateFollowersArray(this.followers);
+    this.validateFollowersArray();
 
     // 初始化跟随者对象池
-    this.collisionManager.initializeFollowerPool();
+    this.initializeFollowerPool();
 
     // 初始化资源对象池
     this.initializeResourcePool();
@@ -220,7 +2307,7 @@ function GameEngine(canvas, ctx) {
     this.gameData = {
         survivalDays: 1, food: 20, // 开局设置20个食物
         teamSize: 1, maxTeamSize: 1, zombieKills: 0, totalFood: 20, // 总食物也设置为20
-        isDay: true, timeRemaining: zombieModule.GAME_CONFIG.TIME.DAY_DURATION, gameStartTime: Date.now()
+        isDay: true, timeRemaining: GAME_CONFIG.TIME.DAY_DURATION, gameStartTime: Date.now()
     };
 
     // 地图配置
@@ -234,7 +2321,7 @@ function GameEngine(canvas, ctx) {
     };
 
     // 游戏对象
-    this.buildings = mapModule.initializeBuildings(this.mapConfig);
+    this.buildings = this.initializeBuildings();
 
     // 调试信息：显示建筑数量
     console.log('[Map] 地图初始化完成，建筑数量:', this.buildings.length);
@@ -250,13 +2337,13 @@ function GameEngine(canvas, ctx) {
 
     // 调试信息：显示碰撞检测系统状态
     console.log('[Collision] 碰撞检测系统已启用，防止穿墙功能已激活');
-    console.log('[Collision] 玩家碰撞半径:', zombieModule.GAME_CONFIG.PLAYER.CHARACTER_RADIUS);
+    console.log('[Collision] 玩家碰撞半径:', GAME_CONFIG.PLAYER.CHARACTER_RADIUS);
     console.log('[Collision] 僵尸碰撞半径: 20');
     console.log('[Collision] 跟随者碰撞半径: 15');
 
     // 调试信息：显示移动系统状态
     console.log('[Movement] 匀速移动系统已启用');
-    console.log('[Movement] 玩家移动速度:', zombieModule.GAME_CONFIG.PLAYER.MOVE_SPEED, '像素/帧');
+    console.log('[Movement] 玩家移动速度:', GAME_CONFIG.PLAYER.MOVE_SPEED, '像素/帧');
     console.log('[Movement] 僵尸移动速度: 基于生存天数的动态调整');
     console.log('[Movement] 跟随者移动速度: 1.0-2.0倍玩家速度');
     console.log('[Movement] 方向向量标准化: 确保对角线移动速度一致');
@@ -290,13 +2377,13 @@ function GameEngine(canvas, ctx) {
     this.player = {
         x: 1000, // 左下角附近
         y: this.mapConfig.height - 1000,
-        health: zombieModule.GAME_CONFIG.PLAYER.BASE_HEALTH,
-        maxHealth: zombieModule.GAME_CONFIG.PLAYER.BASE_HEALTH,
+        health: GAME_CONFIG.PLAYER.BASE_HEALTH,
+        maxHealth: GAME_CONFIG.PLAYER.BASE_HEALTH,
         level: 1,
-        attack: zombieModule.GAME_CONFIG.PLAYER.BASE_ATTACK,
-        attackRange: zombieModule.GAME_CONFIG.PLAYER.ATTACK_RANGE,
+        attack: GAME_CONFIG.PLAYER.BASE_ATTACK,
+        attackRange: GAME_CONFIG.PLAYER.ATTACK_RANGE,
         lastAttackTime: 0,
-        attackCooldown: zombieModule.GAME_CONFIG.PLAYER.ATTACK_COOLDOWN,
+        attackCooldown: GAME_CONFIG.PLAYER.ATTACK_COOLDOWN,
         isDead: false,
         isZombie: false,
         isWalking: false,
@@ -328,8 +2415,9 @@ function GameEngine(canvas, ctx) {
     this.initializeNPCs();
     this.initializeZombies();
 
-    // 视距裁剪系统初始化
+    // 视距裁剪系统
     try {
+        this.viewportCulling = new ViewportCullingManager();
         this.viewportCulling.init(this.mapConfig.width, this.mapConfig.height);
         this.fallbackToTraditionalRendering = false;
         console.log('[GameEngine] 视距裁剪系统初始化成功');
@@ -361,12 +2449,1195 @@ function GameEngine(canvas, ctx) {
     this.resources = [];
     this.subMapType = null;
 
-    this.inputManager.setupInput(this);
+    this.setupInput();
 }
 
+// ========================================
+// 建筑和地图系统 (Building & Map System)
+// ========================================
+
+/**
+ * 初始化建筑物
+ */
+GameEngine.prototype.initializeBuildings = function () {
+    var buildings = [];
+    var buildingId = 1;
+    var buildingTypes = this.getBuildingTypes();
+
+    var blocksX = Math.floor(this.mapConfig.width / this.mapConfig.blockSize);
+    var blocksY = Math.floor(this.mapConfig.height / this.mapConfig.blockSize);
+
+    for (var blockX = 0; blockX < blocksX; blockX++) {
+        for (var blockY = 0; blockY < blocksY; blockY++) {
+            var typeIndex = Math.floor(Math.random() * buildingTypes.length);
+            var buildingType = buildingTypes[typeIndex];
+            var position = this.calculateBuildingPosition(blockX, blockY);
+
+            if (position) {
+                var building = {
+                    id: buildingType.type + '_' + buildingId,
+                    name: buildingType.name,
+                    type: buildingType.type,
+                    x: position.x,
+                    y: position.y,
+                    width: position.width,
+                    height: position.height,
+                    explored: false,
+                    color: buildingType.color,
+                    oneTimeOnly: buildingType.oneTimeOnly || false,
+                    blockX: blockX,
+                    blockY: blockY
+                };
+
+                buildings.push(building);
+                buildingId++;
+            }
+        }
+    }
+
+    return buildings;
+};
+
+GameEngine.prototype.getBuildingTypes = function () {
+    return [{
+        type: 'police_station', name: '警察局', width: 70, height: 70, color: '#3498db', weight: 1
+    }, {type: 'hospital', name: '医院', width: 70, height: 70, color: '#e74c3c', weight: 1}, {
+        type: 'school', name: '学校', width: 60, height: 60, color: '#f39c12', weight: 2
+    }, {
+        type: 'shop', name: '商店', width: 50, height: 40, color: '#27ae60', weight: 4, oneTimeOnly: true
+    }, {
+        type: 'restaurant', name: '餐厅', width: 50, height: 40, color: '#e67e22', weight: 4, oneTimeOnly: true
+    }, {type: 'house', name: '民房', width: 40, height: 40, color: '#95a5a6', weight: 8},
+        {type: 'villa', name: '别墅', width: 70, height: 50, color: '#8e44ad', weight: 4
+    }];
+};
+
+GameEngine.prototype.calculateBuildingPosition = function (blockX, blockY) {
+    var blockStartX = blockX * this.mapConfig.blockSize;
+    var blockStartY = blockY * this.mapConfig.blockSize;
+
+    var buildingX = blockStartX + this.mapConfig.streetWidth;
+    var buildingY = blockStartY + this.mapConfig.streetWidth;
+    var buildingWidth = this.mapConfig.blockSize - this.mapConfig.streetWidth;
+    var buildingHeight = this.mapConfig.blockSize - this.mapConfig.streetWidth;
+
+    if (buildingX + buildingWidth > this.mapConfig.width || buildingY + buildingHeight > this.mapConfig.height) {
+        return null;
+    }
+
+    return {
+        x: buildingX, y: buildingY, width: buildingWidth, height: buildingHeight
+    };
+};
+
+GameEngine.prototype.exploreBuilding = function (building) {
+
+    if (building.oneTimeOnly && building.explored) {
+        return;
+    }
+
+    this.playerPositionBeforeEntering = {x: this.player.x, y: this.player.y};
+    this.followersPositionBeforeEntering = [];
+    for (var i = 0; i < this.followers.length; i++) {
+        this.followersPositionBeforeEntering.push({
+            x: this.followers[i].x, y: this.followers[i].y
+        });
+    }
+
+    this.currentBuilding = building;
+    this.subMapType = building.type;
+    this.gameState = 'submap';
+
+    // 进入子地图时暂停主地图的四叉树更新
+    if (this.viewportCulling) {
+        this.viewportCulling.pauseMainMapUpdates = true;
+    }
+
+    this.player.x = 200;
+    this.player.y = 130;
+
+    var maxTeamSize = Math.min(this.followers.length, 12);
+    var submapBounds = {minX: 70, maxX: 330, minY: 120, maxY: 280};
+
+    for (var i = 0; i < maxTeamSize; i++) {
+        var follower = this.followers[i];
+        var row = Math.floor(i / 4);
+        var col = i % 4;
+        var baseOffsetX = (col - 1.5) * 35;
+        var baseOffsetY = (row + 1) * 35;
+        var randomOffsetX = (Math.random() - 0.5) * 10;
+        var randomOffsetY = (Math.random() - 0.5) * 10;
+
+        var newX = this.player.x + baseOffsetX + randomOffsetX;
+        var newY = this.player.y + baseOffsetY + randomOffsetY;
+
+        newX = Math.max(submapBounds.minX, Math.min(submapBounds.maxX, newX));
+        newY = Math.max(submapBounds.minY, Math.min(submapBounds.maxY, newY));
+
+        follower.x = newX;
+        follower.y = newY;
+    }
+
+    for (var j = maxTeamSize; j < this.followers.length; j++) {
+        this.followers[j].x = -100;
+        this.followers[j].y = -100;
+    }
+
+    this.generateSubMapContent();
+};
+
+GameEngine.prototype.exitBuilding = function () {
+
+    var building = this.currentBuilding;
+
+    if (building) {
+        building.explored = true;
+        this.exploredBuildings.push(building);
+    }
+
+    if (building && this.playerPositionBeforeEntering) {
+        this.player.x = this.playerPositionBeforeEntering.x;
+        this.player.y = this.playerPositionBeforeEntering.y;
+
+        if (this.followersPositionBeforeEntering) {
+            for (var i = 0; i < Math.min(this.followers.length, this.followersPositionBeforeEntering.length); i++) {
+                var follower = this.followers[i];
+                var savedPosition = this.followersPositionBeforeEntering[i];
+
+                follower.x = savedPosition.x;
+                follower.y = savedPosition.y;
+
+                follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
+                follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+            }
+        }
+
+        this.playerPositionBeforeEntering = null;
+        this.followersPositionBeforeEntering = null;
+    } else {
+        if (building) {
+            var doorInfo = this.calculateDoorInfo(building);
+            var doorCenterX = doorInfo.originalX + doorInfo.originalWidth / 2;
+            var doorCenterY = doorInfo.originalY + doorInfo.originalHeight / 2;
+
+            this.player.x = doorCenterX;
+            this.player.y = doorCenterY + 120;
+
+            for (var i = 0; i < this.followers.length; i++) {
+                var follower = this.followers[i];
+                var row = Math.floor(i / 3);
+                var col = i % 3;
+                var offsetX = (col - 1) * 40;
+                var offsetY = row * 35 + 60;
+
+                follower.x = this.player.x + offsetX;
+                follower.y = this.player.y + offsetY;
+
+                follower.x = Math.max(100, Math.min(this.mapConfig.width - 100, follower.x));
+                follower.y = Math.max(100, Math.min(this.mapConfig.height - 100, follower.y));
+            }
+        }
+    }
+
+    this.gameState = 'playing';
+    this.currentBuilding = null;
+    this.subMapType = null;
+    this.buildingExitCooldown = Date.now() + GAME_CONFIG.BUILDING.EXIT_COOLDOWN;
+    this.zombies = [];
+    this.resources = [];
+
+    // 退出子地图时恢复主地图的四叉树更新
+    if (this.viewportCulling) {
+        this.viewportCulling.pauseMainMapUpdates = false;
+        // 检查是否需要重新初始化四叉树
+        if (this.viewportCulling.lastMapWidth !== this.mapConfig.width || this.viewportCulling.lastMapHeight !== this.mapConfig.height) {
+            console.log('[ViewportCulling] 退出子地图后重新初始化四叉树');
+            this.viewportCulling.resetQuadTree();
+        }
+    }
+};
+
+// ========================================
+// 输入系统实现 (Input System Implementation)
+// ========================================
+
+GameEngine.prototype.setupInput = function () {
+    var self = this;
+
+    console.log('[Input] 开始设置触摸事件，画布尺寸:', this.canvas.width, 'x', this.canvas.height);
+
+    // 初始化摇杆对象
+    if (!this.joystick) {
+        this.joystick = {
+            active: false,
+            centerX: 80,
+            centerY: 0,
+            currentX: 80,
+            currentY: 0,
+            direction: {x: 0, y: 0},
+            radius: 60,
+            knobRadius: 20,
+            visible: true,
+            maxDistance: 50
+        };
+    }
+
+    // 性能优化：事件监听器引用，便于解绑
+    this.eventHandlers = {
+        touchStart: null, touchMove: null, touchEnd: null
+    };
+
+    // 标记事件绑定状态，避免重复绑定
+    this.eventsBound = false;
+
+    // 抖音平台适配：默认位置在屏幕底部中央
+    this.joystick.centerX = this.canvas.width / 2;
+    this.joystick.centerY = this.canvas.height - 80;
+    this.joystick.currentX = this.joystick.centerX;
+    this.joystick.currentY = this.joystick.centerY;
+
+    console.log('[Input] 摇杆位置设置完成:', this.joystick.centerX, this.joystick.centerY);
+
+    // 抖音小程序触摸事件处理 - 修复兼容性问题
+    if (typeof tt !== 'undefined') {
+        // 先解绑之前的事件（如果存在）
+        if (this.eventHandlers.touchStart) {
+            try {
+                tt.offTouchStart(this.eventHandlers.touchStart);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸开始事件失败:', e);
+            }
+        }
+        if (this.eventHandlers.touchMove) {
+            try {
+                tt.offTouchMove(this.eventHandlers.touchMove);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸移动事件失败:', e);
+            }
+        }
+        if (this.eventHandlers.touchEnd) {
+            try {
+                tt.offTouchEnd(this.eventHandlers.touchEnd);
+            } catch (e) {
+                console.warn('[Input] 解绑抖音触摸结束事件失败:', e);
+            }
+        }
+
+        // 使用抖音小程序的触摸事件API
+        try {
+            this.eventHandlers.touchStart = function (res) {
+                self.onTouchStart(res);
+            };
+            this.eventHandlers.touchMove = function (res) {
+                self.onTouchMove(res);
+            };
+            this.eventHandlers.touchEnd = function (res) {
+                self.onTouchEnd(res);
+            };
+
+            tt.onTouchStart(this.eventHandlers.touchStart);
+            tt.onTouchMove(this.eventHandlers.touchMove);
+            tt.onTouchEnd(this.eventHandlers.touchEnd);
+
+            this.eventsBound = true;
+            console.log('[Input] 抖音触摸事件绑定成功');
+
+        } catch (ttError) {
+            console.warn('[Input] 抖音触摸事件绑定失败，使用Canvas事件:', ttError);
+            this.bindCanvasEvents();
+        }
+    } else {
+        // 抖音小游戏环境：使用Canvas事件属性
+        this.bindCanvasEvents();
+    }
+
+};
+
+// 绑定Canvas事件的方法
+GameEngine.prototype.bindCanvasEvents = function () {
+    var self = this;
+
+    try {
+        // 先清理之前的事件绑定
+        this.canvas.ontouchstart = null;
+        this.canvas.ontouchmove = null;
+        this.canvas.ontouchend = null;
+        this.canvas.onclick = null;
+
+        // 重新绑定事件
+        this.canvas.ontouchstart = function (e) {
+            self.onTouchStart(e);
+        };
+        this.canvas.ontouchmove = function (e) {
+            self.onTouchMove(e);
+        };
+        this.canvas.ontouchend = function (e) {
+            self.onTouchEnd(e);
+        };
+        this.canvas.onclick = function (e) {
+            self.onClick(e);
+        };
+
+        this.eventsBound = true;
+        console.log('[Input] Canvas触摸事件绑定成功');
+    } catch (error) {
+        console.error('[Input] Canvas触摸事件绑定失败:', error);
+    }
+};
+
+GameEngine.prototype.onTouchStart = function (e) {
+    try {
+
+        // 抖音小程序事件对象结构可能不同
+        var x, y;
+
+        // 抖音小程序的触摸事件处理
+        if (typeof tt !== 'undefined') {
+            // 抖音小程序触摸事件结构
+            if (e.touches && e.touches.length > 0) {
+                // 标准触摸事件结构
+                var touch = e.touches[0];
+                x = touch.x || touch.clientX || touch.pageX || 0;
+                y = touch.y || touch.clientY || touch.pageY || 0;
+            } else if (e.x !== undefined && e.y !== undefined) {
+                // 抖音小程序直接坐标
+                x = e.x;
+                y = e.y;
+            } else if (e.clientX !== undefined && e.clientY !== undefined) {
+                // 客户端坐标
+                x = e.clientX;
+                y = e.clientY;
+            } else {
+                // 默认坐标
+                x = 0;
+                y = 0;
+            }
+        } else {
+            // 抖音小游戏环境：直接使用事件坐标
+            var touch = e.touches && e.touches[0] ? e.touches[0] : e;
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
+        }
+
+        // 转换为画布坐标
+        try {
+            var rect = this.canvas.getBoundingClientRect();
+            x = x - rect.left;
+            y = y - rect.top;
+        } catch (error) {
+            console.warn('[Touch] 画布坐标转换失败，使用原始坐标:', error);
+        }
+
+        this.touchStartX = x;
+        this.touchStartY = y;
+        this.touchStartTime = Date.now();
+
+        console.log('[Touch] 触摸开始，坐标:', x, y, '游戏状态:', this.gameState);
 
 
+        if (this.gameState === 'playing' || this.gameState === 'submap') {
+            // 抖音小游戏环境：确保坐标是有效数值
+            if (typeof x === 'number' && typeof y === 'number' && !isNaN(x) && !isNaN(y)) {
+                // 使用距离平方避免开方运算，提高性能
+                var dx = x - this.joystick.centerX;
+                var dy = y - this.joystick.centerY;
+                var joystickDistanceSquared = dx * dx + dy * dy;
+                var joystickRadiusSquared = this.joystick.radius * this.joystick.radius;
 
+                console.log('[Touch] 触摸坐标:', x, y, '摇杆中心:', this.joystick.centerX, this.joystick.centerY, '距离:', Math.sqrt(joystickDistanceSquared).toFixed(1), '摇杆半径:', this.joystick.radius);
+
+                if (joystickDistanceSquared <= joystickRadiusSquared) {
+                    // 激活摇杆
+                    this.joystick.active = true;
+                    this.joystick.currentX = x;
+                    this.joystick.currentY = y;
+                    this.updateJoystickDirection();
+                    console.log('[Joystick] 摇杆已激活，开始控制移动');
+                } else {
+                    console.log('[Touch] 触摸位置超出摇杆范围，不激活摇杆');
+                }
+            } else {
+                console.warn('[Touch] 无效的触摸坐标:', {x: x, y: y, event: e});
+            }
+        } else {
+            console.log('[Touch] 当前游戏状态不支持摇杆控制:', this.gameState);
+        }
+    } catch (error) {
+        console.error('[Input] 触摸开始处理错误:', error);
+        this.resetJoystick();
+    }
+};
+
+GameEngine.prototype.onTouchMove = function (e) {
+    try {
+
+        if (!this.joystick.active) {
+            console.log('[Touch] 摇杆未激活，忽略触摸移动');
+            return;
+        }
+
+        var x, y;
+
+        // 抖音小程序的触摸移动事件处理
+        if (typeof tt !== 'undefined') {
+            if (e.touches && e.touches.length > 0) {
+                var touch = e.touches[0];
+                x = touch.x || touch.clientX || touch.pageX || 0;
+                y = touch.y || touch.clientY || touch.pageY || 0;
+            } else if (e.x !== undefined && e.y !== undefined) {
+                x = e.x;
+                y = e.y;
+            } else if (e.clientX !== undefined && e.clientY !== undefined) {
+                x = e.clientX;
+                y = e.clientY;
+            } else {
+                console.warn('[Input] 无法获取抖音触摸移动坐标');
+                return;
+            }
+        } else {
+            // 抖音小游戏环境：直接使用事件坐标
+            var touch = e.touches && e.touches[0] ? e.touches[0] : e;
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
+
+            // 转换为画布坐标
+            try {
+                var rect = this.canvas.getBoundingClientRect();
+                x = x - rect.left;
+                y = y - rect.top;
+            } catch (error) {
+                console.warn('[Touch] 触摸移动画布坐标转换失败，使用原始坐标:', error);
+            }
+        }
+
+
+        var dx = x - this.joystick.centerX;
+        var dy = y - this.joystick.centerY;
+        var distanceSquared = dx * dx + dy * dy;
+        var maxDistanceSquared = this.joystick.maxDistance * this.joystick.maxDistance;
+
+        if (distanceSquared <= maxDistanceSquared) {
+            this.joystick.currentX = x;
+            this.joystick.currentY = y;
+        } else {
+            var angle = Math.atan2(dy, dx);
+            this.joystick.currentX = this.joystick.centerX + Math.cos(angle) * this.joystick.maxDistance;
+            this.joystick.currentY = this.joystick.centerY + Math.sin(angle) * this.joystick.maxDistance;
+        }
+
+        // 实时更新摇杆方向
+        this.updateJoystickDirection();
+
+    } catch (error) {
+        console.error('[Input] 触摸移动处理错误:', error);
+        this.resetJoystick();
+    }
+};
+
+GameEngine.prototype.onTouchEnd = function (e) {
+    try {
+        // 检测是否为快速点击（tap）
+        var touchEndTime = Date.now();
+        var touchDuration = touchEndTime - (this.touchStartTime || touchEndTime);
+
+        if (touchDuration < 300 && !this.joystick.active) {
+            // 模拟点击事件
+            console.log('[Touch] 检测到点击，坐标:', this.touchStartX, this.touchStartY, '游戏状态:', this.gameState);
+            this.onClick({
+                x: this.touchStartX || 0, y: this.touchStartY || 0
+            });
+        }
+
+        // 立即重置摇杆状态
+        this.resetJoystick();
+
+    } catch (error) {
+        console.error('[Input] 触摸结束处理错误:', error);
+        this.resetJoystick();
+    }
+};
+
+GameEngine.prototype.resetJoystick = function () {
+    // 完全重置摇杆状态
+    this.joystick.active = false;
+    this.joystick.currentX = this.joystick.centerX;
+    this.joystick.currentY = this.joystick.centerY;
+    this.joystick.direction.x = 0;
+    this.joystick.direction.y = 0;
+
+    // 确保玩家停止移动
+    if (this.player) {
+        this.player.isWalking = false;
+        this.player.walkAnimationFrame = 0;
+    }
+
+    console.log('[Joystick] 摇杆状态已重置');
+};
+
+
+// 清理无效僵尸的方法
+ZombieManager.prototype.cleanupInvalidZombies = function () {
+    if (!this.zombies || !Array.isArray(this.zombies)) {
+        return 0;
+    }
+
+    var originalLength = this.zombies.length;
+    var removedCount = 0;
+
+    for (var i = this.zombies.length - 1; i >= 0; i--) {
+        var zombie = this.zombies[i];
+
+        // 检查僵尸是否应该被清理
+        var shouldRemove = false;
+
+        if (!zombie || typeof zombie !== 'object') {
+            shouldRemove = true;
+        } else if (zombie.health <= 0 || zombie.isDead) {
+            shouldRemove = true;
+        } else if (zombie.renderFailed) {
+            shouldRemove = true;
+        } else if (typeof zombie.x !== 'number' || typeof zombie.y !== 'number' || isNaN(zombie.x) || isNaN(zombie.y) || !isFinite(zombie.x) || !isFinite(zombie.y)) {
+            shouldRemove = true;
+        }
+
+        if (shouldRemove) {
+            // 回收到对象池
+            if (zombie && typeof zombie === 'object' && zombie.type) {
+                this.recycleZombie(zombie);
+            }
+
+            // 从数组中移除
+            this.zombies.splice(i, 1);
+            removedCount++;
+        }
+    }
+
+    if (removedCount > 0) {
+        console.log('[ZombieManager] 清理了', removedCount, '个无效僵尸，剩余:', this.zombies.length);
+    }
+
+    return removedCount;
+};
+
+// 检查事件绑定状态的方法
+GameEngine.prototype.checkEventBindingStatus = function () {
+    var status = {
+        eventsBound: this.eventsBound, ttAvailable: typeof tt !== 'undefined', eventHandlers: {
+            touchStart: !!this.eventHandlers.touchStart,
+            touchMove: !!this.eventHandlers.touchMove,
+            touchEnd: !!this.eventHandlers.touchEnd
+        }, canvasEvents: {
+            ontouchstart: !!this.canvas.ontouchstart,
+            ontouchmove: !!this.canvas.ontouchmove,
+            ontouchend: !!this.canvas.ontouchend,
+            onclick: !!this.canvas.onclick
+        }
+    };
+
+    console.log('[Input] 事件绑定状态检查:', status);
+    return status;
+};
+
+GameEngine.prototype.updateJoystickDirection = function () {
+    try {
+        // 只有在摇杆激活时才更新方向
+        if (!this.joystick.active) {
+            this.joystick.direction.x = 0;
+            this.joystick.direction.y = 0;
+            return;
+        }
+
+        var dx = this.joystick.currentX - this.joystick.centerX;
+        var dy = this.joystick.currentY - this.joystick.centerY;
+        var distanceSquared = dx * dx + dy * dy;
+        var minDistanceSquared = 5 * 5; // 25
+
+        if (distanceSquared > minDistanceSquared) {
+            var distance = Math.sqrt(distanceSquared);
+            var normalizedDistance = Math.min(distance, this.joystick.maxDistance) / this.joystick.maxDistance;
+            this.joystick.direction.x = (dx / distance) * normalizedDistance;
+            this.joystick.direction.y = (dy / distance) * normalizedDistance;
+        } else {
+            this.joystick.direction.x = 0;
+            this.joystick.direction.y = 0;
+        }
+    } catch (error) {
+        console.error('[Input] 摇杆方向更新错误:', error);
+        this.resetJoystick();
+    }
+};
+
+GameEngine.prototype.onClick = function (e) {
+    var x, y;
+
+
+    // 抖音小程序点击事件处理
+    if (typeof tt !== 'undefined') {
+        if (e.touches && e.touches.length > 0) {
+            var touch = e.touches[0];
+            x = touch.x || touch.clientX || touch.pageX || 0;
+            y = touch.y || touch.clientY || touch.pageY || 0;
+        } else if (e.x !== undefined && e.y !== undefined) {
+            x = e.x;
+            y = e.y;
+        } else if (e.clientX !== undefined && e.clientY !== undefined) {
+            x = e.clientX;
+            y = e.clientY;
+        } else {
+            x = 0;
+            y = 0;
+            console.warn('[Input] 无法获取抖音点击坐标，使用默认值');
+        }
+    } else {
+        // 抖音小游戏环境：直接使用事件坐标
+        if (e.touches && e.touches[0]) {
+            var touch = e.touches[0];
+            x = parseFloat(touch.x) || parseFloat(touch.clientX) || 0;
+            y = parseFloat(touch.y) || parseFloat(touch.clientY) || 0;
+        } else {
+            x = parseFloat(e.x) || parseFloat(e.clientX) || 0;
+            y = parseFloat(e.y) || parseFloat(e.clientY) || 0;
+        }
+    }
+
+
+    if (this.gameState === 'menu') {
+        this.handleMenuClick(x, y);
+    } else if (this.gameState === 'playing') {
+        this.handleGameClick(x, y);
+    } else if (this.gameState === 'submap') {
+        this.handleSubMapClick(x, y);
+    } else if (this.gameState === 'gameover' || this.gameState === 'victory') {
+        this.handleEndGameClick(x, y);
+    }
+};
+
+GameEngine.prototype.handleMenuClick = function (x, y) {
+    var centerX = this.canvas.width / 2;
+    var buttonWidth = 220;
+    var buttonHeight = 55;
+    var buttonX = centerX - buttonWidth / 2;
+    var buttonY = 320;
+
+    if (x >= buttonX && x <= buttonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
+        this.startGame();
+    }
+};
+
+GameEngine.prototype.handleGameClick = function (x, y) {
+    console.log('[Click] 游戏点击事件，坐标:', x, y, '弹出提示状态:', {
+        exists: !!this.buildingEntryPrompt, active: this.buildingEntryPrompt ? this.buildingEntryPrompt.active : false
+    });
+
+    if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        console.log('[Click] 调用建筑进入提示点击处理');
+        this.handleBuildingEntryPromptClick(x, y);
+        return;
+    }
+};
+
+GameEngine.prototype.handleBuildingEntryPromptClick = function (x, y) {
+    console.log('[Click] 处理建筑进入提示点击，坐标:', x, y);
+    var prompt = this.buildingEntryPrompt;
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+    var boxHeight = 150;
+    var boxY = centerY - boxHeight / 2;
+    var buttonWidth = 80;
+    var buttonHeight = 35;
+    var buttonY = boxY + 90;
+
+    var enterButtonX = centerX - buttonWidth - 20;
+    console.log('[Click] 进入按钮区域:', enterButtonX, buttonY, buttonWidth, buttonHeight);
+    console.log('[Click] 点击位置是否在进入按钮内:', x >= enterButtonX && x <= enterButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight);
+
+    if (x >= enterButtonX && x <= enterButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('[Click] 进入按钮被点击');
+        if (this.nearBuilding && this.nearBuilding.id === prompt.building.id && this.nearBuilding.name === prompt.building.name) {
+            console.log('[Click] 开始进入建筑:', prompt.building.name);
+            this.exploreBuilding(prompt.building);
+        } else {
+            console.log('[Click] 进入建筑失败，nearBuilding不匹配:', {
+                nearBuilding: this.nearBuilding, promptBuilding: prompt.building
+            });
+        }
+        this.buildingEntryPrompt = null;
+        return;
+    }
+
+    var cancelButtonX = centerX + 20;
+    if (x >= cancelButtonX && x <= cancelButtonX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
+        this.buildingEntryPrompt = null;
+        return;
+    }
+};
+
+GameEngine.prototype.handleSubMapClick = function (x, y) {
+    var self = this;
+    if (x >= 10 && x <= 90 && y >= this.canvas.height - 40 && y <= this.canvas.height - 10) {
+        this.exitBuilding();
+        return;
+    }
+
+    // 使用for循环遍历资源，可以提前退出以提高性能
+    for (var i = 0; i < this.resources.length; i++) {
+        var resource = this.resources[i];
+        if (!resource.collected) {
+            // 使用距离平方避免开方运算，提高性能
+            var dx = x - resource.x;
+            var dy = y - resource.y;
+            var distanceSquared = dx * dx + dy * dy;
+            var interactionRadiusSquared = 30 * 30; // 900
+
+            if (distanceSquared <= interactionRadiusSquared) {
+                this.collectResource(resource);
+                break; // 找到一个资源后即可退出
+            }
+        }
+    }
+};
+
+GameEngine.prototype.handleEndGameClick = function (x, y) {
+    var centerX = this.canvas.width / 2;
+    var centerY = this.canvas.height / 2;
+
+    // 重新开始按钮 (160x50, 居中) - 与渲染代码保持一致
+    var restartButtonX = centerX - 80;
+    var restartButtonY = centerY + 80;
+    var restartButtonWidth = 160;
+    var restartButtonHeight = 50;
+
+    // 返回菜单按钮 (160x50, 居中) - 与渲染代码保持一致
+    var menuButtonX = centerX - 80;
+    var menuButtonY = centerY + 150;
+    var menuButtonWidth = 160;
+    var menuButtonHeight = 50;
+
+    console.log('[EndGame] 点击坐标:', x, y);
+    console.log('[EndGame] 画布尺寸:', this.canvas.width, 'x', this.canvas.height);
+    console.log('[EndGame] 画布中心:', centerX, centerY);
+    console.log('[EndGame] 重新开始按钮区域:', restartButtonX, restartButtonY, restartButtonWidth, restartButtonHeight);
+    console.log('[EndGame] 返回菜单按钮区域:', menuButtonX, menuButtonY, menuButtonWidth, menuButtonHeight);
+
+    // 检查重新开始按钮点击
+    if (x >= restartButtonX && x <= restartButtonX + restartButtonWidth && y >= restartButtonY && y <= restartButtonY + restartButtonHeight) {
+        console.log('[EndGame] 重新开始按钮被点击');
+        this.restartGame();
+        return;
+    }
+
+    // 检查返回菜单按钮点击
+    if (x >= menuButtonX && x <= menuButtonX + menuButtonWidth && y >= menuButtonY && y <= menuButtonY + menuButtonHeight) {
+        console.log('[EndGame] 返回菜单按钮被点击');
+        this.returnToMenu();
+        return;
+    }
+
+    console.log('[EndGame] 点击未命中任何按钮');
+};
+
+// 返回菜单函数
+GameEngine.prototype.returnToMenu = function () {
+    console.log('[GameEngine] 返回菜单');
+
+    // 重置游戏状态
+    this.gameState = 'menu';
+    this.isGameEnded = false;
+
+    // 清理游戏对象
+    this.cleanupGameObjects();
+
+    // 强制重新绑定触摸事件
+    this.eventsBound = false;
+    this.setupInput();
+    console.log('[Input] 返回菜单时重新绑定触摸事件');
+
+    // 重置摇杆状态
+    this.resetJoystick();
+
+    // 重新开始游戏循环以显示菜单
+    this.running = true;
+    this.lastTime = Date.now();
+};
+
+// ========================================
+// 碰撞检测系统实现 (Collision System Implementation)
+// ========================================
+
+GameEngine.prototype.checkCollisionWithBuildings = function (x, y, characterRadius) {
+    characterRadius = characterRadius || GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+    var bufferDistance = 2;
+    var effectiveRadius = characterRadius + bufferDistance;
+
+    for (var i = 0; i < this.buildings.length; i++) {
+        var building = this.buildings[i];
+
+        if (this.circleRectCollision(x, y, effectiveRadius, building.x, building.y, building.width, building.height)) {
+            var doorInfo = this.calculateDoorInfo(building);
+            var originalDoorX = doorInfo.originalX;
+            var originalDoorY = doorInfo.originalY;
+            var originalDoorWidth = doorInfo.originalWidth;
+            var originalDoorHeight = doorInfo.originalHeight;
+
+            var doorEffectiveRadius = characterRadius;
+
+            if (this.circleRectCollision(x, y, doorEffectiveRadius, originalDoorX, originalDoorY, originalDoorWidth, originalDoorHeight)) {
+                return {collision: false, building: null, inDoor: true};
+            } else {
+                return {collision: true, building: building, inDoor: false};
+            }
+        }
+    }
+
+    return {collision: false, building: null, inDoor: false};
+};
+
+// 新增：检查角色之间的重叠（允许短时间重叠）
+GameEngine.prototype.checkCharacterOverlap = function (char1, char2, allowOverlap = true) {
+    var char1Radius = char1.radius || 18;
+    var char2Radius = char2.radius || 18;
+
+    // 使用距离平方避免开方运算，提高性能
+    var dx = char1.x - char2.x;
+    var dy = char1.y - char2.y;
+    var distanceSquared = dx * dx + dy * dy;
+    var minDistance = char1Radius + char2Radius;
+    var minDistanceSquared = minDistance * minDistance;
+
+    if (allowOverlap) {
+        // 允许重叠身体3分之1的像素
+        var overlapAllowance = Math.min(char1Radius, char2Radius) / 3;
+        var allowedDistanceSquared = (minDistance - overlapAllowance) * (minDistance - overlapAllowance);
+        return distanceSquared >= allowedDistanceSquared;
+    } else {
+        return distanceSquared >= minDistanceSquared;
+    }
+};
+
+
+// 安全获取跟随者索引的辅助方法
+GameEngine.prototype.getFollowerIndex = function (follower) {
+    // 检查跟随者是否有效
+    if (!follower || !this.followers || !Array.isArray(this.followers)) {
+        console.warn('[getFollowerIndex] 跟随者或followers数组无效:', {follower: !!follower, followers: !!this.followers});
+        return -1;
+    }
+
+    var index = this.followers.indexOf(follower);
+
+    // 检查index是否有效
+    if (index === -1) {
+        console.warn('[getFollowerIndex] 跟随者不在数组中:', follower);
+        return -1;
+    }
+
+    return index;
+};
+
+// 安全移除跟随者的辅助方法
+GameEngine.prototype.safeRemoveFollower = function (follower) {
+    var index = this.getFollowerIndex(follower);
+    if (index === -1) {
+        console.warn('[safeRemoveFollower] 无法找到跟随者索引:', follower);
+        return false;
+    }
+
+    // 验证索引和数组状态
+    if (this.followers && Array.isArray(this.followers) && index >= 0 && index < this.followers.length) {
+        if (this.followers[index] === follower) {
+            // 在移除前，尝试回收到跟随者对象池
+            this.recycleFollowerToPool(follower);
+
+            // 使用安全的移除方法
+            return this.safeRemoveFollowerByIndex(index);
+        } else {
+            console.warn('[safeRemoveFollower] 索引验证失败，跟随者可能已被移除');
+            return false;
+        }
+    } else {
+        console.error('[safeRemoveFollower] 数组状态异常，无法移除跟随者');
+        return false;
+    }
+};
+
+// 通过索引安全移除跟随者
+GameEngine.prototype.safeRemoveFollowerByIndex = function (index) {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        console.error('[safeRemoveFollowerByIndex] followers数组无效');
+        return false;
+    }
+
+    if (index < 0 || index >= this.followers.length) {
+        console.error('[safeRemoveFollowerByIndex] 索引超出范围:', index, '数组长度:', this.followers.length);
+        return false;
+    }
+
+    try {
+        // 验证索引对应的对象
+        var follower = this.followers[index];
+        if (!follower) {
+            console.error('[safeRemoveFollowerByIndex] 索引对应的跟随者无效:', index);
+            return false;
+        }
+
+        // 安全移除
+        this.followers.splice(index, 1);
+        this.gameData.teamSize = this.followers.length + 1;
+        console.log('[safeRemoveFollowerByIndex] 跟随者移除成功，当前团队人数:', this.gameData.teamSize);
+        return true;
+    } catch (error) {
+        console.error('[safeRemoveFollowerByIndex] 移除跟随者时出错:', error);
+        return false;
+    }
+};
+
+// 通用安全数组操作工具类
+var SafeArrayOperations = {
+    // 安全的批量删除，使用对象引用而不是索引，就地操作避免内存分配
+    safeBatchRemove: function (array, indicesToRemove, onRemove) {
+        if (!array || !Array.isArray(array) || !indicesToRemove || indicesToRemove.length === 0) {
+            return 0;
+        }
+
+        var objectsToRemove = [];
+        var removedCount = 0;
+
+        // 收集需要移除的对象引用
+        for (var i = 0; i < indicesToRemove.length; i++) {
+            var index = indicesToRemove[i];
+            if (index >= 0 && index < array.length) {
+                var obj = array[index];
+                if (obj) {
+                    objectsToRemove.push(obj);
+                }
+            }
+        }
+
+        // 使用就地操作安全移除，避免内存分配和索引问题
+        for (var j = array.length - 1; j >= 0; j--) {
+            var obj = array[j];
+            var shouldRemove = objectsToRemove.indexOf(obj) !== -1;
+
+            if (shouldRemove) {
+                if (typeof onRemove === 'function') {
+                    onRemove(obj);
+                }
+                array.splice(j, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    },
+
+    // 安全的单个元素移除，使用对象引用
+    safeRemove: function (array, objectToRemove) {
+        if (!array || !Array.isArray(array) || !objectToRemove) {
+            return false;
+        }
+
+        var index = array.indexOf(objectToRemove);
+        if (index === -1) {
+            return false;
+        }
+
+        array.splice(index, 1);
+        return true;
+    },
+
+    // 验证索引是否有效
+    isValidIndex: function (array, index) {
+        return array && Array.isArray(array) && index >= 0 && index < array.length;
+    },
+
+    // 安全删除死亡实体
+    safeRemoveDeadEntities: function (array, isDeadCheck, cleanupCallback) {
+        if (!Array.isArray(array)) {
+            console.warn('[SafeArrayOperations] 数组参数类型错误');
+            return 0;
+        }
+
+        var deadIndices = [];
+
+        // 先收集所有死亡实体的索引
+        for (var i = 0; i < array.length; i++) {
+            if (array[i] && isDeadCheck(array[i])) {
+                deadIndices.push(i);
+            }
+        }
+
+        // 从后往前删除
+        var removedCount = 0;
+        for (var j = deadIndices.length - 1; j >= 0; j--) {
+            var indexToRemove = deadIndices[j];
+            if (indexToRemove >= 0 && indexToRemove < array.length) {
+                if (cleanupCallback) {
+                    cleanupCallback(array[indexToRemove]);
+                }
+                array.splice(indexToRemove, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    }
+};
+
+// 验证followers数组状态的辅助方法
+GameEngine.prototype.validateFollowersArray = function () {
+    if (!this.followers) {
+        console.error('[validateFollowersArray] followers数组未定义');
+        this.followers = [];
+        return false;
+    }
+
+    if (!Array.isArray(this.followers)) {
+        console.error('[validateFollowersArray] followers不是数组:', typeof this.followers);
+        this.followers = [];
+        return false;
+    }
+
+    // 检查数组中的无效元素
+    var invalidCount = 0;
+    for (var i = 0; i < this.followers.length; i++) {
+        if (!this.followers[i] || typeof this.followers[i] !== 'object') {
+            console.warn('[validateFollowersArray] 发现无效跟随者，索引:', i, '值:', this.followers[i]);
+            invalidCount++;
+        }
+    }
+
+    if (invalidCount > 0) {
+        console.warn('[validateFollowersArray] 发现', invalidCount, '个无效跟随者');
+        // 清理无效元素 - 使用安全的批量删除避免索引错乱
+        var invalidIndices = [];
+        for (var j = 0; j < this.followers.length; j++) {
+            if (!this.followers[j] || typeof this.followers[j] !== 'object') {
+                invalidIndices.push(j);
+            }
+        }
+
+        // 从后往前删除，避免索引错乱
+        for (var k = invalidIndices.length - 1; k >= 0; k--) {
+            var indexToRemove = invalidIndices[k];
+            if (indexToRemove >= 0 && indexToRemove < this.followers.length) {
+                this.followers.splice(indexToRemove, 1);
+            }
+        }
+        console.log('[validateFollowersArray] 清理后跟随者数量:', this.followers.length);
+    }
+
+    return true;
+};
+
+// 跟随者对象池管理
+GameEngine.prototype.followerPool = [];
+GameEngine.prototype.maxFollowerPoolSize = 50;
+
+// 初始化跟随者对象池（优化版）
+GameEngine.prototype.initializeFollowerPool = function () {
+    if (this.followerPool.length > 0) {
+        console.log('[FollowerPool] 对象池已存在，跳过初始化');
+        return;
+    }
+
+    console.log('[FollowerPool] 开始初始化跟随者对象池，目标大小:', this.maxFollowerPoolSize);
+
+    // 预创建一些跟随者对象，使用对象工厂避免重复代码
+    var initialPoolSize = Math.min(20, this.maxFollowerPoolSize);
+    for (var i = 0; i < initialPoolSize; i++) {
+        var follower = this.createPooledFollower(i);
+        this.followerPool.push(follower);
+    }
+
+    console.log('[FollowerPool] 跟随者对象池初始化完成，当前大小:', this.followerPool.length);
+};
+
+// 创建池化跟随者对象（对象工厂模式）
+GameEngine.prototype.createPooledFollower = function (index) {
+    return {
+        id: 'pool_' + index,
+        characterId: 2, // 默认角色ID
+        x: 0,
+        y: 0,
+        health: 30,
+        maxHealth: 30,
+        attack: 10,
+        attackRange: 25,
+        attackCooldown: 1000,
+        lastAttackTime: 0,
+        isDead: false,
+        isZombie: false,
+        isUnstucking: false,
+        unstuckTargetX: null,
+        unstuckTargetY: null,
+        unstuckStartTime: null,
+        lastMoveTime: null,
+        lastX: null,
+        lastY: null,
+        lastFollowUpdate: null,
+        isWalking: false,
+        direction: 'down',
+        walkAnimationFrame: 0,
+        lastAnimationTime: null,
+        smoothForceX: 0,
+        smoothForceY: 0,
+        quadTreeInserted: false, // 池化对象标记
+        isPooled: true,
+        poolIndex: index
+    };
+};
+
+// 回收跟随者到对象池
+GameEngine.prototype.recycleFollowerToPool = function (follower) {
+    if (!follower || typeof follower !== 'object') {
+        console.warn('[FollowerPool] 无效的跟随者对象，跳过回收:', follower);
+        return false;
+    }
+
+    if (this.followerPool.length >= this.maxFollowerPoolSize) {
+        console.log('[FollowerPool] 对象池已满，跳过回收');
+        return false;
+    }
+
+    try {
+        // 重置跟随者状态
+        follower.x = 0;
+        follower.y = 0;
+        follower.health = 30;
+        follower.maxHealth = 30;
+        follower.isDead = false;
+        follower.isZombie = false;
+        follower.isUnstucking = false;
+        follower.unstuckTargetX = null;
+        follower.unstuckTargetY = null;
+        follower.unstuckStartTime = null;
+        follower.lastMoveTime = null;
+        follower.lastX = null;
+        follower.lastY = null;
+        follower.lastFollowUpdate = null;
+        follower.isWalking = false;
+        follower.direction = 'down';
+        follower.walkAnimationFrame = 0;
+        follower.lastAnimationTime = null;
+        follower.smoothForceX = 0;
+        follower.smoothForceY = 0;
+        follower.quadTreeInserted = false;
+
+        // 确保从四叉树中移除
+        if (this.viewportCulling && this.viewportCulling.quadTree) {
+            this.viewportCulling.quadTree.remove(follower);
+        }
+        ;
+
+        // 添加到对象池
+        this.followerPool.push(follower);
+        console.log('[FollowerPool] 跟随者回收成功，当前池大小:', this.followerPool.length);
+        return true;
+    } catch (error) {
+        console.error('[FollowerPool] 回收跟随者时出错:', error);
+        return false;
+    }
+};
 
 // ========================================
 // 资源对象池 (Resource Object Pool)
@@ -559,7 +3830,7 @@ GameEngine.prototype.calculateDynamicAlignmentParams = function (follower) {
 
 
 GameEngine.prototype.canMoveToPosition = function (x, y, characterRadius) {
-    var margin = characterRadius || zombieModule.GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+    var margin = characterRadius || GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
 
     // 检查地图边界
     if (x < margin || x > this.mapConfig.width - margin || y < margin || y > this.mapConfig.height - margin) {
@@ -567,23 +3838,125 @@ GameEngine.prototype.canMoveToPosition = function (x, y, characterRadius) {
     }
 
     // 检查与建筑物的碰撞
-    var collision = this.collisionManager.checkCollisionWithBuildings(x, y, characterRadius, this.buildings);
+    var collision = this.checkCollisionWithBuildings(x, y, characterRadius);
     return !collision.collision;
 };
 
 // 新增：检查移动路径是否安全（防止穿墙）
 GameEngine.prototype.canMoveAlongPath = function (fromX, fromY, toX, toY, characterRadius) {
-    return this.collisionManager.canMoveAlongPath(fromX, fromY, toX, toY, characterRadius, this.canMoveToPosition.bind(this));
+    var margin = characterRadius || GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+
+    // 计算路径上的多个检查点
+    var distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+    var checkPoints = Math.max(2, Math.floor(distance / margin));
+
+    for (var i = 0; i <= checkPoints; i++) {
+        var t = i / checkPoints;
+        var checkX = fromX + (toX - fromX) * t;
+        var checkY = fromY + (toY - fromY) * t;
+
+        if (!this.canMoveToPosition(checkX, checkY, characterRadius)) {
+            return false;
+        }
+    }
+
+    return true;
 };
 
+GameEngine.prototype.circleRectCollision = function (circleX, circleY, circleRadius, rectX, rectY, rectWidth, rectHeight) {
+    var closestX = Math.max(rectX, Math.min(circleX, rectX + rectWidth));
+    var closestY = Math.max(rectY, Math.min(circleY, rectY + rectHeight));
 
+    var distanceX = circleX - closestX;
+    var distanceY = circleY - closestY;
+    var distanceSquared = distanceX * distanceX + distanceY * distanceY;
 
+    return distanceSquared < (circleRadius * circleRadius);
+};
 
+GameEngine.prototype.calculateDoorInfo = function (building) {
+    var doorWidth = Math.max(30, Math.floor(building.width / 8));
+    var doorHeight = Math.max(40, Math.floor(building.height / 6));
+    var doorX = building.x + (building.width - doorWidth) / 2;
+    var doorY = building.y + building.height - doorHeight - 5;
+
+    var expandedDoorX = doorX - 20;
+    var expandedDoorY = doorY - 20;
+    var expandedDoorWidth = doorWidth + 40;
+    var expandedDoorHeight = doorHeight + 40;
+
+    return {
+        x: expandedDoorX,
+        y: expandedDoorY,
+        width: expandedDoorWidth,
+        height: expandedDoorHeight,
+        originalX: doorX,
+        originalY: doorY,
+        originalWidth: doorWidth,
+        originalHeight: doorHeight
+    };
+};
 
 GameEngine.prototype.checkNearDoor = function () {
-    var result = this.collisionManager.checkNearDoor(this.player, this.buildings, this.canvas, this.camera, this.buildingExitCooldown);
-    this.nearBuilding = result.nearBuilding;
-    this.buildingEntryPrompt = result.buildingEntryPrompt;
+    var interactionDistance = GAME_CONFIG.BUILDING.INTERACTION_DISTANCE;
+    var triggerDistance = GAME_CONFIG.BUILDING.TRIGGER_DISTANCE;
+
+    if (this.buildingExitCooldown > Date.now()) {
+        if (this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+            this.buildingEntryPrompt = null;
+        }
+        return;
+    }
+
+    this.nearBuilding = null;
+
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x;
+    var viewRight = this.camera.x + viewWidth;
+    var viewTop = this.camera.y;
+    var viewBottom = this.camera.y + viewHeight;
+
+    for (var i = 0; i < this.buildings.length; i++) {
+        var building = this.buildings[i];
+
+        if (building.x + building.width >= viewLeft && building.x <= viewRight && building.y + building.height >= viewTop && building.y <= viewBottom) {
+
+            var doorInfo = this.calculateDoorInfo(building);
+            var doorCenterX = doorInfo.x + doorInfo.width / 2;
+            var doorCenterY = doorInfo.y + doorInfo.height / 2;
+
+            var playerDistance = Math.sqrt(Math.pow(this.player.x - doorCenterX, 2) + Math.pow(this.player.y - doorCenterY, 2));
+
+            // 调试信息：显示距离
+            if (playerDistance <= 100) { // 只显示100像素内的距离
+                console.log('[Debug] 建筑物:', building.name, '距离:', playerDistance.toFixed(1), '交互距离:', interactionDistance, '触发距离:', triggerDistance);
+            }
+
+            if (playerDistance <= interactionDistance) {
+                this.nearBuilding = building;
+                console.log('[Door] 设置nearBuilding:', building.name, 'ID:', building.id, 'Name:', building.name);
+
+                // 当门变色时，就创建弹出提示（复用门变色逻辑）
+                if (!this.buildingEntryPrompt || !this.buildingEntryPrompt.active || this.buildingEntryPrompt.buildingId !== (building.id || building.name)) {
+                    this.buildingEntryPrompt = {
+                        building: building,
+                        buildingId: building.id || building.name,
+                        active: true,
+                        message: '是否进入 ' + building.name + '？',
+                        options: ['进入', '取消']
+                    };
+                    console.log('[Door] 弹出提示已创建（复用门变色逻辑）:', building.name, '距离:', playerDistance);
+                }
+                break;
+            }
+        }
+    }
+
+    if (!this.nearBuilding && this.buildingEntryPrompt && this.buildingEntryPrompt.active) {
+        console.log('[Door] 清除弹出提示，原因：玩家离开建筑物');
+        this.buildingEntryPrompt = null;
+    }
 };
 
 // ========================================
@@ -649,7 +4022,7 @@ GameEngine.prototype.update = function (deltaTime) {
         if (!this.followerValidationCounter) this.followerValidationCounter = 0;
         this.followerValidationCounter++;
         if (this.followerValidationCounter >= 100) {
-            this.collisionManager.validateFollowersArray(this.followers);
+            this.validateFollowersArray();
             this.followerValidationCounter = 0;
         }
 
@@ -689,18 +4062,18 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
     }
 
     // 只有在摇杆激活且方向不为零时才移动
-    var isMoving = this.inputManager.joystick.active && (this.inputManager.joystick.direction.x !== 0 || this.inputManager.joystick.direction.y !== 0);
+    var isMoving = this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0);
 
     // 调试信息：每帧检查摇杆状态
     if (this.debugCounter === undefined) this.debugCounter = 0;
     this.debugCounter++;
     if (this.debugCounter >= 60) { // 每60帧（约1秒）输出一次调试信息
         console.log('[Player] 摇杆状态:', {
-            active: this.inputManager.joystick.active,
-            directionX: this.inputManager.joystick.direction.x,
-            directionY: this.inputManager.joystick.direction.y,
-            centerX: this.inputManager.joystick.centerX,
-            centerY: this.inputManager.joystick.centerY,
+            active: this.joystick.active,
+            directionX: this.joystick.direction.x,
+            directionY: this.joystick.direction.y,
+            centerX: this.joystick.centerX,
+            centerY: this.joystick.centerY,
             isMoving: isMoving
         });
         this.debugCounter = 0;
@@ -710,8 +4083,8 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
         this.player.isWalking = true;
 
         // 获取摇杆方向
-        var directionX = this.inputManager.joystick.direction.x;
-        var directionY = this.inputManager.joystick.direction.y;
+        var directionX = this.joystick.direction.x;
+        var directionY = this.joystick.direction.y;
 
         // 使用标准化后的方向向量判断移动方向
         if (Math.abs(directionX) > Math.abs(directionY)) {
@@ -723,7 +4096,7 @@ GameEngine.prototype.updatePlayer = function (deltaTime) {
         this.updateWalkAnimation(deltaTime);
 
         // 匀速移动：固定移动速度，不受摇杆推拉程度影响
-        var moveSpeed = zombieModule.GAME_CONFIG.PLAYER.MOVE_SPEED;
+        var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED;
 
         // 标准化方向向量，确保对角线移动速度一致
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
@@ -840,10 +4213,10 @@ GameEngine.prototype.updateTime = function (deltaTime) {
     if (this.gameData.timeRemaining <= 0) {
         if (this.gameData.isDay) {
             this.gameData.isDay = false;
-            this.gameData.timeRemaining = zombieModule.GAME_CONFIG.TIME.NIGHT_DURATION;
+            this.gameData.timeRemaining = GAME_CONFIG.TIME.NIGHT_DURATION;
         } else {
             this.gameData.isDay = true;
-            this.gameData.timeRemaining = zombieModule.GAME_CONFIG.TIME.DAY_DURATION;
+            this.gameData.timeRemaining = GAME_CONFIG.TIME.DAY_DURATION;
             this.gameData.survivalDays++;
 
             // 每个伙伴每天消耗1个食物
@@ -907,18 +4280,18 @@ GameEngine.prototype.initializeGame = function () {
     this.gameData = {
         survivalDays: 1, food: 20, // 开局设置20个食物
         teamSize: 1, maxTeamSize: 1, zombieKills: 0, totalFood: 20, // 总食物也设置为20
-        isDay: true, timeRemaining: zombieModule.GAME_CONFIG.TIME.DAY_DURATION, gameStartTime: Date.now()
+        isDay: true, timeRemaining: GAME_CONFIG.TIME.DAY_DURATION, gameStartTime: Date.now()
     };
 
     // 重置玩家状态
     this.player = {
         x: 1000, // 左下角附近
         y: this.mapConfig.height - 1000,
-        health: zombieModule.GAME_CONFIG.PLAYER.BASE_HEALTH,
-        maxHealth: zombieModule.GAME_CONFIG.PLAYER.BASE_HEALTH,
+        health: GAME_CONFIG.PLAYER.BASE_HEALTH,
+        maxHealth: GAME_CONFIG.PLAYER.BASE_HEALTH,
         level: 1,
-        attack: zombieModule.GAME_CONFIG.PLAYER.BASE_ATTACK,
-        attackRange: zombieModule.GAME_CONFIG.PLAYER.BASE_ATTACK_RANGE,
+        attack: GAME_CONFIG.PLAYER.BASE_ATTACK,
+        attackRange: GAME_CONFIG.PLAYER.ATTACK_RANGE,
         isDead: false
     };
 
@@ -972,7 +4345,7 @@ GameEngine.prototype.initializeGame = function () {
     }
 
     // 重新初始化重要组件
-    this.collisionManager.initializeFollowerPool();
+    this.initializeFollowerPool();
     this.initializeResourcePool();
     console.log('[GameEngine] 对象池已重新初始化');
 
@@ -1004,11 +4377,11 @@ GameEngine.prototype.initializeGame = function () {
 
     // 强制重新绑定触摸事件
     this.eventsBound = false;
-    this.inputManager.setupInput(this);
+    this.setupInput();
     console.log('[Input] 触摸事件已重新绑定');
 
     // 重置摇杆状态
-    this.inputManager.resetJoystick(this);
+    this.resetJoystick();
     console.log('[GameEngine] 摇杆状态已重置');
 
     // 重新开始游戏循环
@@ -1016,7 +4389,7 @@ GameEngine.prototype.initializeGame = function () {
     this.lastTime = Date.now();
 
     // 检查事件绑定状态
-    this.inputManager.checkEventBindingStatus();
+    this.checkEventBindingStatus();
 
     // 强制更新视距裁剪系统，确保玩家可见
     if (this.viewportCulling) {
@@ -1109,7 +4482,7 @@ GameEngine.prototype.gameOver = function (cause) {
 
     // 重新绑定触摸事件，确保游戏结束界面可以接收点击
     if (!this.eventsBound) {
-        this.inputManager.setupInput(this);
+        this.setupInput();
         console.log('[Input] 游戏结束时重新绑定触摸事件');
     }
 
@@ -1128,7 +4501,7 @@ GameEngine.prototype.gameWin = function () {
 
     // 重新绑定触摸事件，确保胜利界面可以接收点击
     if (!this.eventsBound) {
-        this.inputManager.setupInput(this);
+        this.setupInput();
         console.log('[Input] 游戏胜利时重新绑定触摸事件');
     }
 };
@@ -1399,7 +4772,7 @@ GameEngine.prototype.updateSingleNPCAnimation = function (npc, deltaTime) {
 
 GameEngine.prototype.moveTeam = function (deltaX, deltaY) {
     // 只有在摇杆激活时才移动团队
-    if (!this.inputManager.joystick.active) {
+    if (!this.joystick.active) {
         return;
     }
 
@@ -1923,11 +5296,11 @@ GameEngine.prototype.convertToZombie = function (follower, index) {
         // 验证提供的index是否对应正确的跟随者
         if (this.followers[index] !== follower) {
             console.warn('[ConvertToZombie] 提供的索引与跟随者不匹配，自动查找正确索引');
-            index = this.collisionManager.getFollowerIndex(follower, this.followers);
+            index = this.getFollowerIndex(follower);
         }
     } else {
         // 自动查找索引
-        index = this.collisionManager.getFollowerIndex(follower, this.followers);
+        index = this.getFollowerIndex(follower);
     }
 
     // 检查是否找到有效索引
@@ -1960,7 +5333,7 @@ GameEngine.prototype.convertToZombie = function (follower, index) {
     }
 
     // 使用安全移除方法
-    if (this.collisionManager.safeRemoveFollower(follower, this.followers, this.collisionManager.recycleFollowerToPool.bind(this.collisionManager), this.collisionManager.safeRemoveFollowerByIndex.bind(this.collisionManager, undefined, this.followers, this.gameData))) {
+    if (this.safeRemoveFollower(follower)) {
         console.log('[ConvertToZombie] 跟随者转换完成');
     } else {
         console.error('[ConvertToZombie] 跟随者移除失败');
@@ -1979,9 +5352,9 @@ GameEngine.prototype.spawnZombiesByDay = function () {
     var currentDay = this.gameData.survivalDays;
 
     // 游戏平衡优化：动态难度系统
-    var baseCount = zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
-    var perDayIncrease = zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE;
-    var maxZombies = zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES;
+    var baseCount = GAME_CONFIG.ZOMBIE_SPAWN.BASE_COUNT;
+    var perDayIncrease = GAME_CONFIG.ZOMBIE_SPAWN.PER_DAY_INCREASE;
+    var maxZombies = GAME_CONFIG.ZOMBIE_SPAWN.MAX_ZOMBIES;
 
     // 根据团队规模调整僵尸数量
     var teamSizeMultiplier = Math.max(0.5, Math.min(2.0, this.gameData.teamSize / 5));
@@ -1989,11 +5362,11 @@ GameEngine.prototype.spawnZombiesByDay = function () {
 
     var playerX = this.player.x;
     var playerY = this.player.y;
-    var spawnRadius = zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.SPAWN_RADIUS;
-    var minDistance = zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE;
+    var spawnRadius = GAME_CONFIG.ZOMBIE_SPAWN.SPAWN_RADIUS;
+    var minDistance = GAME_CONFIG.ZOMBIE_SPAWN.MIN_DISTANCE;
 
     var created = 0;
-    var maxAttempts = zombieCount * zombieModule.GAME_CONFIG.ZOMBIE_SPAWN.MAX_ATTEMPTS_MULTIPLIER;
+    var maxAttempts = zombieCount * GAME_CONFIG.ZOMBIE_SPAWN.MAX_ATTEMPTS_MULTIPLIER;
     var attempts = 0;
 
     while (created < zombieCount && attempts < maxAttempts) {
@@ -3350,9 +6723,9 @@ GameEngine.prototype.checkMemoryHealth = function () {
 
         // 检查对象池状态
         try {
-                    if (this.collisionManager.followerPool && Array.isArray(this.collisionManager.followerPool) && this.collisionManager.followerPool.length > this.collisionManager.maxFollowerPoolSize) {
-            issues.push('跟随者对象池超出限制: ' + this.collisionManager.followerPool.length + '/' + this.collisionManager.maxFollowerPoolSize);
-        }
+            if (this.followerPool && Array.isArray(this.followerPool) && this.followerPool.length > this.maxFollowerPoolSize) {
+                issues.push('跟随者对象池超出限制: ' + this.followerPool.length + '/' + this.maxFollowerPoolSize);
+            }
 
             if (this.resourcePool && Array.isArray(this.resourcePool) && this.resourcePool.length > this.maxResourcePoolSize) {
                 issues.push('资源对象池超出限制: ' + this.resourcePool.length + '/' + this.maxResourcePoolSize);
@@ -3378,9 +6751,9 @@ GameEngine.prototype.checkMemoryHealth = function () {
                 if (this.followers) {
                     console.log('[MemoryLeak] 跟随者总数:', this.followers.length);
                 }
-                        if (this.collisionManager.followerPool) {
-            console.log('[MemoryLeak] 跟随者对象池大小:', this.collisionManager.followerPool.length);
-        }
+                if (this.followerPool) {
+                    console.log('[MemoryLeak] 跟随者对象池大小:', this.followerPool.length);
+                }
                 if (this.resourcePool) {
                     console.log('[MemoryLeak] 资源对象池大小:', this.resourcePool.length);
                 }
@@ -3405,7 +6778,76 @@ GameEngine.prototype.checkMemoryHealth = function () {
 
 // 检查已加载NPC的碰撞（优化版，使用空间分区优化）
 GameEngine.prototype.checkLoadedNPCCollision = function () {
-    this.collisionManager.checkLoadedNPCCollision(this.player, this.npcs, this.addPartnerToTeam.bind(this));
+    if (!this.player || !this.npcs || this.npcs.length === 0) {
+        // 添加调试信息
+        if (this.debugCounter === undefined) this.debugCounter = 0;
+        this.debugCounter++;
+        if (this.debugCounter >= 120) { // 每2秒输出一次
+            console.log('[PartnerCollision] 无法检查碰撞:', {
+                player: !!this.player,
+                npcs: !!this.npcs,
+                npcsLength: this.npcs ? this.npcs.length : 'undefined',
+                playerPosition: this.player ? {x: this.player.x, y: this.player.y} : null
+            });
+            this.debugCounter = 0;
+        }
+        return;
+    }
+
+    var playerRadius = GAME_CONFIG.PLAYER.CHARACTER_RADIUS;
+    var npcRadius = 18; // NPC的碰撞半径
+    var collisionDistance = playerRadius + npcRadius;
+    var collisionDistanceSquared = collisionDistance * collisionDistance;
+
+    // 使用空间分区优化：只检查玩家附近的NPC
+    var playerX = this.player.x;
+    var playerY = this.player.y;
+    var searchRadius = collisionDistance + 50; // 搜索半径稍大于碰撞距离
+
+    // 快速筛选：只检查在搜索半径内的NPC
+    var nearbyNPCs = [];
+    for (var i = 0; i < this.npcs.length; i++) {
+        var npc = this.npcs[i];
+
+        // 跳过已经加入团队的伙伴
+        if (npc.isFollowing || npc.isJoined) {
+            continue;
+        }
+
+        // 快速距离检查（使用曼哈顿距离作为预筛选）
+        var manhattanDistance = Math.abs(npc.x - playerX) + Math.abs(npc.y - playerY);
+        if (manhattanDistance <= searchRadius * 1.5) { // 曼哈顿距离是欧几里得距离的上界
+            nearbyNPCs.push(npc);
+        }
+    }
+
+    // 只对附近的NPC进行精确碰撞检测
+    for (var i = nearbyNPCs.length - 1; i >= 0; i--) {
+        var npc = nearbyNPCs[i];
+
+        // 精确距离计算
+        var dx = playerX - npc.x;
+        var dy = playerY - npc.y;
+        var distanceSquared = dx * dx + dy * dy;
+
+        // 添加距离调试信息
+        if (this.debugCounter === undefined) this.debugCounter = 0;
+        this.debugCounter++;
+        if (this.debugCounter >= 120) { // 每2秒输出一次
+            var distance = Math.sqrt(distanceSquared);
+            console.log('[PartnerCollision] 检查NPC:', npc.name || npc.id, '距离玩家:', distance.toFixed(1), '碰撞阈值:', collisionDistance);
+            this.debugCounter = 0;
+        }
+
+        if (distanceSquared <= collisionDistanceSquared) {
+            // 玩家碰到了伙伴，触发加入团队
+            console.log('[PartnerCollision] 玩家碰到伙伴:', npc.name || npc.id, '触发加入团队');
+            this.addPartnerToTeam(npc);
+
+            // 立即返回，避免在同一帧处理多个碰撞
+            return;
+        }
+    }
 };
 
 // 添加伙伴到团队（改进版，增加安全检查）
@@ -3418,8 +6860,8 @@ GameEngine.prototype.addPartnerToTeam = function (npc) {
         }
 
         // 检查团队是否已满
-        if (this.gameData.teamSize >= zombieModule.GAME_CONFIG.TEAM.MAX_SIZE) {
-            console.log('[Team] 团队已达到最大规模限制:', zombieModule.GAME_CONFIG.TEAM.MAX_SIZE);
+        if (this.gameData.teamSize >= GAME_CONFIG.TEAM.MAX_SIZE) {
+            console.log('[Team] 团队已达到最大规模限制:', GAME_CONFIG.TEAM.MAX_SIZE);
             return;
         }
 
@@ -3989,7 +7431,7 @@ GameEngine.prototype.renderStatusBar = function () {
     this.ctx.fillText('NPC:' + this.npcs.length + ' 跟随:' + this.followers.length, 10, 55);
 
     // 显示碰撞阈值信息
-    this.ctx.fillText('碰撞阈值:' + Math.sqrt(zombieModule.GAME_CONFIG.TEAM.COLLISION_THRESHOLD) + 'px', 200, 55);
+    this.ctx.fillText('碰撞阈值:' + Math.sqrt(GAME_CONFIG.TEAM.COLLISION_THRESHOLD) + 'px', 200, 55);
 };
 
 GameEngine.prototype.renderTimeInfo = function () {
@@ -4494,7 +7936,7 @@ GameEngine.prototype.renderJoystick = function () {
 
     // 触摸区域动态扩展：手指移动时范围+50%
     var touchRadius = joystickRadius;
-    if (this.inputManager.joystick.active && (this.inputManager.joystick.direction.x !== 0 || this.inputManager.joystick.direction.y !== 0)) {
+    if (this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0)) {
         touchRadius = joystickRadius * 1.5;
     }
 
@@ -4516,8 +7958,8 @@ GameEngine.prototype.renderJoystick = function () {
     this.ctx.stroke();
 
     // 只有在摇杆激活时才显示手柄位置
-    var knobX = this.inputManager.joystick.active ? joystickX + this.inputManager.joystick.direction.x * (joystickRadius - knobRadius) : joystickX;
-    var knobY = this.inputManager.joystick.active ? joystickY + this.inputManager.joystick.direction.y * (joystickRadius - knobRadius) : joystickY;
+    var knobX = this.joystick.active ? joystickX + this.joystick.direction.x * (joystickRadius - knobRadius) : joystickX;
+    var knobY = this.joystick.active ? joystickY + this.joystick.direction.y * (joystickRadius - knobRadius) : joystickY;
 
     this.ctx.beginPath();
     this.ctx.arc(knobX, knobY, knobRadius, 0, 2 * Math.PI);
@@ -4533,7 +7975,7 @@ GameEngine.prototype.renderJoystick = function () {
     this.ctx.fill();
 
     // 只有在摇杆激活且方向不为零时才显示方向线
-    if (this.inputManager.joystick.active && (this.inputManager.joystick.direction.x !== 0 || this.inputManager.joystick.direction.y !== 0)) {
+    if (this.joystick.active && (this.joystick.direction.x !== 0 || this.joystick.direction.y !== 0)) {
         this.ctx.beginPath();
         this.ctx.moveTo(joystickX, joystickY);
         this.ctx.lineTo(knobX, knobY);
@@ -4550,8 +7992,8 @@ GameEngine.prototype.renderJoystick = function () {
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         this.ctx.font = '12px Arial';
         this.ctx.textAlign = 'left';
-        this.ctx.fillText('摇杆状态: ' + (this.inputManager.joystick.active ? '激活' : '未激活'), joystickX - 50, joystickY + joystickRadius + 20);
-        this.ctx.fillText('方向: (' + this.inputManager.joystick.direction.x.toFixed(2) + ', ' + this.inputManager.joystick.direction.y.toFixed(2) + ')', joystickX - 50, joystickY + joystickRadius + 35);
+        this.ctx.fillText('摇杆状态: ' + (this.joystick.active ? '激活' : '未激活'), joystickX - 50, joystickY + joystickRadius + 20);
+        this.ctx.fillText('方向: (' + this.joystick.direction.x.toFixed(2) + ', ' + this.joystick.direction.y.toFixed(2) + ')', joystickX - 50, joystickY + joystickRadius + 35);
         this.ctx.restore();
     }
 };
@@ -4679,7 +8121,7 @@ GameEngine.prototype.renderSubMap = function () {
         this.ctx.fillText('靠近门口即可退出', this.canvas.width / 2, this.canvas.height - 30);
 
         if (distanceToExit < 15) {
-            mapModule.exitBuilding(this);
+            this.exitBuilding();
         }
     }
 
@@ -4897,21 +8339,17 @@ GameEngine.prototype.cleanupTimersAndListeners = function () {
             // 移除所有事件监听器
             this.canvas.removeEventListener = this.canvas.removeEventListener || function () {
             };
-            // 通过inputManager清理事件
-            if (this.inputManager && this.inputManager.eventHandlers) {
-                this.canvas.ontouchstart = null;
-                this.canvas.ontouchmove = null;
-                this.canvas.ontouchend = null;
-                this.canvas.onclick = null;
-            }
+            this.canvas.removeEventListener('touchstart', this.onTouchStart);
+            this.canvas.removeEventListener('touchmove', this.onTouchMove);
+            this.canvas.removeEventListener('touchend', this.onTouchEnd);
         }
 
         // 清理摇杆状态
-        if (this.inputManager && this.inputManager.joystick) {
-            this.inputManager.joystick.active = false;
-            this.inputManager.joystick.direction = {x: 0, y: 0};
-            this.inputManager.joystick.centerX = 0;
-            this.inputManager.joystick.centerY = 0;
+        if (this.joystick) {
+            this.joystick.active = false;
+            this.joystick.direction = {x: 0, y: 0};
+            this.joystick.centerX = 0;
+            this.joystick.centerY = 0;
         }
 
         console.log('[Cleanup] 定时器和事件监听器清理完成');
