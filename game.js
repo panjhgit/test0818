@@ -220,30 +220,6 @@ CharacterManager.prototype.initializeCharacters = function () {
         id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}
     }, {
         id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: true}
-    }, {
-        id: 9, name: '摇滚歌手', colors: {clothes: '#E91E63', hair: '#FF1744'}, features: {hasGlasses: true}
-    }, {
-        id: 10, name: '神秘学者', colors: {clothes: '#009688', hair: '#37474F'}, features: {hasGlasses: true}
-    }, {
-        id: 11, name: '赛车手', colors: {clothes: '#FF5722', hair: '#FFC107'}, features: {hasGlasses: true}
-    }, {
-        id: 12, name: '军事指挥官', colors: {clothes: '#4CAF50', hair: '#616161'}, features: {hasGlasses: true}
-    }, {
-        id: 13, name: '幽灵猎人', colors: {clothes: '#9E9E9E', hair: '#212121'}, features: {hasGlasses: true}
-    }, {
-        id: 14, name: '网络黑客', colors: {clothes: '#00E676', hair: '#1DE9B6'}, features: {hasGlasses: true}
-    }, {
-        id: 15, name: '西部牛仔', colors: {clothes: '#8D6E63', hair: '#FFAB40'}, features: {hasGlasses: true}
-    }, {
-        id: 16, name: '外星访客', colors: {clothes: '#00BCD4', hair: '#4FC3F7'}, features: {hasGlasses: true}
-    }, {
-        id: 17, name: '格斗冠军', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
-    }, {
-        id: 18, name: '时间旅行者', colors: {clothes: '#673AB7', hair: '#9C27B0'}, features: {hasGlasses: true}
-    }, {
-        id: 19, name: '机器人', colors: {clothes: '#546E7A', hair: '#90A4AE'}, features: {hasGlasses: true}
-    }, {
-        id: 20, name: '超级英雄', colors: {clothes: '#2196F3', hair: '#FFC107'}, features: {hasGlasses: true}
     }];
     for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
 };
@@ -1177,32 +1153,7 @@ function ThinZombie(config) {
 }
 
 ThinZombie.prototype = Object.create(BaseZombie.prototype);
-ThinZombie.prototype.constructor = ThinZombie;
 
-ThinZombie.prototype.renderZombie = function (ctx) {
-    ctx.fillStyle = '#8b0000';
-    ctx.fillRect(-8, -15, 16, 30);
-
-    ctx.fillStyle = '#654321';
-    ctx.fillRect(-10, -20, 20, 15);
-
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(-7, -17, 3, 3);
-    ctx.fillRect(4, -17, 3, 3);
-
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(-4, -12, 8, 2);
-
-    ctx.fillStyle = '#8b0000';
-    ctx.fillRect(-12, -10, 4, 20);
-    ctx.fillRect(8, -10, 4, 20);
-    ctx.fillRect(-6, 15, 4, 15);
-    ctx.fillRect(2, 15, 4, 15);
-
-    ctx.fillStyle = '#444444';
-    ctx.fillRect(-6, -5, 12, 8);
-    ctx.fillRect(-4, 5, 8, 6);
-};
 
 // 胖僵尸类
 function FatZombie(config) {
@@ -7301,72 +7252,6 @@ GameEngine.prototype.checkQuadTreeStatus = function () {
     }
 };
 
-// 创建测试伙伴实体
-GameEngine.prototype.createTestPartner = function (index, x, y) {
-    try {
-        // 使用不同的角色ID，确保多样性（2-20的角色ID）
-        var characterId = (index % 19) + 2;
-
-        var testPartner = {
-            id: 'test_partner_' + index,
-            characterId: characterId,
-            name: '🧪测试伙伴' + index, // 添加测试标识
-            x: x,
-            y: y,
-            type: 'follower', // 改为follower类型，确保能被正确渲染
-            isFollowing: false,
-            isDead: false,
-            quadTreeInserted: false,
-            isTestPartner: true, // 标记为测试伙伴，便于后续清理
-            character: this.characterManager.characters[characterId],
-            personality: this.getCharacterPersonality(this.characterManager.characters[characterId])
-        };
-
-        // 调试信息：确认测试伙伴属性
-        console.log('[TestMode] 🧪 创建测试伙伴:', {
-            id: testPartner.id,
-            type: testPartner.type,
-            x: testPartner.x,
-            y: testPartner.y,
-            isTestPartner: testPartner.isTestPartner
-        });
-
-        return testPartner;
-
-    } catch (error) {
-        console.error('[TestMode] 创建测试伙伴失败:', error);
-        return null;
-    }
-};
-
-// 清理所有测试伙伴
-GameEngine.prototype.cleanupTestPartners = function () {
-    if (!this.npcs || !Array.isArray(this.npcs)) {
-        return;
-    }
-
-    var removedCount = 0;
-
-    // 从后往前遍历，移除所有测试伙伴
-    for (var i = this.npcs.length - 1; i >= 0; i--) {
-        var npc = this.npcs[i];
-        if (npc && npc.isTestPartner) {
-            // 从视距裁剪系统移除
-            if (npc.quadTreeInserted && this.viewportCulling && this.viewportCulling.quadTree) {
-                this.viewportCulling.quadTree.remove(npc);
-            }
-
-            // 从NPC列表中移除
-            this.npcs.splice(i, 1);
-            removedCount++;
-        }
-    }
-
-    if (removedCount > 0) {
-        console.log('[TestMode] 🧪 清理测试伙伴完成，移除数量:', removedCount);
-    }
-};
-
 
 // ========================================
 // 测试代码结束
@@ -8305,140 +8190,6 @@ try {
 } catch (error) {
     console.error('[Main] 游戏启动失败:', error);
 }
-
-// 清理定时器和事件监听器
-GameEngine.prototype.cleanupTimersAndListeners = function () {
-    try {
-        console.log('[Cleanup] 开始清理定时器和事件监听器...');
-
-        // 清理所有定时器
-        if (this.memoryLeakTimer) {
-            clearInterval(this.memoryLeakTimer);
-            this.memoryLeakTimer = null;
-        }
-
-        if (this.debugTimer) {
-            clearInterval(this.debugTimer);
-            this.debugTimer = null;
-        }
-
-        if (this.performanceTimer) {
-            clearInterval(this.performanceTimer);
-            this.performanceTimer = null;
-        }
-
-        if (this.npcUpdateTimer) {
-            this.npcUpdateTimer = 0;
-        }
-
-        // 清理事件绑定标志
-        this.eventsBound = false;
-
-        // 清理触摸事件引用
-        if (this.canvas) {
-            // 移除所有事件监听器
-            this.canvas.removeEventListener = this.canvas.removeEventListener || function () {
-            };
-            this.canvas.removeEventListener('touchstart', this.onTouchStart);
-            this.canvas.removeEventListener('touchmove', this.onTouchMove);
-            this.canvas.removeEventListener('touchend', this.onTouchEnd);
-        }
-
-        // 清理摇杆状态
-        if (this.joystick) {
-            this.joystick.active = false;
-            this.joystick.direction = {x: 0, y: 0};
-            this.joystick.centerX = 0;
-            this.joystick.centerY = 0;
-        }
-
-        console.log('[Cleanup] 定时器和事件监听器清理完成');
-
-    } catch (error) {
-        console.error('[Cleanup] 清理定时器和事件监听器时出错:', error);
-    }
-};
-
-// 启动性能监控
-GameEngine.prototype.startPerformanceMonitoring = function () {
-    if (this.performanceTimer) {
-        clearInterval(this.performanceTimer);
-    }
-
-    this.performanceTimer = setInterval(function () {
-        this.monitorPerformance();
-    }.bind(this), 2000); // 每2秒监控一次
-
-    console.log('[Performance] 性能监控已启动');
-};
-
-// 性能监控
-GameEngine.prototype.monitorPerformance = function () {
-    try {
-        var stats = {
-            fps: this.calculateFPS(),
-            memory: this.getMemoryUsage(),
-            render: this.npcRenderStats || {total: 0, rendered: 0, efficiency: '0%'},
-            update: this.npcUpdateStats || {total: 0, updated: 0, efficiency: '0%'},
-            entities: {
-                npcs: this.npcs ? this.npcs.length : 0,
-                followers: this.followers ? this.followers.length : 0,
-                zombies: this.zombieManager ? this.zombieManager.zombies.length : 0
-            }
-        };
-
-        console.log('[Performance] 性能统计:', stats);
-
-        // 性能警告
-        if (stats.fps < 30) {
-            console.warn('[Performance] FPS过低:', stats.fps);
-        }
-
-        if (stats.render.efficiency < 50) {
-            console.warn('[Performance] 渲染效率过低:', stats.render.efficiency + '%');
-        }
-
-    } catch (error) {
-        console.error('[Performance] 性能监控出错:', error);
-    }
-};
-
-// 计算FPS
-GameEngine.prototype.calculateFPS = function () {
-    if (!this.lastFrameTime) {
-        this.lastFrameTime = Date.now();
-        this.frameCount = 0;
-        return 0;
-    }
-
-    this.frameCount++;
-    var currentTime = Date.now();
-    var timeDiff = currentTime - this.lastFrameTime;
-
-    if (timeDiff >= 1000) { // 每秒计算一次
-        var fps = Math.round((this.frameCount * 1000) / timeDiff);
-        this.lastFrameTime = currentTime;
-        this.frameCount = 0;
-        return fps;
-    }
-
-    return this.lastFPS || 0;
-};
-
-// 获取内存使用情况
-GameEngine.prototype.getMemoryUsage = function () {
-    if (typeof performance !== 'undefined' && performance.memory) {
-        return {
-            used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-            total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB',
-            limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
-        };
-    }
-
-    return {
-        used: 'N/A', total: 'N/A', limit: 'N/A'
-    };
-};
 
 
 
