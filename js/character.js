@@ -1,8 +1,6 @@
 // ========================================
-// 人物系统 (Character System)
+// 人物系统模块 (Character System Module)
 // ========================================
-
-
 
 // 基础人物类
 function BaseCharacter(config) {
@@ -33,16 +31,32 @@ BaseCharacter.prototype.getDefaultColors = function () {
 
 BaseCharacter.prototype.getDefaultFeatures = function () {
     return {
-        hasGlasses: true, hairStyle: 'normal', bodyType: 'normal', clothingStyle: 'casual', accessory: 'sunglasses'
+        hasGlasses: true,
+        hairStyle: 'normal',
+        bodyType: 'normal',
+        clothingStyle: 'casual',
+        accessory: 'sunglasses'
     };
 };
 
 BaseCharacter.prototype.getDefaultAnimations = function () {
-    return {walkBobAmplitude: 1.5, walkLegSwingAmplitude: 3, walkArmSwingAmplitude: 2, walkSpeed: 200};
+    return {
+        walkBobAmplitude: 1.5,
+        walkLegSwingAmplitude: 3,
+        walkArmSwingAmplitude: 2,
+        walkSpeed: 200
+    };
 };
 
 BaseCharacter.prototype.calculateAnimationOffsets = function (player) {
-    var offsets = {bobOffset: 0, leftLegOffset: 0, rightLegOffset: 0, leftArmOffset: 0, rightArmOffset: 0};
+    var offsets = {
+        bobOffset: 0,
+        leftLegOffset: 0,
+        rightLegOffset: 0,
+        leftArmOffset: 0,
+        rightArmOffset: 0
+    };
+    
     if (player.isWalking) {
         offsets.bobOffset = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkBobAmplitude;
         var legSwing = Math.sin(player.walkAnimationFrame * Math.PI / 2) * this.animations.walkLegSwingAmplitude;
@@ -52,27 +66,33 @@ BaseCharacter.prototype.calculateAnimationOffsets = function (player) {
         offsets.leftArmOffset = -armSwing;
         offsets.rightArmOffset = armSwing;
     }
+    
     return offsets;
 };
 
 BaseCharacter.prototype.render = function (ctx, x, y, player) {
     var offsets = this.calculateAnimationOffsets(player);
     y += offsets.bobOffset;
+    
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    
     this.renderBody(ctx, x, y, player);
     this.renderHead(ctx, x, y, player);
     this.renderArms(ctx, x, y, player);
     this.renderLegs(ctx, x, y, player);
+    
     ctx.restore();
 };
 
 BaseCharacter.prototype.renderBody = function (ctx, x, y, player) {
     ctx.fillStyle = this.colors.clothes;
     ctx.fillRect(x - 10, y - 6, 20, 18);
+    
     ctx.fillStyle = this.colors.clothesShadow;
     ctx.fillRect(x + 8, y - 4, 2, 14);
     ctx.fillRect(x - 8, y + 10, 16, 2);
+    
     ctx.fillStyle = this.colors.clothesDetail;
     ctx.fillRect(x - 6, y - 2, 2, 8);
     ctx.fillRect(x + 4, y + 2, 2, 6);
@@ -81,12 +101,15 @@ BaseCharacter.prototype.renderBody = function (ctx, x, y, player) {
 BaseCharacter.prototype.renderHead = function (ctx, x, y, player) {
     ctx.fillStyle = this.colors.skin;
     ctx.fillRect(x - 10, y - 20, 20, 16);
+    
     ctx.fillStyle = this.colors.skinHighlight;
     ctx.fillRect(x - 8, y - 18, 4, 4);
     ctx.fillRect(x + 4, y - 16, 4, 3);
+    
     ctx.fillStyle = this.colors.skinShadow;
     ctx.fillRect(x + 8, y - 16, 2, 12);
     ctx.fillRect(x - 6, y - 6, 12, 2);
+    
     this.renderHair(ctx, x, y, player);
     this.renderFacialFeatures(ctx, x, y, player);
 };
@@ -99,6 +122,7 @@ BaseCharacter.prototype.renderHair = function (ctx, x, y, player) {
     ctx.fillRect(x + 10, y - 26, 4, 8);
     ctx.fillRect(x - 8, y - 22, 16, 4);
     ctx.fillRect(x - 4, y - 24, 8, 2);
+    
     ctx.fillStyle = this.colors.hairHighlight;
     ctx.fillRect(x - 6, y - 30, 3, 2);
     ctx.fillRect(x + 3, y - 32, 3, 2);
@@ -106,7 +130,12 @@ BaseCharacter.prototype.renderHair = function (ctx, x, y, player) {
 };
 
 BaseCharacter.prototype.renderFacialFeatures = function (ctx, x, y, player) {
-    if (this.features.hasGlasses) this.renderGlasses(ctx, x, y, player); else this.renderEyes(ctx, x, y, player);
+    if (this.features.hasGlasses) {
+        this.renderGlasses(ctx, x, y, player);
+    } else {
+        this.renderEyes(ctx, x, y, player);
+    }
+    
     this.renderNose(ctx, x, y, player);
     this.renderMouth(ctx, x, y, player);
 };
@@ -114,15 +143,19 @@ BaseCharacter.prototype.renderFacialFeatures = function (ctx, x, y, player) {
 BaseCharacter.prototype.renderGlasses = function (ctx, x, y, player) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(x - 8, y - 18, 16, 6);
+    
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(x - 7, y - 17, 6, 4);
     ctx.fillRect(x + 1, y - 17, 6, 4);
+    
     ctx.fillStyle = '#333333';
     ctx.fillRect(x - 6, y - 17, 2, 1);
     ctx.fillRect(x + 2, y - 17, 2, 1);
+    
     ctx.fillStyle = '#555555';
     ctx.fillRect(x - 7, y - 16, 1, 2);
     ctx.fillRect(x + 6, y - 16, 1, 2);
+    
     ctx.fillStyle = '#000000';
     ctx.fillRect(x - 1, y - 17, 2, 2);
     ctx.fillRect(x - 10, y - 17, 2, 1);
@@ -133,6 +166,7 @@ BaseCharacter.prototype.renderEyes = function (ctx, x, y, player) {
     ctx.fillStyle = this.colors.eyes;
     ctx.fillRect(x - 6, y - 16, 3, 2);
     ctx.fillRect(x + 3, y - 16, 3, 2);
+    
     ctx.fillStyle = this.colors.eyesHighlight;
     ctx.fillRect(x - 5, y - 16, 1, 1);
     ctx.fillRect(x + 4, y - 16, 1, 1);
@@ -141,6 +175,7 @@ BaseCharacter.prototype.renderEyes = function (ctx, x, y, player) {
 BaseCharacter.prototype.renderNose = function (ctx, x, y, player) {
     ctx.fillStyle = this.colors.skinShadow;
     ctx.fillRect(x - 1, y - 12, 2, 2);
+    
     ctx.fillStyle = this.colors.skinHighlight;
     ctx.fillRect(x, y - 13, 1, 1);
 };
@@ -148,23 +183,28 @@ BaseCharacter.prototype.renderNose = function (ctx, x, y, player) {
 BaseCharacter.prototype.renderMouth = function (ctx, x, y, player) {
     ctx.fillStyle = this.colors.mouth;
     ctx.fillRect(x - 2, y - 10, 4, 1);
+    
     ctx.fillStyle = this.colors.mouthShadow;
     ctx.fillRect(x - 1, y - 9, 2, 1);
 };
 
 BaseCharacter.prototype.renderArms = function (ctx, x, y, player) {
     var offsets = this.calculateAnimationOffsets(player);
+    
     ctx.fillStyle = this.colors.skin;
     ctx.fillRect(x - 14, y - 4 + offsets.leftArmOffset, 4, 10);
     ctx.fillRect(x - 16, y + 4 + offsets.leftArmOffset, 4, 8);
     ctx.fillRect(x + 10, y - 4 + offsets.rightArmOffset, 4, 10);
     ctx.fillRect(x + 12, y + 4 + offsets.rightArmOffset, 4, 8);
+    
     ctx.fillStyle = this.colors.skinShadow;
     ctx.fillRect(x - 12, y + 2 + offsets.leftArmOffset, 2, 4);
     ctx.fillRect(x + 10, y + 2 + offsets.rightArmOffset, 2, 4);
+    
     ctx.fillStyle = this.colors.skin;
     ctx.fillRect(x - 18, y + 10 + offsets.leftArmOffset, 4, 4);
     ctx.fillRect(x + 14, y + 10 + offsets.rightArmOffset, 4, 4);
+    
     ctx.fillStyle = this.colors.skinShadow;
     ctx.fillRect(x - 16, y + 12 + offsets.leftArmOffset, 2, 2);
     ctx.fillRect(x + 14, y + 12 + offsets.rightArmOffset, 2, 2);
@@ -172,20 +212,25 @@ BaseCharacter.prototype.renderArms = function (ctx, x, y, player) {
 
 BaseCharacter.prototype.renderLegs = function (ctx, x, y, player) {
     var offsets = this.calculateAnimationOffsets(player);
+    
     ctx.fillStyle = this.colors.skin;
     ctx.fillRect(x - 6, y + 12 + offsets.leftLegOffset, 5, 14);
     ctx.fillRect(x - 7, y + 24 + offsets.leftLegOffset, 5, 8);
     ctx.fillRect(x + 1, y + 12 + offsets.rightLegOffset, 5, 14);
     ctx.fillRect(x + 2, y + 24 + offsets.rightLegOffset, 5, 8);
+    
     ctx.fillStyle = this.colors.skinShadow;
     ctx.fillRect(x - 2, y + 20 + offsets.leftLegOffset, 2, 6);
     ctx.fillRect(x + 1, y + 20 + offsets.rightLegOffset, 2, 6);
+    
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(x - 10, y + 30 + offsets.leftLegOffset, 8, 5);
     ctx.fillRect(x + 2, y + 30 + offsets.rightLegOffset, 8, 5);
+    
     ctx.fillStyle = '#E0E0E0';
     ctx.fillRect(x - 8, y + 32 + offsets.leftLegOffset, 4, 2);
     ctx.fillRect(x + 4, y + 32 + offsets.rightLegOffset, 4, 2);
+    
     ctx.fillStyle = '#F8F8F8';
     ctx.fillRect(x - 9, y + 30 + offsets.leftLegOffset, 2, 1);
     ctx.fillRect(x + 7, y + 30 + offsets.rightLegOffset, 2, 1);
@@ -199,38 +244,103 @@ function CharacterManager() {
 }
 
 CharacterManager.prototype.initializeCharacters = function () {
-    var configs = [{
-        id: 1, name: '酷炫墨镜哥', colors: {clothes: '#FFFFFF', hair: '#1A1A1A'}, features: {hasGlasses: true}
-    }, {
-        id: 2, name: '金发女战士', colors: {clothes: '#8E24AA', hair: '#FFD700'}, features: {hasGlasses: true}
-    }, {
-        id: 3, name: '暗影忍者', colors: {clothes: '#212121', hair: '#1A1A1A'}, features: {hasGlasses: true}
-    }, {
-        id: 4, name: '机械工程师', colors: {clothes: '#FF9800', hair: '#795548'}, features: {hasGlasses: true}
-    }, {
-        id: 5, name: '魔法师', colors: {clothes: '#3F51B5', hair: '#9C27B0'}, features: {hasGlasses: true}
-    }, {
-        id: 6, name: '海盗船长', colors: {clothes: '#8D6E63', hair: '#FF5722'}, features: {hasGlasses: true}
-    }, {
-        id: 7, name: '太空探险家', colors: {clothes: '#607D8B', hair: '#CDDC39'}, features: {hasGlasses: true}
-    }, {
-        id: 8, name: '武士', colors: {clothes: '#F44336', hair: '#424242'}, features: {hasGlasses: true}
-    }];
-    for (var i = 0; i < configs.length; i++) this.characters[configs[i].id] = new BaseCharacter(configs[i]);
+    var configs = [
+        {
+            id: 1,
+            name: '酷炫墨镜哥',
+            colors: {clothes: '#FFFFFF', hair: '#1A1A1A'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 2,
+            name: '金发女战士',
+            colors: {clothes: '#8E24AA', hair: '#FFD700'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 3,
+            name: '暗影忍者',
+            colors: {clothes: '#212121', hair: '#1A1A1A'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 4,
+            name: '机械工程师',
+            colors: {clothes: '#FF9800', hair: '#795548'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 5,
+            name: '魔法师',
+            colors: {clothes: '#3F51B5', hair: '#9C27B0'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 6,
+            name: '海盗船长',
+            colors: {clothes: '#8D6E63', hair: '#FF5722'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 7,
+            name: '太空探险家',
+            colors: {clothes: '#607D8B', hair: '#CDDC39'},
+            features: {hasGlasses: true}
+        },
+        {
+            id: 8,
+            name: '武士',
+            colors: {clothes: '#F44336', hair: '#424242'},
+            features: {hasGlasses: true}
+        }
+    ];
+    
+    for (var i = 0; i < configs.length; i++) {
+        this.characters[configs[i].id] = new BaseCharacter(configs[i]);
+    }
 };
 
 CharacterManager.prototype.getCurrentCharacter = function () {
     return this.characters[this.currentCharacterId] || this.characters[1];
 };
 
+CharacterManager.prototype.setCurrentCharacter = function (id) {
+    if (this.characters[id]) {
+        this.currentCharacterId = id;
+        return true;
+    }
+    return false;
+};
+
+CharacterManager.prototype.getCharacter = function (id) {
+    return this.characters[id] || null;
+};
 
 CharacterManager.prototype.renderCurrentCharacter = function (ctx, x, y, player) {
     var character = this.getCurrentCharacter();
-    if (character) character.render(ctx, x, y, player);
+    if (character) {
+        character.render(ctx, x, y, player);
+    }
+};
+
+CharacterManager.prototype.createCharacter = function (config) {
+    var character = new BaseCharacter(config);
+    this.characters[character.id] = character;
+    return character;
+};
+
+CharacterManager.prototype.removeCharacter = function (id) {
+    if (this.characters[id]) {
+        delete this.characters[id];
+        return true;
+    }
+    return false;
 };
 
 // 模块导出
-module.exports = {
-    BaseCharacter: BaseCharacter,
-    CharacterManager: CharacterManager
-};
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        BaseCharacter: BaseCharacter,
+        CharacterManager: CharacterManager
+    };
+}
