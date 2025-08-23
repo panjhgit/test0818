@@ -2607,6 +2607,9 @@ function GameEngine(canvas, ctx) {
     // 设置摄像机跟随玩家
     this.camera.followTarget = this.player;
     
+    // 生成初始伙伴（开局时主人物身边生成8个伙伴）
+    this.generateInitialPartners();
+    
     // 调试信息：显示玩家初始位置
     console.log('[Player] 玩家初始位置:', {
         x: this.player.x,
@@ -4730,22 +4733,7 @@ GameEngine.prototype.initializeGame = function () {
         }
     }
     
-    // ========================================
-    // 🧪 测试代码 - 在玩家周围生成6个伙伴 - 后续删除
-    // ========================================
-    // 立即生成测试伙伴，不依赖视距裁剪系统
-    console.log('[GameEngine] 准备生成测试伙伴...');
-    console.log('[GameEngine] 当前状态检查:', {
-        player: !!this.player,
-        playerX: this.player ? this.player.x : 'N/A',
-        playerY: this.player ? this.player.y : 'N/A',
-        followers: !!this.followers,
-        followersLength: this.followers ? this.followers.length : 'N/A',
-        viewportCulling: !!this.viewportCulling,
-        quadTree: !!this.viewportCulling?.quadTree
-    });
-    
-    this.spawnTestPartnersDirectly();
+
     
     console.log('[GameEngine] 游戏初始化完成！');
 };
@@ -5156,13 +5144,11 @@ GameEngine.prototype.moveSingleFollower = function (follower, deltaX, deltaY) {
         var normalizedForceX = follower.smoothForceX / smoothedForceStrength;
         var normalizedForceY = follower.smoothForceY / smoothedForceStrength;
         
-        // 计算移动速度：基于距离和力的强度，提高基础速度
-        var distanceRatio = currentDistance / idealDistance;
-        var speedMultiplier = Math.min(2.0, Math.max(1.0, distanceRatio)); // 提高速度范围：1.0-2.0倍
-        var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED * speedMultiplier;
+        // 计算移动速度：与主人物保持一致
+        var moveSpeed = GAME_CONFIG.PLAYER.MOVE_SPEED; // 直接使用主人物速度
         
-        // 计算移动距离，使用更稳定的计算方式，减少抽搐
-        var moveDistance = Math.min(moveSpeed, Math.max(0.5, smoothedForceStrength * 1.5)); // 降低力系数，减少抽搐
+        // 计算移动距离：基于主人物速度，确保跟随者能跟上
+        var moveDistance = moveSpeed; // 直接使用主人物速度作为移动距离
         
         var newX = follower.x + normalizedForceX * moveDistance;
         var newY = follower.y + normalizedForceY * moveDistance;
@@ -6120,14 +6106,8 @@ GameEngine.prototype.getResourceChance = function () {
 
 GameEngine.prototype.getResourceType = function () {
     switch (this.subMapType) {
-        case 'police_station':
-            return 'companion_police';
-        case 'hospital':
-            return 'companion_nurse';
-        case 'restaurant':
-            return 'companion_chef';
         case 'shop':
-            return Math.random() < 0.5 ? 'weapon' : 'weapon';
+            return 'weapon';
         case 'school':
         case 'house':
         case 'villa':
@@ -6160,15 +6140,6 @@ GameEngine.prototype.createResource = function (type) {
     }
 
     switch (type) {
-        case 'companion_police':
-            resource.companionData = {name: '警察', type: 'police', health: 20, attack: 25, special: '远程攻击'};
-            break;
-        case 'companion_nurse':
-            resource.companionData = {name: '护士', type: 'nurse', health: 15, attack: 8, special: '群体回血'};
-            break;
-        case 'companion_chef':
-            resource.companionData = {name: '厨师', type: 'chef', health: 15, attack: 8, special: '每日产粮'};
-            break;
         case 'food':
             resource.amount = this.getFoodAmount();
             break;
@@ -6199,59 +6170,7 @@ GameEngine.prototype.collectResource = function (resource) {
     resource.collected = true;
 
     switch (resource.type) {
-        case 'companion_police':
-        case 'companion_nurse':
-        case 'companion_chef':
-            // 移除伙伴数量限制，可以无限增加伙伴
-            // 使用对象池重用跟随者对象，避免频繁创建新对象
-            var safePosition = this.getSafeFollowerPosition();
-            
-            // 尝试从对象池获取跟随者
-            var characterId = resource.companionData.id || 2;
-            var newFollower = this.getFollowerFromPool(characterId);
-            
-            if (!newFollower) {
-                // 如果对象池为空，创建新的跟随者对象
-                newFollower = {
-                    id: 'follower_' + Date.now() + '_' + Math.random(),
-                    characterId: characterId,
-                    character: resource.companionData,
-                    x: safePosition.x,
-                    y: safePosition.y,
-                    targetX: this.player.x,
-                    targetY: this.player.y,
-                    health: resource.companionData.health || 100,
-                    maxHealth: resource.companionData.maxHealth || 100,
-                    attack: resource.companionData.attack || 15,
-                    isWalking: false,
-                    direction: 'down',
-                    followDistance: 35 + Math.random() * 20, // 随机跟随距离
-                    lastUpdateTime: Date.now()
-                };
-            } else {
-                // 使用对象池中的跟随者，更新其属性
-                newFollower.id = 'follower_' + Date.now() + '_' + Math.random();
-                newFollower.character = resource.companionData;
-                newFollower.x = safePosition.x;
-                newFollower.y = safePosition.y;
-                newFollower.targetX = this.player.x;
-                newFollower.targetY = this.player.y;
-                newFollower.health = resource.companionData.health || 100;
-                newFollower.maxHealth = resource.companionData.maxHealth || 100;
-                newFollower.attack = resource.companionData.attack || 15;
-                newFollower.isWalking = false;
-                newFollower.direction = 'down';
-                newFollower.followDistance = 35 + Math.random() * 20; // 随机跟随距离
-                newFollower.lastUpdateTime = Date.now();
-            }
-            
-            this.followers.push(newFollower);
-            this.gameData.teamSize++;
-            if (this.gameData.teamSize > this.gameData.maxTeamSize) {
-                this.gameData.maxTeamSize = this.gameData.teamSize;
-            }
-            console.log('[GameEngine] 新伙伴加入: ' + resource.companionData.name + '，当前跟随者数量: ' + this.followers.length + '，团队人数: ' + this.gameData.teamSize);
-            break;
+
         case 'food':
             this.gameData.food += resource.amount;
             this.gameData.totalFood += resource.amount;
@@ -7084,6 +7003,77 @@ GameEngine.prototype.fixViewportCullingSystem = function() {
     } catch (error) {
         console.error('[ViewportCulling] 修复失败:', error);
         return false;
+    }
+};
+
+// 生成初始伙伴（开局时主人物身边生成8个伙伴）
+GameEngine.prototype.generateInitialPartners = function() {
+    try {
+        console.log('[InitialPartners] 开始生成初始伙伴，玩家位置:', this.player.x, this.player.y);
+        
+        // 伙伴配置
+        var partnerConfigs = [
+            {name: '金发女战士', characterId: 2, health: 100, attack: 20, special: '近战攻击'},
+            {name: '暗影忍者', characterId: 3, health: 80, attack: 25, special: '隐身突袭'},
+            {name: '机械工程师', characterId: 4, health: 90, attack: 15, special: '机械修复'},
+            {name: '魔法师', characterId: 5, health: 70, attack: 30, special: '魔法攻击'},
+            {name: '海盗船长', characterId: 6, health: 110, attack: 22, special: '航海技能'},
+            {name: '太空探险家', characterId: 7, health: 85, attack: 18, special: '科技装备'},
+            {name: '武士', characterId: 8, health: 95, attack: 24, special: '剑术精通'},
+            {name: '忍者', characterId: 9, health: 75, attack: 26, special: '暗杀技巧'}
+        ];
+        
+        // 在玩家周围生成8个伙伴，形成一个圆圈
+        var partnerCount = partnerConfigs.length;
+        var radius = 80; // 距离玩家的半径（像素）
+        var angleStep = (2 * Math.PI) / partnerCount;
+        
+        for (var i = 0; i < partnerCount; i++) {
+            var angle = i * angleStep;
+            var x = this.player.x + Math.cos(angle) * radius;
+            var y = this.player.y + Math.sin(angle) * radius;
+            
+            var partnerConfig = partnerConfigs[i];
+            
+            // 创建伙伴对象（初始状态为NPC，未加入团队）
+            var partner = {
+                id: 'initial_partner_' + (i + 1),
+                characterId: partnerConfig.characterId,
+                name: partnerConfig.name,
+                x: x,
+                y: y,
+                health: partnerConfig.health,
+                maxHealth: partnerConfig.health,
+                attack: partnerConfig.attack,
+                special: partnerConfig.special,
+                isWalking: false,
+                direction: 'down',
+                lastUpdateTime: Date.now(),
+                type: 'npc', // 初始状态为NPC
+                isFollowing: false, // 未加入团队
+                quadTreeInserted: false,
+                // 添加渲染所需的属性
+                character: this.characterManager.characters[partnerConfig.characterId],
+                personality: this.getCharacterPersonality(this.characterManager.characters[partnerConfig.characterId])
+            };
+            
+            // 添加到NPC列表（不是跟随者列表）
+            this.npcs.push(partner);
+            
+            // 插入到视距裁剪系统
+            if (this.viewportCulling && this.viewportCulling.quadTree) {
+                this.viewportCulling.quadTree.insert(partner);
+                partner.quadTreeInserted = true;
+            }
+            
+            console.log('[InitialPartners] 生成伙伴', (i + 1), ':', partnerConfig.name, '位置:', {x: x, y: y});
+        }
+        
+        // 更新NPC数量统计
+        console.log('[InitialPartners] 初始伙伴生成完成，NPC数量:', this.npcs.length, '等待玩家碰撞加入团队');
+        
+    } catch (error) {
+        console.error('[InitialPartners] 生成初始伙伴时出错:', error);
     }
 };
 
@@ -8135,10 +8125,7 @@ GameEngine.prototype.renderSingleTestPartner = function(npc, index) {
         this.ctx.textAlign = 'center';
         this.ctx.fillText('🧪', npc.x, npc.y + 4);
         
-        // 显示伙伴编号
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 10px Arial';
-        this.ctx.fillText(npc.characterId, npc.x, npc.y + 18);
+
         
         this.ctx.restore();
         
@@ -8503,13 +8490,38 @@ GameEngine.prototype.renderSingleNPC = function (npc) {
 GameEngine.prototype.renderDefaultNPC = function (npc) {
     this.ctx.save();
 
-    this.ctx.fillStyle = '#3498db';
-    this.ctx.fillRect(npc.x - 8, npc.y - 8, 16, 16);
+    // 渲染NPC人物形状（20x20彩色方块，与跟随者保持一致）
+    var baseColor = '#3498db'; // 默认蓝色
+    
+    // 如果有性格属性，使用对应的颜色
+    if (npc.personality && npc.personality.personalityType) {
+        switch (npc.personality.personalityType) {
+            case 'leader':
+                baseColor = '#f1c40f';
+                break;
+            case 'supporter':
+                baseColor = '#e74c3c';
+                break;
+            case 'scout':
+                baseColor = '#3498db';
+                break;
+            case 'guardian':
+                baseColor = '#27ae60';
+                break;
+            case 'independent':
+                baseColor = '#9b59b6';
+                break;
+        }
+    }
 
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '10px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText(npc.characterId.toString(), npc.x, npc.y + 3);
+    // 渲染20x20像素的彩色方块
+    this.ctx.fillStyle = baseColor;
+    this.ctx.fillRect(npc.x - 10, npc.y - 10, 20, 20);
+
+    // NPC边框
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(npc.x - 10, npc.y - 10, 20, 20);
 
     this.ctx.restore();
 };
@@ -8539,7 +8551,8 @@ GameEngine.prototype.renderSingleFollower = function (follower, index) {
     this.ctx.save();
     this.applyFollowerPersonalityEffects(follower, personality);
     this.renderFollowerCharacter(follower, character);
-    this.renderPersonalityIndicator(follower, personality, index);
+    // 删除性格指示器，保持与NPC相同的形状
+    // this.renderPersonalityIndicator(follower, personality, index);
     this.ctx.restore();
 };
 
@@ -8577,27 +8590,20 @@ GameEngine.prototype.renderDefaultFollower = function (follower) {
         }
     }
 
+    // 渲染人物形状（不同颜色的方块）
     this.ctx.fillStyle = baseColor;
     this.ctx.fillRect(follower.x - 10, follower.y - 10, 20, 20);
 
+    // 人物边框
     this.ctx.strokeStyle = '#2c3e50';
     this.ctx.lineWidth = 3;
     this.ctx.strokeRect(follower.x - 10, follower.y - 10, 20, 20);
 
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = 'bold 14px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText(follower.characterId.toString(), follower.x, follower.y + 6);
-
+    // 行走状态指示器
     if (follower.isWalking) {
         this.ctx.fillStyle = '#2ecc71';
         this.ctx.fillRect(follower.x - 12, follower.y - 12, 24, 3);
     }
-
-    this.ctx.fillStyle = '#e74c3c';
-    this.ctx.beginPath();
-    this.ctx.arc(follower.x + 12, follower.y - 8, 4, 0, Math.PI * 2);
-    this.ctx.fill();
 
     this.ctx.restore();
 };
