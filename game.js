@@ -2,11 +2,298 @@
  * 末日Q行 - 抖音小程序游戏
  * 一个生存至100天的挑战游戏
  * 使用ES5语法，完全兼容抖音小程序环境
+ * 
+ * 代码结构已按功能模块重新整理：
+ * - 基础配置模块 (config.js)
+ * - 通用工具类模块 (engine.js) 
+ * - 人物模块 (character.js)
+ * - 僵尸模块 (zombie.js)
+ * - 碰撞检测模块 (collision.js)
+ * - 战斗系统模块 (battle.js)
+ * - 输入系统模块 (input.js)
+ * - 地图模块 (map.js)
+ * - 子地图模块 (submap.js)
+ * - 资源管理模块 (resource.js)
+ * - 视图模块 (view.js)
+ * - 游戏引擎模块 (game-engine.js)
+ * - 首页模块 (index.js)
  */
 
 
 // ========================================
-// 人物系统 (Character System)
+// 基础配置模块 (config.js)
+// ========================================
+
+// 游戏平衡配置
+var GAME_CONFIG = {
+    // 僵尸生成配置
+    ZOMBIE_SPAWN: {
+        BASE_COUNT: 10,
+        PER_DAY_INCREASE: 3,
+        MAX_ZOMBIES: 50,
+        SPAWN_RADIUS: 2000,
+        MIN_DISTANCE: 300,
+        MAX_ATTEMPTS_MULTIPLIER: 10
+    },
+
+    // 玩家配置
+    PLAYER: {
+        BASE_HEALTH: 50, BASE_ATTACK: 15, ATTACK_RANGE: 35, ATTACK_COOLDOWN: 800, MOVE_SPEED: 3, CHARACTER_RADIUS: 18
+    },
+
+    // 团队配置
+    TEAM: {
+        MAX_SIZE: 20, FOLLOW_DISTANCE: 35, COLLISION_THRESHOLD: 900
+    },
+
+    // 时间配置
+    TIME: {
+        DAY_DURATION: 30000,     // 30秒
+        NIGHT_DURATION: 30000,   // 30秒
+        FOOD_COST_PER_DAY: 1
+    },
+
+    // 建筑配置
+    BUILDING: {
+        INTERACTION_DISTANCE: 60, TRIGGER_DISTANCE: 50, EXIT_COOLDOWN: 2000
+    }
+};
+
+// 视距裁剪系统配置
+var VIEWPORT_CONFIG = {
+    GRID_SIZE: 500,           // 网格区块大小
+    EXTRA_RENDER: 1,          // 额外渲染区块数
+    MAX_VIEW_DISTANCE: 1000,  // 最大视距
+    UPDATE_FREQUENCIES: {
+        CORE: 1,              // 60fps (每帧更新)
+        IMPORTANT: 2,         // 30fps (每2帧更新)
+        NORMAL: 4,            // 15fps (每4帧更新)
+        LOW: 30,              // 2fps (每30帧更新)
+        SLEEP: 0              // 停止更新
+    }
+};
+
+// ========================================
+// 通用工具类模块 (engine.js)
+// ========================================
+
+// 边界框类
+function Bounds(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+}
+
+Bounds.prototype.contains = function (x, y) {
+    return x >= this.x && x <= this.x + this.width && y >= this.y && y <= this.y + this.height;
+};
+
+Bounds.prototype.intersects = function (other) {
+    return !(this.x > other.x + other.width || this.x + this.width < other.x || this.y > other.y + other.height || this.y + this.height < other.y);
+};
+
+// 四叉树节点类
+function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
+    this.bounds = bounds;           // 边界 {x, y, width, height}
+    this.maxObjects = maxObjects || 10;
+    this.maxLevels = maxLevels || 5;
+    this.level = level || 0;
+    this.objects = [];
+    this.nodes = [];
+    this.isLeaf = true;
+}
+
+QuadTreeNode.prototype.insert = function (object) {
+    if (!this.bounds.contains(object.x, object.y)) {
+        return false;
+    }
+
+    if (this.isLeaf && this.objects.length < this.maxObjects) {
+        this.objects.push(object);
+        return true;
+    }
+
+    if (this.isLeaf && this.level < this.maxLevels) {
+        this.split();
+    }
+
+    for (var i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].insert(object)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+QuadTreeNode.prototype.split = function () {
+    var subWidth = this.bounds.width / 2;
+    var subHeight = this.bounds.height / 2;
+    var x = this.bounds.x;
+    var y = this.bounds.y;
+
+    this.nodes[0] = new QuadTreeNode(new Bounds(x + subWidth, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[1] = new QuadTreeNode(new Bounds(x, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[2] = new QuadTreeNode(new Bounds(x, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[3] = new QuadTreeNode(new Bounds(x + subWidth, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.isLeaf = false;
+
+    // 重新分配现有对象
+    for (var i = 0; i < this.objects.length; i++) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].insert(this.objects[i])) {
+                break;
+            }
+        }
+    }
+    this.objects = [];
+};
+
+QuadTreeNode.prototype.query = function (range) {
+    var result = [];
+
+    if (!this.bounds.intersects(range)) {
+        return result;
+    }
+
+    for (var i = 0; i < this.objects.length; i++) {
+        if (range.contains(this.objects[i].x, this.objects[i].y)) {
+            result.push(this.objects[i]);
+        }
+    }
+
+    if (!this.isLeaf) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            result = result.concat(this.nodes[i].query(range));
+        }
+    }
+
+    return result;
+};
+
+// 从四叉树中移除对象
+QuadTreeNode.prototype.remove = function (object) {
+    if (this.isLeaf) {
+        // 在叶子节点中查找并移除对象
+        for (var i = 0; i < this.objects.length; i++) {
+            if (array[i] === object) {
+                this.objects.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    } else {
+        // 在子节点中查找并移除对象
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].remove(object)) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+// 通用安全数组操作工具类
+var SafeArrayOperations = {
+    // 安全的批量删除，使用对象引用而不是索引，就地操作避免内存分配
+    safeBatchRemove: function (array, indicesToRemove, onRemove) {
+        if (!array || !Array.isArray(array) || !indicesToRemove || indicesToRemove.length === 0) {
+            return 0;
+        }
+
+        var objectsToRemove = [];
+        var removedCount = 0;
+
+        // 收集需要移除的对象引用
+        for (var i = 0; i < indicesToRemove.length; i++) {
+            var index = indicesToRemove[i];
+            if (index >= 0 && index < array.length) {
+                var obj = array[index];
+                if (obj) {
+                    objectsToRemove.push(obj);
+                }
+            }
+        }
+
+        // 使用就地操作安全移除，避免内存分配和索引问题
+        for (var j = array.length - 1; j >= 0; j--) {
+            var obj = array[j];
+            var shouldRemove = objectsToRemove.indexOf(obj) !== -1;
+
+            if (shouldRemove) {
+                if (typeof onRemove === 'function') {
+                    onRemove(obj);
+                }
+                array.splice(j, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    },
+
+    // 安全的单个元素移除，使用对象引用
+    safeRemove: function (array, objectToRemove) {
+        if (!array || !Array.isArray(array) || !objectToRemove) {
+            return false;
+        }
+
+        var index = array.indexOf(objectToRemove);
+        if (index === -1) {
+            return false;
+        }
+
+        var index = array.indexOf(objectToRemove);
+        if (index === -1) {
+            return false;
+        }
+
+        array.splice(index, 1);
+        return true;
+    },
+
+    // 验证索引是否有效
+    isValidIndex: function (array, index) {
+        return array && Array.isArray(array) && index >= 0 && index < array.length;
+    },
+
+    // 安全删除死亡实体
+    safeRemoveDeadEntities: function (array, isDeadCheck, cleanupCallback) {
+        if (!Array.isArray(array)) {
+            console.warn('[SafeArrayOperations] 数组参数类型错误');
+            return 0;
+        }
+
+        var deadIndices = [];
+
+        // 先收集所有死亡实体的索引
+        for (var i = 0; i < array.length; i++) {
+            if (array[i] && isDeadCheck(array[i])) {
+                deadIndices.push(i);
+            }
+        }
+
+        // 从后往前删除
+        var removedCount = 0;
+        for (var j = deadIndices.length - 1; j >= 0; j--) {
+            var indexToRemove = deadIndices[j];
+            if (indexToRemove >= 0 && indexToRemove < array.length) {
+                if (cleanupCallback) {
+                    cleanupCallback(array[indexToRemove]);
+                }
+                array.splice(indexToRemove, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    }
+};
+
+// ========================================
+// 人物模块 (character.js)
 // ========================================
 
 // 基础人物类
@@ -235,7 +522,7 @@ CharacterManager.prototype.renderCurrentCharacter = function (ctx, x, y, player)
 };
 
 // ========================================
-// 僵尸系统 (Zombie System)
+// 僵尸模块 (zombie.js)
 // ========================================
 
 // 基础僵尸类
@@ -1852,6 +2139,10 @@ ZombieManager.prototype.isSafeZombieSpawnPosition = function (x, y) {
 };
 
 
+// ========================================
+// 基础配置模块 (config.js)
+// ========================================
+
 // 游戏平衡配置
 var GAME_CONFIG = {
     // 僵尸生成配置
@@ -1887,8 +2178,13 @@ var GAME_CONFIG = {
     }
 };
 
+
 // ========================================
-// 视距裁剪系统 (Viewport Culling System)
+// 通用工具类模块 (engine.js)
+// ========================================
+
+// ========================================
+// 碰撞检测模块 (collision.js)
 // ========================================
 
 // 视距裁剪系统配置
@@ -2205,8 +2501,14 @@ ViewportCullingManager.prototype.updateMovingEntitiesOnly = function (gameEngine
 };
 
 // ========================================
-// 游戏引擎 (Game Engine)
+// 战斗系统模块 (battle.js)
 // ========================================
+
+
+// ========================================
+// 视图模块 (view.js)
+// ========================================
+
 
 /**
  * 游戏引擎构造函数 - 兼容抖音小程序环境
@@ -2404,7 +2706,7 @@ function GameEngine(canvas, ctx) {
 }
 
 // ========================================
-// 建筑和地图系统 (Building & Map System)
+// 地图模块 (map.js)
 // ========================================
 
 /**
@@ -2609,7 +2911,7 @@ GameEngine.prototype.exitBuilding = function () {
 };
 
 // ========================================
-// 输入系统实现 (Input System Implementation)
+// 输入系统模块 (input.js)
 // ========================================
 
 GameEngine.prototype.setupInput = function () {
@@ -3212,7 +3514,7 @@ GameEngine.prototype.returnToMenu = function () {
 };
 
 // ========================================
-// 碰撞检测系统实现 (Collision System Implementation)
+// 碰撞检测模块 (collision.js)
 // ========================================
 
 GameEngine.prototype.checkCollisionWithBuildings = function (x, y, characterRadius) {
@@ -3590,9 +3892,6 @@ GameEngine.prototype.recycleFollowerToPool = function (follower) {
     }
 };
 
-// ========================================
-// 资源对象池 (Resource Object Pool)
-// ========================================
 
 // 初始化资源对象池
 GameEngine.prototype.initializeResourcePool = function () {
@@ -3911,8 +4210,10 @@ GameEngine.prototype.checkNearDoor = function () {
 };
 
 // ========================================
-// 游戏逻辑系统 (Game Logic System)
+// 战斗系统模块 (battle.js)
 // ========================================
+
+
 
 GameEngine.prototype.start = function () {
     this.running = true;
@@ -4526,8 +4827,11 @@ GameEngine.prototype.cleanupGameObjects = function () {
 };
 
 // ========================================
-// NPC和团队系统 (NPC & Team System)
+// 资源管理模块 (resource.js)
 // ========================================
+
+
+
 
 GameEngine.prototype.initializeNPCs = function () {
     // 伙伴应该预先存在于地图中，在地图初始化时就创建
@@ -5109,9 +5413,7 @@ GameEngine.prototype.executeCheckEquipmentBehavior = function (npc) {
     }
 };
 
-// ========================================
-// 战斗系统 (Combat System)
-// ========================================
+
 
 GameEngine.prototype.updateCombat = function (deltaTime) {
     var currentTime = Date.now();
@@ -5291,9 +5593,7 @@ GameEngine.prototype.convertToZombie = function (follower, index) {
     }
 };
 
-// ========================================
-// 僵尸生成系统 (Zombie Spawning System)
-// ========================================
+
 
 GameEngine.prototype.initializeZombies = function () {
     this.spawnZombiesByDay();
@@ -5402,9 +5702,6 @@ GameEngine.prototype.spawnNewDayZombies = function () {
 
 };
 
-// ========================================
-// 子地图和资源系统 (SubMap & Resource System)
-// ========================================
 
 GameEngine.prototype.generateSubMapContent = function () {
     this.zombies = [];
@@ -5621,9 +5918,7 @@ GameEngine.prototype.updateZombies = function (deltaTime) {
 };
 
 
-// ========================================
-// 渲染系统 (Rendering System)
-// ========================================
+
 
 GameEngine.prototype.render = function () {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -7235,7 +7530,7 @@ GameEngine.prototype.checkQuadTreeStatus = function () {
 
 
 // ========================================
-// 测试代码结束
+// 子地图模块 (submap.js)
 // ========================================
 
 
@@ -8069,6 +8364,11 @@ GameEngine.prototype.renderFPS = function () {
     this.ctx.fillText('FPS: ' + this.fps, 10, 20);
     this.ctx.fillText('Delta: ' + this.deltaTime.toFixed(2) + 'ms', 10, 40);
 };
+
+
+// ========================================
+// 首页模块 (index.js)
+// ========================================
 
 
 // 将函数定义移到调用之前
