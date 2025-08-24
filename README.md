@@ -1,9 +1,20 @@
-engine.js：通用工具类（数组操作、数学计算等），作为底层工具支撑其他模块。
-input.js：输入系统（触摸、摇杆控制等），统一处理用户交互。
-resource.js：资源管理模块，负责图片、音效、配置文件的加载、缓存和释放。
-character.js：主角角色系统，管理主角属性（血量、攻击、移速）、外观、动画（行走等）。
-follower.js：伙伴系统，处理伙伴属性、偶遇规则（限定 / 重复偶遇）、团队人数限制、跟随逻辑。
-zombie.js：丧尸系统，管理丧尸类型（普通 / 精英）、属性、行为（移动、攻击）、掉落道具概率。
-map.js：地图与建筑系统，负责主地图生成、建筑管理（探索 / 退出）、子地图切换。
-submap.js：子地图内容模块，处理子地图（警察局 / 医院等）的专属逻辑（如特定伙伴偶遇、战斗场景生成）。
-battle.js：战斗系统，处理战斗逻辑（攻击判定、伤害计算）、战斗状态（击中、死亡）。
+game.js  # 启动主文件
+
+src/
+├── config/
+│   └── game-config.js          # 游戏配置
+├── utils/
+│   ├── bounds.js               # 边界框工具类
+│   └── quad-tree.js            # 四叉树实现
+├── entities/
+│   ├── base-character.js       # 角色基类
+│   └── zombie-system.js        # 僵尸系统
+├── managers/
+│   ├── character-manager.js    # 角色管理器
+│   ├── zombie-manager.js       # 僵尸管理器
+│   └── viewport-culling.js     # 视距裁剪
+├── systems/
+│   ├── game-engine.js          # 游戏引擎
+│   ├── input-system.js         # 输入系统
+│   └── map-system.js           # 地图系统
+└── module-loader.js            # 模块加载器
