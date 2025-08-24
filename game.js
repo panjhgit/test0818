@@ -1,10 +1,6 @@
 /**
  * 末日Q行 - 抖音小程序游戏
- * 一个生存至100天的挑战游戏
- * 使用ES5语法，完全兼容抖音小程序环境
- *
-
- */
+*/
 
 
 // ========================================
@@ -64,6 +60,220 @@ var VIEWPORT_CONFIG = {
 // 通用工具类模块 (engine.js)
 // ========================================
 
+// 边界框类
+function Bounds(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+}
+
+Bounds.prototype.contains = function (x, y) {
+    return x >= this.x && x <= this.x + this.width && y >= this.y && y <= this.y + this.height;
+};
+
+Bounds.prototype.intersects = function (other) {
+    return !(this.x > other.x + other.width || this.x + this.width < other.x || this.y > other.y + other.height || this.y + this.height < other.y);
+};
+
+// 四叉树节点类
+function QuadTreeNode(bounds, maxObjects, maxLevels, level) {
+    this.bounds = bounds;           // 边界 {x, y, width, height}
+    this.maxObjects = maxObjects || 10;
+    this.maxLevels = maxLevels || 5;
+    this.level = level || 0;
+    this.objects = [];
+    this.nodes = [];
+    this.isLeaf = true;
+}
+
+QuadTreeNode.prototype.insert = function (object) {
+    if (!this.bounds.contains(object.x, object.y)) {
+        return false;
+    }
+
+    if (this.isLeaf && this.objects.length < this.maxObjects) {
+        this.objects.push(object);
+        return true;
+    }
+
+    if (this.isLeaf && this.level < this.maxLevels) {
+        this.split();
+    }
+
+    for (var i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].insert(object)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+QuadTreeNode.prototype.split = function () {
+    var subWidth = this.bounds.width / 2;
+    var subHeight = this.bounds.height / 2;
+    var x = this.bounds.x;
+    var y = this.bounds.y;
+
+    this.nodes[0] = new QuadTreeNode(new Bounds(x + subWidth, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[1] = new QuadTreeNode(new Bounds(x, y, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[2] = new QuadTreeNode(new Bounds(x, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+    this.nodes[3] = new QuadTreeNode(new Bounds(x + subWidth, y + subHeight, subWidth, subHeight), this.maxObjects, this.maxLevels, this.level + 1);
+
+    this.isLeaf = false;
+
+    // 重新分配现有对象
+    for (var i = 0; i < this.objects.length; i++) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].insert(this.objects[i])) {
+                break;
+            }
+        }
+    }
+    this.objects = [];
+};
+
+QuadTreeNode.prototype.query = function (range) {
+    var result = [];
+
+    if (!this.bounds.intersects(range)) {
+        return result;
+    }
+
+    for (var i = 0; i < this.objects.length; i++) {
+        if (range.contains(this.objects[i].x, this.objects[i].y)) {
+            result.push(this.objects[i]);
+        }
+    }
+
+    if (!this.isLeaf) {
+        for (var i = 0; i < this.nodes.length; i++) {
+            result = result.concat(this.nodes[i].query(range));
+        }
+    }
+
+    return result;
+};
+
+// 从四叉树中移除对象
+QuadTreeNode.prototype.remove = function (object) {
+    if (this.isLeaf) {
+        // 在叶子节点中查找并移除对象
+        for (var i = 0; i < this.objects.length; i++) {
+            if (array[i] === object) {
+                this.objects.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    } else {
+        // 在子节点中查找并移除对象
+        for (var i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i].remove(object)) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+// 通用安全数组操作工具类
+var SafeArrayOperations = {
+    // 安全的批量删除，使用对象引用而不是索引，就地操作避免内存分配
+    safeBatchRemove: function (array, indicesToRemove, onRemove) {
+        if (!array || !Array.isArray(array) || !indicesToRemove || indicesToRemove.length === 0) {
+            return 0;
+        }
+
+        var objectsToRemove = [];
+        var removedCount = 0;
+
+        // 收集需要移除的对象引用
+        for (var i = 0; i < indicesToRemove.length; i++) {
+            var index = indicesToRemove[i];
+            if (index >= 0 && index < array.length) {
+                var obj = array[index];
+                if (obj) {
+                    objectsToRemove.push(obj);
+                }
+            }
+        }
+
+        // 使用就地操作安全移除，避免内存分配和索引问题
+        for (var j = array.length - 1; j >= 0; j--) {
+            var obj = array[j];
+            var shouldRemove = objectsToRemove.indexOf(obj) !== -1;
+
+            if (shouldRemove) {
+                if (typeof onRemove === 'function') {
+                    onRemove(obj);
+                }
+                array.splice(j, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    },
+
+    // 安全的单个元素移除，使用对象引用
+    safeRemove: function (array, objectToRemove) {
+        if (!array || !Array.isArray(array) || !objectToRemove) {
+            return false;
+        }
+
+        var index = array.indexOf(objectToRemove);
+        if (index === -1) {
+            return false;
+        }
+
+        var index = array.indexOf(objectToRemove);
+        if (index === -1) {
+            return false;
+        }
+
+        array.splice(index, 1);
+        return true;
+    },
+
+    // 验证索引是否有效
+    isValidIndex: function (array, index) {
+        return array && Array.isArray(array) && index >= 0 && index < array.length;
+    },
+
+    // 安全删除死亡实体
+    safeRemoveDeadEntities: function (array, isDeadCheck, cleanupCallback) {
+        if (!Array.isArray(array)) {
+            console.warn('[SafeArrayOperations] 数组参数类型错误');
+            return 0;
+        }
+
+        var deadIndices = [];
+
+        // 先收集所有死亡实体的索引
+        for (var i = 0; i < array.length; i++) {
+            if (array[i] && isDeadCheck(array[i])) {
+                deadIndices.push(i);
+            }
+        }
+
+        // 从后往前删除
+        var removedCount = 0;
+        for (var j = deadIndices.length - 1; j >= 0; j--) {
+            var indexToRemove = deadIndices[j];
+            if (indexToRemove >= 0 && indexToRemove < array.length) {
+                if (cleanupCallback) {
+                    cleanupCallback(array[indexToRemove]);
+                }
+                array.splice(indexToRemove, 1);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    }
+};
 
 // ========================================
 // 人物模块 (character.js)
@@ -1718,7 +1928,67 @@ ZombieManager.prototype.getZombieFromPool = function (type) {
     return null;
 };
 
+// 安全的批量删除方法，使用对象引用而不是索引
+ZombieManager.prototype.safeBatchRemoveZombies = function (deadZombies) {
+    if (!deadZombies || deadZombies.length === 0) {
+        return 0;
+    }
 
+    // 使用通用安全数组操作工具
+    var removedCount = SafeArrayOperations.safeBatchRemove(this.zombies, deadZombies, function (zombie) {
+        // 从视距裁剪系统中移除死亡僵尸
+        if (this.gameEngine && this.gameEngine.viewportCulling) {
+            zombie.isDead = true;
+            zombie.quadTreeInserted = false;
+        }
+
+        // 回收到对象池
+        this.recycleZombie(zombie);
+    }.bind(this));
+
+    console.log('[ZombieManager] 安全批量删除完成，移除', removedCount, '个死亡僵尸，剩余僵尸数量:', this.zombies.length);
+    return removedCount;
+};
+
+ZombieManager.prototype.recycleZombie = function (zombie) {
+    if (!zombie || typeof zombie !== 'object') {
+        console.warn('[ZombieManager] 无效的僵尸对象，跳过回收:', zombie);
+        return false;
+    }
+
+    if (this.zombiePool.length >= this.maxPoolSize) {
+        console.log('[ZombieManager] 僵尸对象池已满，跳过回收');
+        return false;
+    }
+
+    try {
+        // 重置僵尸状态
+        zombie.x = 0;
+        zombie.y = 0;
+        zombie.health = 0;
+        zombie.maxHealth = 0;
+        zombie.state = 'wandering';
+        zombie.target = null;
+        zombie.lastAttackTime = 0;
+        zombie.isWalking = false;
+        zombie.walkAnimationFrame = 0;
+        zombie.isDead = false;
+        zombie.isConverted = false;
+        zombie.originalName = null;
+        zombie.quadTreeInserted = false;
+        zombie.renderFailed = false; // 重置渲染失败标记
+        zombie.aiUpdateTimer = 0; // 重置AI更新计时器
+        zombie.lastStateChangeTime = 0; // 重置状态变化时间
+
+        // 添加到对象池
+        this.zombiePool.push(zombie);
+        console.log('[ZombieManager] 僵尸回收成功，当前池大小:', this.zombiePool.length);
+        return true;
+    } catch (error) {
+        console.error('[ZombieManager] 回收僵尸时出错:', error);
+        return false;
+    }
+};
 
 // 为主地图生成僵尸
 ZombieManager.prototype.generateZombiesForMap = function () {
@@ -2353,6 +2623,9 @@ function GameEngine(canvas, ctx) {
                 this.viewportCulling.lastMapWidth = this.mapConfig.width;
                 this.viewportCulling.lastMapHeight = this.mapConfig.height;
                 console.log('[GameEngine] 四叉树延迟初始化完成');
+
+                // 检查四叉树状态
+                this.checkQuadTreeStatus();
             }
         }.bind(this), 100);
 
@@ -2427,7 +2700,7 @@ GameEngine.prototype.getBuildingTypes = function () {
         type: 'restaurant', name: '餐厅', width: 50, height: 40, color: '#e67e22', weight: 4, oneTimeOnly: true
     }, {type: 'house', name: '民房', width: 40, height: 40, color: '#95a5a6', weight: 8},
         {type: 'villa', name: '别墅', width: 70, height: 50, color: '#8e44ad', weight: 4
-        }];
+    }];
 };
 
 GameEngine.prototype.calculateBuildingPosition = function (blockX, blockY) {
@@ -2893,7 +3166,68 @@ GameEngine.prototype.resetJoystick = function () {
 };
 
 
+// 清理无效僵尸的方法
+ZombieManager.prototype.cleanupInvalidZombies = function () {
+    if (!this.zombies || !Array.isArray(this.zombies)) {
+        return 0;
+    }
 
+    var originalLength = this.zombies.length;
+    var removedCount = 0;
+
+    for (var i = this.zombies.length - 1; i >= 0; i--) {
+        var zombie = this.zombies[i];
+
+        // 检查僵尸是否应该被清理
+        var shouldRemove = false;
+
+        if (!zombie || typeof zombie !== 'object') {
+            shouldRemove = true;
+        } else if (zombie.health <= 0 || zombie.isDead) {
+            shouldRemove = true;
+        } else if (zombie.renderFailed) {
+            shouldRemove = true;
+        } else if (typeof zombie.x !== 'number' || typeof zombie.y !== 'number' || isNaN(zombie.x) || isNaN(zombie.y) || !isFinite(zombie.x) || !isFinite(zombie.y)) {
+            shouldRemove = true;
+        }
+
+        if (shouldRemove) {
+            // 回收到对象池
+            if (zombie && typeof zombie === 'object' && zombie.type) {
+                this.recycleZombie(zombie);
+            }
+
+            // 从数组中移除
+            this.zombies.splice(i, 1);
+            removedCount++;
+        }
+    }
+
+    if (removedCount > 0) {
+        console.log('[ZombieManager] 清理了', removedCount, '个无效僵尸，剩余:', this.zombies.length);
+    }
+
+    return removedCount;
+};
+
+// 检查事件绑定状态的方法
+GameEngine.prototype.checkEventBindingStatus = function () {
+    var status = {
+        eventsBound: this.eventsBound, ttAvailable: typeof tt !== 'undefined', eventHandlers: {
+            touchStart: !!this.eventHandlers.touchStart,
+            touchMove: !!this.eventHandlers.touchMove,
+            touchEnd: !!this.eventHandlers.touchEnd
+        }, canvasEvents: {
+            ontouchstart: !!this.canvas.ontouchstart,
+            ontouchmove: !!this.canvas.ontouchmove,
+            ontouchend: !!this.canvas.ontouchend,
+            onclick: !!this.canvas.onclick
+        }
+    };
+
+    console.log('[Input] 事件绑定状态检查:', status);
+    return status;
+};
 
 GameEngine.prototype.updateJoystickDirection = function () {
     try {
@@ -3149,6 +3483,27 @@ GameEngine.prototype.checkCollisionWithBuildings = function (x, y, characterRadi
     return {collision: false, building: null, inDoor: false};
 };
 
+// 新增：检查角色之间的重叠（允许短时间重叠）
+GameEngine.prototype.checkCharacterOverlap = function (char1, char2, allowOverlap = true) {
+    var char1Radius = char1.radius || 18;
+    var char2Radius = char2.radius || 18;
+
+    // 使用距离平方避免开方运算，提高性能
+    var dx = char1.x - char2.x;
+    var dy = char1.y - char2.y;
+    var distanceSquared = dx * dx + dy * dy;
+    var minDistance = char1Radius + char2Radius;
+    var minDistanceSquared = minDistance * minDistance;
+
+    if (allowOverlap) {
+        // 允许重叠身体3分之1的像素
+        var overlapAllowance = Math.min(char1Radius, char2Radius) / 3;
+        var allowedDistanceSquared = (minDistance - overlapAllowance) * (minDistance - overlapAllowance);
+        return distanceSquared >= allowedDistanceSquared;
+    } else {
+        return distanceSquared >= minDistanceSquared;
+    }
+};
 
 
 // 安全获取跟随者索引的辅助方法
@@ -4223,7 +4578,8 @@ GameEngine.prototype.initializeGame = function () {
     this.running = true;
     this.lastTime = Date.now();
 
-
+    // 检查事件绑定状态
+    this.checkEventBindingStatus();
 
     // 强制更新视距裁剪系统，确保玩家可见
     if (this.viewportCulling) {
@@ -4241,6 +4597,11 @@ GameEngine.prototype.initializeGame = function () {
 
         this.updateViewportCulling();
         console.log('[GameEngine] 视距裁剪系统已强制更新');
+
+        // 调试信息：检查四叉树状态
+        if (this.viewportCulling.quadTree) {
+            this.checkQuadTreeStatus();
+        }
     }
 
     // 生成初始伙伴（开局时主人物身边生成8个伙伴）
@@ -4801,6 +5162,194 @@ GameEngine.prototype.forceRecoverFollower = function (follower) {
     follower.lastEmergencyY = follower.y;
 };
 
+// 紧急停止检查：防止游戏卡死
+GameEngine.prototype.checkEmergencyStop = function () {
+    if (!this.lastEmergencyCheck) this.lastEmergencyCheck = Date.now();
+    var timeSinceLastCheck = Date.now() - this.lastEmergencyCheck;
+
+    // 每10秒检查一次
+    if (timeSinceLastCheck > 10000) {
+        // 检查是否有异常情况
+        var hasStuckFollowers = false;
+        var hasInvalidNPCs = false;
+
+        // 检查跟随者状态
+        for (var i = 0; i < this.followers.length; i++) {
+            var follower = this.followers[i];
+            if (follower.isUnstucking && follower.unstuckStartTime) {
+                var unstuckTime = Date.now() - follower.unstuckStartTime;
+                if (unstuckTime > 10000) { // 脱困超过10秒
+                    hasStuckFollowers = true;
+                    console.log('[Emergency] 跟随者', follower.id, '脱困超时，强制恢复');
+                    this.forceRecoverFollower(follower);
+                }
+            }
+        }
+
+        // 检查NPC状态
+        for (var i = 0; i < this.npcs.length; i++) {
+            var npc = this.npcs[i];
+            if (npc.isFollowing || npc.isJoined) {
+                hasInvalidNPCs = true;
+                console.log('[Emergency] 发现已加入团队的NPC，清理:', npc.id);
+                this.npcs.splice(i, 1);
+                i--; // 调整索引
+            }
+        }
+
+        if (hasStuckFollowers || hasInvalidNPCs) {
+            console.log('[Emergency] 检测到异常状态，已清理');
+        }
+
+        this.lastEmergencyCheck = Date.now();
+    }
+};
+
+
+/**
+ * 帮助被卡住的跟随者脱困（改进版）
+ */
+GameEngine.prototype.helpFollowerUnstuck = function (follower) {
+    // 设置脱困状态，避免重复触发
+    if (follower.isUnstucking) return;
+    follower.isUnstucking = true;
+
+    console.log('[Follower] 跟随者', follower.id, '开始脱困，当前位置:', follower.x, follower.y);
+
+    // 首先尝试在玩家附近寻找安全位置
+    var playerRadius = 60; // 减少搜索半径，更安全
+    var angleStep = Math.PI / 8; // 增加搜索精度
+
+    for (var angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        var testX = this.player.x + Math.cos(angle) * playerRadius;
+        var testY = this.player.y + Math.sin(angle) * playerRadius;
+
+        // 确保在边界内
+        testX = Math.max(50, Math.min(this.mapConfig.width - 50, testX));
+        testY = Math.max(50, Math.min(this.mapConfig.height - 50, testY));
+
+        if (this.canMoveToPosition(testX, testY, 15)) {
+            // 找到安全位置，设置脱困目标
+            follower.unstuckTargetX = testX;
+            follower.unstuckTargetY = testY;
+            follower.unstuckStartTime = Date.now();
+            console.log('[Follower] 跟随者', follower.id, '脱困目标位置:', testX, testY);
+            return;
+        }
+    }
+
+    // 如果找不到安全位置，尝试更近的位置
+    var closerRadius = 40;
+    for (var angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        var testX = this.player.x + Math.cos(angle) * closerRadius;
+        var testY = this.player.y + Math.sin(angle) * closerRadius;
+
+        // 确保在边界内
+        testX = Math.max(50, Math.min(this.mapConfig.width - 50, testX));
+        testY = Math.max(50, Math.min(this.mapConfig.height - 50, testY));
+
+        if (this.canMoveToPosition(testX, testY, 15)) {
+            follower.unstuckTargetX = testX;
+            follower.unstuckTargetY = testY;
+            follower.unstuckStartTime = Date.now();
+            console.log('[Follower] 跟随者', follower.id, '脱困目标位置（近距离）:', testX, testY);
+            return;
+        }
+    }
+
+    // 最后尝试直接传送到玩家位置附近
+    var emergencyX = this.player.x + (Math.random() - 0.5) * 20;
+    var emergencyY = this.player.y + (Math.random() - 0.5) * 20;
+
+    // 确保在边界内
+    emergencyX = Math.max(50, Math.min(this.mapConfig.width - 50, emergencyX));
+    emergencyY = Math.max(50, Math.min(this.mapConfig.height - 50, emergencyY));
+
+    follower.unstuckTargetX = emergencyX;
+    follower.unstuckTargetY = emergencyY;
+    follower.unstuckStartTime = Date.now();
+    console.log('[Follower] 跟随者', follower.id, '紧急脱困位置:', emergencyX, emergencyY);
+};
+
+/**
+ * 更平滑的缓动函数：避免抽搐
+ */
+GameEngine.prototype.easeInOutCubic = function (t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+};
+
+
+GameEngine.prototype.executeWanderBehavior = function (npc) {
+    if (!npc.wanderTarget) {
+        var wanderRadius = 50 + Math.random() * 100;
+        var angle = Math.random() * Math.PI * 2;
+        npc.wanderTarget = {
+            x: npc.x + Math.cos(angle) * wanderRadius, y: npc.y + Math.sin(angle) * wanderRadius
+        };
+    }
+
+    var dx = npc.wanderTarget.x - npc.x;
+    var dy = npc.wanderTarget.y - npc.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 5) {
+        var moveSpeed = (npc.personality ? npc.personality.moveSpeed : 1) * 0.5;
+        npc.x += (dx / distance) * moveSpeed;
+        npc.y += (dy / distance) * moveSpeed;
+
+        npc.isWalking = true;
+        npc.direction = this.getDirectionFromDelta(dx, dy);
+    } else {
+        npc.wanderTarget = null;
+        npc.isWalking = false;
+    }
+};
+
+GameEngine.prototype.executeLookAroundBehavior = function (npc) {
+    if (!npc.lookAroundTimer) {
+        npc.lookAroundTimer = 0;
+        npc.lookAroundDirection = 0;
+    }
+
+    npc.lookAroundTimer += 16;
+    if (npc.lookAroundTimer > 500) {
+        npc.lookAroundDirection = (npc.lookAroundDirection + 1) % 4;
+        npc.lookAroundTimer = 0;
+
+        var directions = ['up', 'right', 'down', 'left'];
+        npc.direction = directions[npc.lookAroundDirection];
+    }
+};
+
+GameEngine.prototype.executeStretchBehavior = function (npc) {
+    if (!npc.stretchTimer) {
+        npc.stretchTimer = 0;
+        npc.stretchPhase = 0;
+    }
+
+    npc.stretchTimer += 16;
+    if (npc.stretchTimer > 200) {
+        npc.stretchTimer = 0;
+        npc.stretchPhase = (npc.stretchPhase + 1) % 4;
+
+        var stretchOffset = Math.sin(npc.stretchPhase * Math.PI / 2) * 2;
+        npc.y += stretchOffset;
+    }
+};
+
+GameEngine.prototype.executeCheckEquipmentBehavior = function (npc) {
+    if (!npc.checkEquipmentTimer) {
+        npc.checkEquipmentTimer = 0;
+    }
+
+    npc.checkEquipmentTimer += 16;
+    if (npc.checkEquipmentTimer > 300) {
+        npc.checkEquipmentTimer = 0;
+
+        var directions = ['up', 'right', 'down', 'left'];
+        npc.direction = directions[Math.floor(Math.random() * directions.length)];
+    }
+};
 
 
 
@@ -5818,8 +6367,90 @@ GameEngine.prototype.renderZombieEntity = function (zombie) {
     }
 };
 
+GameEngine.prototype.renderBuildingEntity = function (building) {
+    // 渲染单个建筑，避免重复渲染
+    if (building && typeof building.x === 'number' && typeof building.y === 'number') {
+        this.renderSingleBuilding(building);
+    }
+};
 
+// 渲染单个建筑
+GameEngine.prototype.renderSingleBuilding = function (building) {
+    if (!building || typeof building.x !== 'number' || typeof building.y !== 'number') {
+        return;
+    }
 
+    // 检查建筑是否在视口内
+    var viewWidth = this.canvas.width / this.camera.zoom;
+    var viewHeight = this.canvas.height / this.camera.zoom;
+    var viewLeft = this.camera.x;
+    var viewRight = this.camera.x + viewWidth;
+    var viewTop = this.camera.y;
+    var viewBottom = this.camera.y + viewHeight;
+
+    if (building.x + building.width < viewLeft || building.x > viewRight || building.y + building.height < viewTop || building.y > viewBottom) {
+        return; // 不在视口内，不渲染
+    }
+
+    // 渲染建筑主体
+    this.ctx.fillStyle = building.explored ? building.color : this.lightenColor(building.color, 0.3);
+    this.ctx.fillRect(building.x, building.y, building.width, building.height);
+
+    // 渲染门
+    var doorWidth = Math.max(30, Math.floor(building.width / 8));
+    var doorHeight = Math.max(40, Math.floor(building.height / 6));
+    var doorX = building.x + (building.width - doorWidth) / 2;
+    var doorY = building.y + building.height - doorHeight - 5;
+
+    this.ctx.fillStyle = building.explored ? 'rgba(139, 69, 19, 0.9)' : 'rgba(139, 69, 19, 0.6)';
+    this.ctx.fillRect(doorX, doorY, doorWidth, doorHeight);
+
+    // 高亮当前靠近的建筑
+    if (this.nearBuilding && this.nearBuilding.id === building.id) {
+        this.ctx.save();
+        this.ctx.shadowColor = '#3498db';
+        this.ctx.shadowBlur = 15;
+        this.ctx.strokeStyle = '#3498db';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(doorX - 2, doorY - 2, doorWidth + 4, doorHeight + 4);
+        this.ctx.restore();
+    }
+
+    // 建筑边框
+    this.ctx.strokeStyle = '#2c3e50';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(building.x, building.y, building.width, building.height);
+
+    // 未探索建筑的黄色虚线边框
+    if (!building.explored) {
+        this.ctx.strokeStyle = '#f1c40f';
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([5, 5]);
+        this.ctx.strokeRect(building.x - 3, building.y - 3, building.width + 6, building.height + 6);
+        this.ctx.setLineDash([]);
+    }
+
+    // 建筑名称
+    var fontSize = Math.max(20, Math.floor(building.width / 12));
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold ' + fontSize + 'px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.strokeStyle = '#000000';
+    this.ctx.lineWidth = Math.max(3, Math.floor(fontSize / 6));
+
+    var textX = building.x + building.width / 2;
+    var textY = building.y + building.height / 3;
+
+    this.ctx.strokeText(building.name, textX, textY);
+    this.ctx.fillText(building.name, textX, textY);
+
+    // 重置文本对齐
+    this.ctx.textAlign = 'left';
+};
+
+GameEngine.prototype.renderDecorationEntity = function (decoration) {
+    // 装饰物渲染逻辑
+};
 
 // 更新视距裁剪系统
 GameEngine.prototype.updateViewportCulling = function () {
@@ -6045,7 +6676,51 @@ GameEngine.prototype.generateInitialPartners = function () {
     }
 };
 
+// 检查四叉树状态
+GameEngine.prototype.checkQuadTreeStatus = function () {
+    try {
+        console.log('=== 四叉树状态检查 ===');
 
+        if (!this.viewportCulling) {
+            console.error('[Check] ViewportCullingManager 不存在');
+            return;
+        }
+
+        if (!this.viewportCulling.quadTree) {
+            console.error('[Check] 四叉树不存在');
+            return;
+        }
+
+        // 检查四叉树基本信息
+        console.log('[Check] 四叉树基本信息:', {
+            bounds: this.viewportCulling.quadTree.bounds,
+            maxObjects: this.viewportCulling.quadTree.maxObjects,
+            maxLevels: this.viewportCulling.quadTree.maxLevels,
+            level: this.viewportCulling.quadTree.level,
+            isLeaf: this.viewportCulling.quadTree.isLeaf
+        });
+
+        // 检查四叉树中的对象数量
+        var totalObjects = this.countQuadTreeObjects(this.viewportCulling.quadTree);
+        console.log('[Check] 四叉树对象总数:', totalObjects);
+
+        // 检查实体插入状态
+        console.log('[Check] 实体插入状态:', {
+            buildings: this.buildings ? this.buildings.length : 'N/A',
+            buildingsWithType: this.buildings ? this.buildings.filter(b => b.type === 'building').length : 'N/A',
+            buildingsInserted: this.buildings ? this.buildings.filter(b => b.quadTreeInserted).length : 'N/A',
+            player: this.player ? {x: this.player.x, y: this.player.y, type: this.player.type} : 'N/A'
+        });
+
+        // 测试四叉树查询
+        this.testQuadTreeQuery();
+
+        console.log('=== 四叉树状态检查完成 ===');
+
+    } catch (error) {
+        console.error('[Check] 检查四叉树状态时出错:', error);
+    }
+};
 
 // 递归计算四叉树中的对象总数
 GameEngine.prototype.countQuadTreeObjects = function (node) {
@@ -6449,6 +7124,8 @@ GameEngine.prototype.updatePartnerSystem = function () {
     // 检查已加载NPC的碰撞（避免重复处理）
     this.checkLoadedNPCCollision();
 
+    // 紧急停止检查：防止游戏卡死
+    this.checkEmergencyStop();
 
     // 调试信息：显示NPC状态
     if (this.debugCounter === undefined) this.debugCounter = 0;
@@ -6710,6 +7387,84 @@ GameEngine.prototype.markStaticEntities = function () {
     }
 };
 
+// 清理测试伙伴（简化版）
+GameEngine.prototype.cleanupTestPartnersDirectly = function () {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        return;
+    }
+
+    var removedCount = 0;
+
+    for (var i = this.followers.length - 1; i >= 0; i--) {
+        var follower = this.followers[i];
+        if (follower && follower.isTestPartner) {
+            this.followers.splice(i, 1);
+            removedCount++;
+        }
+    }
+
+    if (removedCount > 0) {
+        console.log('[TestMode] 🧪 直接清理测试伙伴完成，移除数量:', removedCount);
+    }
+};
+
+
+// 强制渲染测试伙伴（传统渲染回退方案）
+GameEngine.prototype.renderTestPartnersDirectly = function () {
+    if (!this.followers || !Array.isArray(this.followers)) {
+        return;
+    }
+
+    var testPartnersCount = 0;
+
+    for (var i = 0; i < this.followers.length; i++) {
+        var follower = this.followers[i];
+        if (follower && follower.isTestPartner) {
+            testPartnersCount++;
+            // 使用您现有的跟随者渲染方法
+            this.renderSingleFollower(follower, i);
+        }
+    }
+
+    if (testPartnersCount > 0) {
+        console.log('[TestMode] 🧪 传统渲染系统渲染了', testPartnersCount, '个真正测试伙伴');
+    }
+};
+
+
+// 检查四叉树状态（调试用）
+GameEngine.prototype.checkQuadTreeStatus = function () {
+    if (!this.viewportCulling || !this.viewportCulling.quadTree) {
+        console.log('[QuadTree] 四叉树未初始化');
+        return;
+    }
+
+    try {
+        // 使用全图查询获取四叉树中的所有对象
+        var fullRange = new Bounds(0, 0, this.mapConfig.width, this.mapConfig.height);
+        var allObjects = this.viewportCulling.quadTree.query(fullRange);
+        var objectTypes = {};
+
+        // 统计各类型对象的数量
+        for (var i = 0; i < allObjects.length; i++) {
+            var obj = allObjects[i];
+            if (obj && obj.type) {
+                objectTypes[obj.type] = (objectTypes[obj.type] || 0) + 1;
+            } else {
+                objectTypes['unknown'] = (objectTypes['unknown'] || 1) + 1;
+            }
+        }
+
+        console.log('[QuadTree] 四叉树状态检查:', {
+            totalObjects: allObjects.length,
+            objectTypes: objectTypes,
+            quadTreeInitialized: this.viewportCulling.quadTreeInitialized
+        });
+
+    } catch (error) {
+        console.error('[QuadTree] 检查四叉树状态时出错:', error);
+    }
+};
 
 
 // ========================================
@@ -7636,6 +8391,11 @@ function initGame() {
                 }
             }
 
+            // 内存泄漏检测
+            gameEngine.startMemoryLeakDetection();
+
+            // 性能监控
+            gameEngine.startPerformanceMonitoring();
         }, 1000);
 
     } catch (error) {
