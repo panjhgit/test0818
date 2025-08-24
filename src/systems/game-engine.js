@@ -49,6 +49,10 @@ function GameEngine(canvas, ctx) {
     // 初始化资源对象池
     this.initializeResourcePool();
 
+    // 初始化摄像机尺寸
+    this.camera.width = this.canvas.width;
+    this.camera.height = this.canvas.height;
+
     // 游戏数据
     this.gameData = {
         survivalDays: 1,
@@ -85,6 +89,10 @@ function GameEngine(canvas, ctx) {
 
     // 调试信息：显示建筑数量
     console.log('[Map] 地图初始化完成，建筑数量:', this.buildings.length);
+
+    // 初始化跟随者数组
+    this.companions = [];
+    this.followers = [];
 
     this.player = {
         x: 1000, // 左下角附近
@@ -760,5 +768,98 @@ GameEngine.prototype.initializeZombies = function() {
 GameEngine.prototype.checkBuildingCollisions = function() {
     // 建筑物碰撞检测
     // 这里可以添加建筑物交互逻辑
+};
+
+// 初始化建筑物方法由map-system.js提供
+
+// 初始化跟随者对象池
+GameEngine.prototype.initializeFollowerPool = function() {
+    // 创建一些测试跟随者
+    for (var i = 0; i < 3; i++) {
+        var follower = {
+            id: 'follower_' + i,
+            name: '伙伴' + (i + 1),
+            x: this.player.x + (Math.random() - 0.5) * 100,
+            y: this.player.y + (Math.random() - 0.5) * 100,
+            health: 30,
+            maxHealth: 30,
+            isDead: false,
+            type: 'follower',
+            isTestPartner: true
+        };
+        this.followers.push(follower);
+        this.companions.push(follower);
+    }
+};
+
+// 初始化资源对象池
+GameEngine.prototype.initializeResourcePool = function() {
+    // 这里可以初始化资源对象池
+    // 暂时为空，可以根据需要添加
+};
+
+// 验证跟随者数组
+GameEngine.prototype.validateFollowersArray = function() {
+    if (!Array.isArray(this.followers)) {
+        this.followers = [];
+        console.warn('[GameEngine] 跟随者数组初始化失败，重新创建');
+    }
+    if (!Array.isArray(this.companions)) {
+        this.companions = [];
+        console.warn('[GameEngine] 伙伴数组初始化失败，重新创建');
+    }
+};
+
+// 检查玩家是否可以移动到指定位置
+GameEngine.prototype.canPlayerMoveTo = function(x, y) {
+    // 检查是否超出地图边界
+    if (x < 0 || x > this.mapConfig.width || y < 0 || y > this.mapConfig.height) {
+        return false;
+    }
+    
+    // 检查是否与建筑物碰撞
+    for (var i = 0; i < this.buildings.length; i++) {
+        var building = this.buildings[i];
+        if (x >= building.x && x <= building.x + building.width &&
+            y >= building.y && y <= building.y + building.height) {
+            return false;
+        }
+    }
+    
+    return true;
+};
+
+// 开始内存泄漏检测
+GameEngine.prototype.startMemoryLeakDetection = function() {
+    // 简单的内存使用监控
+    if (typeof performance !== 'undefined' && performance.memory) {
+        setInterval(function() {
+            var memory = performance.memory;
+            if (memory.usedJSHeapSize > 50 * 1024 * 1024) { // 50MB
+                console.warn('[Memory] 内存使用过高:', Math.round(memory.usedJSHeapSize / 1024 / 1024) + 'MB');
+            }
+        }, 10000); // 每10秒检查一次
+    }
+};
+
+// 开始性能监控
+GameEngine.prototype.startPerformanceMonitoring = function() {
+    var frameCount = 0;
+    var lastTime = Date.now();
+    
+    setInterval(function() {
+        var currentTime = Date.now();
+        var fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+        console.log('[Performance] FPS:', fps);
+        frameCount = 0;
+        lastTime = currentTime;
+    }, 1000);
+    
+    // 在游戏循环中增加帧数计数
+    var originalGameLoop = this.gameLoop;
+    this.gameLoop = function() {
+        frameCount++;
+        originalGameLoop.call(this);
+    };
 };
 
