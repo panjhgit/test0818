@@ -7636,11 +7636,6 @@ function initGame() {
                 }
             }
 
-            // 内存泄漏检测
-            gameEngine.startMemoryLeakDetection();
-
-            // 性能监控
-            gameEngine.startPerformanceMonitoring();
         }, 1000);
 
     } catch (error) {

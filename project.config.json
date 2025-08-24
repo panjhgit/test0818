@@ -1,9 +1,9 @@
 {
   "setting": {
     "urlCheck": true,
-    "es6": false,
+    "es6": true,
     "postcss": true,
-    "minified": false,
+    "minified": true,
     "newFeature": true,
     "autoCompile": true,
     "compileHotReLoad": true,
@@ -11,63 +11,5 @@
   },
   "appid": "testAppId",
   "projectname": "test0818",
-  "douyinProjectType": "native",
-  "packOptions": {
-    "ignore": [
-      {
-        "type": "folder",
-        "value": "src"
-      },
-      {
-        "type": "folder",
-        "value": "game-modules"
-      },
-      {
-        "type": "folder",
-        "value": "build"
-      },
-      {
-        "type": "file",
-        "value": "游戏介绍.txt"
-      },
-      {
-        "type": "file",
-        "value": "game_backup.js"
-      },
-      {
-        "type": "file",
-        "value": "game_original.js"
-      },
-      {
-        "type": "file",
-        "value": "game_slim.js"
-      },
-      {
-        "type": "file",
-        "value": "build.js"
-      },
-      {
-        "type": "file",
-        "value": "build.sh"
-      },
-      {
-        "type": "file",
-        "value": "build-game.js"
-      },
-      {
-        "type": "file",
-        "value": "MODULAR_STRUCTURE.md"
-      },
-      {
-        "type": "file",
-        "value": "README.md"
-      }
-    ]
-  },
-  "condition": {
-    "game": {
-      "current": -1,
-      "list": []
-    }
-  }
+  "douyinProjectType": "native"
 }
